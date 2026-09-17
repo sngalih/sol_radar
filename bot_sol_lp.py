@@ -42,7 +42,7 @@ ENV_FILE = BASE_DIR / ".env"
 # GMGN API Setup with CookieJar to maintain session & prevent 429
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
-GMGN_KEY = "gmgn_2d9f7ba605cabf03adeb3276e42427d4"
+GMGN_KEY = "gmgn_dbf41c754819342e147a702c1482dc0b"
 
 QUOTE_MINTS = {
     "So11111111111111111111111111111111111111112",  # SOL
@@ -54,6 +54,7 @@ DEFAULT_CONFIG = {
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "data_source": "GMGN",      # "GMGN" (default) atau "METEORA"
+    "gmgn_api_key": GMGN_KEY,   # GMGN Open API Key
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
     "min_liq": 20000,           # TVL pool min $20k
@@ -143,10 +144,14 @@ def get_config() -> dict[str, Any]:
         conf["max_1h"] = float(file_env["MAX_1H"])
     if "MAX_ER" in file_env:
         conf["max_er"] = float(file_env["MAX_ER"])
+    if "GMGN_API_KEY" in file_env:
+        conf["gmgn_api_key"] = file_env["GMGN_API_KEY"].strip()
 
     # 4. Timpa dengan Environment Variables sistem operasi
     conf["telegram_bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", conf["telegram_bot_token"])
     conf["telegram_chat_id"] = os.getenv("TELEGRAM_CHAT_ID", conf["telegram_chat_id"])
+    if os.getenv("GMGN_API_KEY"):
+        conf["gmgn_api_key"] = os.environ["GMGN_API_KEY"].strip()
     if os.getenv("DATA_SOURCE"):
         conf["data_source"] = os.environ["DATA_SOURCE"].upper()
     if os.getenv("SCAN_INTERVAL"):
@@ -165,8 +170,9 @@ def get_config() -> dict[str, Any]:
 
 # ================= DATA FETCHING ENGINES =================
 
-def fetch_gmgn_sol_tokens(limit: int = 50) -> list[dict]:
+def fetch_gmgn_sol_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
     """Mengambil data token Solana langsung dari GMGN Open API (1 request per scan)."""
+    key = api_key.strip() if api_key else GMGN_KEY
     qs = urllib.parse.urlencode({
         "chain": "sol",
         "interval": "1h",
@@ -180,7 +186,7 @@ def fetch_gmgn_sol_tokens(limit: int = 50) -> list[dict]:
     req = urllib.request.Request(
         url,
         headers={
-            "X-APIKEY": GMGN_KEY,
+            "X-APIKEY": key,
             "Accept": "application/json, text/plain, */*",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
@@ -546,7 +552,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False) -> None:
     scored_tokens: list[dict[str, Any]] = []
 
     if source == "GMGN":
-        raw_gmgn = fetch_gmgn_sol_tokens(limit=50)
+        raw_gmgn = fetch_gmgn_sol_tokens(api_key=conf.get("gmgn_api_key", GMGN_KEY), limit=50)
         if raw_gmgn:
             scored_tokens = [score_gmgn_token(r, conf) for r in raw_gmgn]
             print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(scored_tokens)} token dari GMGN Solana.")
