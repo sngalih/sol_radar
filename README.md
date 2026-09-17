@@ -1,17 +1,25 @@
-# 🪓 Chop Radar Solana — Telegram LP Reporter Bot (GMGN Edition)
+# 🪓 Chop Radar — Telegram LP Reporter Bot (Dual-Chain GMGN Edition)
 
-Bot Telegram otomatis yang memindai token Solana dari **GMGN Open API** setiap **5 menit** dan mengirimkan laporan terstruktur untuk peluang **Chop Sideways LP Farming**. Logika perhitungan 100% identik dengan **Dashboard V5**!
+Bot Telegram otomatis yang memindai meme coin dan pool LP di **Solana (SOL)** dan **Robinhood (RH)** dari **GMGN Open API** setiap **5 menit** dan mengirimkan laporan terstruktur untuk peluang **Chop Sideways LP Farming**. Logika perhitungan 100% identik dengan **Dashboard V5**!
 
 ---
 
 ## ⚡ Keunggulan Bot Ini
 
-1. **Sumber Data GMGN Solana**: Mengambil peringkat token Solana langsung dari GMGN Open API, identik dengan Dashboard V5 di laptop.
-2. **Efisien & Anti-429**: Hanya memerlukan 1 request per pemindaian (setiap 5 menit), aman dari rate limit.
-3. **Automatic Meteora Fallback**: Jika GMGN sempat tidak merespons, bot secara otomatis beralih ke Meteora DLMM API agar tidak pernah gagal mengirim laporan.
-4. **Direct GMGN Link**: Nama token langsung berupa link menuju halaman chart & swap di `gmgn.ai`.
+1. **Dual-Chain Multi-Radar**: Memindai token **Solana (🟠)** dan **Robinhood (🟢)** secara terpadu atau spesifik per rantai.
+2. **Sumber Data GMGN Teruji**: Mengambil data ranking likuiditas dan volume langsung dari GMGN Open API resmi dengan session cookie anti-rate limit.
+3. **Automatic Meteora Fallback**: Jika GMGN Solana sempat terganggu, bot otomatis beralih sementara ke Meteora DLMM API.
+4. **Direct GMGN / Dex Link**: Nama token langsung berupa link menuju chart & swap di `gmgn.ai` (atau DEX terkait).
 5. **Deduplikasi Cerdas**: Satu token hanya tampil 1 kali (pool/kandidat terbaik).
-6. **Perintah Interaktif**: Kirim perintah `/scan` di chat Telegram untuk memicu pemindaian instan kapan saja.
+6. **Lencana Visual**:
+   - 🟠 **Lingkaran Orange**: Token Solana (SOL)
+   - 🟢 **Lingkaran Hijau**: Token Robinhood (RH)
+7. **Perintah Interaktif Lengkap**:
+   - `/scan` - Pemindaian instan sesuai mode aktif
+   - `/scan sol` - Quick scan khusus Solana 🟠
+   - `/scan rh` - Quick scan khusus Robinhood 🟢
+   - `/scan both` - Quick scan kedua rantai 🟠🟢
+   - `/chain <both|sol|rh>` - Mengganti mode pemantauan otomatis langsung dari chat Telegram!
 
 ---
 
@@ -20,18 +28,20 @@ Bot Telegram otomatis yang memindai token Solana dari **GMGN Open API** setiap *
 Pesan dikirim otomatis tiap 5 menit dengan format yang rapi dan terstruktur:
 
 ```text
-🚀 CHOP RADAR SOLANA (GMGN)
-⏱ 17/09/2026 13:35 · Tiap 5 Menit
+🚀 CHOP RADAR (SOL & ROBINHOOD)
+⏱ 17/09/2026 14:02 · Tiap 5 Menit
+🏷 🟠 Solana │ 🟢 Robinhood
 ━━━━━━━━━━━━━━━━━━━━
 🟢 SIAP LP (Fee ≥ $3/h & MC ≥ $500k)
-• WISH ➔ $5.80/h │ MC $579k │ ER 0.7
+• 🟢 musegram ➔ $4.20/h │ MC $520k │ ER 3.2
+• 🟠 WISH ➔ $3.18/h │ MC $605k │ ER 14.8
 ━━━━━━━━━━━━━━━━━━━━
 📡 ABSORPTION RADAR (MC ≥ $500k)
-• TACZ ➔ $2.91/h │ MC $1.77M │ 🎯 Absorption (Sweet Spot)
-• baton ➔ $0.46/h │ MC $3.29M │ 🎯 Absorption (Sweet Spot)
-• LEVERHEDGE ➔ $0.59/h │ MC $1.98M │ 🎯 Absorption (Sweet Spot)
+• 🟠 PAID ➔ $0.66/h │ MC $22.0M │ 🎯 Chopping Sideways
+• 🟢 GOOGL ➔ $0.27/h │ MC $5.49M │ 🎯 Chopping Sideways
+• 🟠 wifout ➔ $2.58/h │ MC $4.50M │ 🎯 Ugly Reaccumulation
 ━━━━━━━━━━━━━━━━━━━━
-💡 Tap nama token untuk langsung membuka pool di Meteora DLMM
+💡 Tap nama token untuk langsung membuka chart & swap di GMGN
 ```
 
 - **Deduplikasi Cerdas**: Satu token hanya tampil **1 pool DLMM terbaik** (tidak ada lagi koin ganda seperti `PAID` muncul berulang).

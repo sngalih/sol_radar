@@ -54,12 +54,13 @@ DEFAULT_CONFIG = {
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "data_source": "GMGN",      # "GMGN" (default) atau "METEORA"
+    "chain_mode": "BOTH",       # "BOTH" (default: SOL + RH), "SOL", atau "RH"
     "gmgn_api_key": GMGN_KEY,   # GMGN Open API Key
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
     "min_liq": 20000,           # TVL pool min $20k
     "min_mcap": 500000.0,       # Market cap minimal $500k
-    "max_mcap": 500000000.0,    # Filter token raksasa / native SOL ($500M)
+    "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
     "min_fee_siap_lp": 3.0,     # Hanya tampilkan Siap LP jika fee/hour >= $3.00
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
@@ -144,12 +145,20 @@ def get_config() -> dict[str, Any]:
         conf["max_1h"] = float(file_env["MAX_1H"])
     if "MAX_ER" in file_env:
         conf["max_er"] = float(file_env["MAX_ER"])
+    if "CHAIN_MODE" in file_env:
+        conf["chain_mode"] = file_env["CHAIN_MODE"].upper()
+    elif "CHAIN" in file_env:
+        conf["chain_mode"] = file_env["CHAIN"].upper()
     if "GMGN_API_KEY" in file_env:
         conf["gmgn_api_key"] = file_env["GMGN_API_KEY"].strip()
 
     # 4. Timpa dengan Environment Variables sistem operasi
     conf["telegram_bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", conf["telegram_bot_token"])
     conf["telegram_chat_id"] = os.getenv("TELEGRAM_CHAT_ID", conf["telegram_chat_id"])
+    if os.getenv("CHAIN_MODE"):
+        conf["chain_mode"] = os.environ["CHAIN_MODE"].upper()
+    elif os.getenv("CHAIN"):
+        conf["chain_mode"] = os.environ["CHAIN"].upper()
     if os.getenv("GMGN_API_KEY"):
         conf["gmgn_api_key"] = os.environ["GMGN_API_KEY"].strip()
     if os.getenv("DATA_SOURCE"):
@@ -170,11 +179,13 @@ def get_config() -> dict[str, Any]:
 
 # ================= DATA FETCHING ENGINES =================
 
-def fetch_gmgn_sol_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
-    """Mengambil data token Solana langsung dari GMGN Open API (1 request per scan)."""
+def fetch_gmgn_tokens(chain: str = "sol", api_key: str = "", limit: int = 50) -> list[dict]:
+    """Mengambil data token dari GMGN Open API (chain: 'sol' atau 'robinhood')."""
     key = api_key.strip() if api_key else GMGN_KEY
+    api_chain = "robinhood" if chain.lower() in ("rh", "robinhood") else "sol"
+    chain_tag = "RH" if api_chain == "robinhood" else "SOL"
     qs = urllib.parse.urlencode({
-        "chain": "sol",
+        "chain": api_chain,
         "interval": "1h",
         "limit": str(limit),
         "order_by": "volume",
@@ -199,27 +210,42 @@ def fetch_gmgn_sol_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
             with OPENER.open(req, timeout=22) as res:
                 data = json.loads(res.read().decode())
                 d1 = data.get("data") or data
+                rows = []
                 if isinstance(d1, dict):
                     d2 = d1.get("data") or d1
                     if isinstance(d2, dict):
-                        return d2.get("rank") or []
-                    if isinstance(d2, list):
-                        return d2
+                        rows = d2.get("rank") or []
+                    elif isinstance(d2, list):
+                        rows = d2
                 elif isinstance(d1, list):
-                    return d1
+                    rows = d1
+                if rows:
+                    for r in rows:
+                        r["chain"] = chain_tag
+                    return rows
             return []
         except urllib.error.HTTPError as err:
             if err.code == 429 and attempt < 2:
                 backoff = 4.0 * (attempt + 1)
-                print(f"[GMGN] 429 Rate Limit — jeda {backoff}s lalu retry (percobaan {attempt + 1}/2)...", file=sys.stderr)
+                print(f"[GMGN] 429 Rate Limit ({chain_tag}) — jeda {backoff}s lalu retry (percobaan {attempt + 1}/2)...", file=sys.stderr)
                 time.sleep(backoff)
                 continue
-            print(f"[GMGN] HTTP Error {err.code}: {err.reason}", file=sys.stderr)
+            print(f"[GMGN] HTTP Error {err.code} ({chain_tag}): {err.reason}", file=sys.stderr)
             break
         except Exception as e:
-            print(f"[GMGN] Fetch Error: {e}", file=sys.stderr)
+            print(f"[GMGN] Fetch Error ({chain_tag}): {e}", file=sys.stderr)
             break
     return []
+
+
+def fetch_gmgn_sol_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
+    """Alias helper untuk pemindaian khusus Solana."""
+    return fetch_gmgn_tokens(chain="sol", api_key=api_key, limit=limit)
+
+
+def fetch_gmgn_rh_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
+    """Alias helper untuk pemindaian khusus Robinhood."""
+    return fetch_gmgn_tokens(chain="robinhood", api_key=api_key, limit=limit)
 
 
 def fetch_meteora_dlmm_pools(limit: int = 50, min_tvl: int = 15000) -> list[dict]:
@@ -383,13 +409,19 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         and not is_honeypot
     )
 
-    gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
-    dex_url = f"https://dexscreener.com/solana/{addr}"
+    chain = str(row.get("chain") or "SOL").upper()
+    if chain == "RH":
+        gmgn_url = f"https://gmgn.ai/robinhood/token/{addr}"
+        dex_url = f"https://fomo.family/token/{addr}"
+    else:
+        gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
+        dex_url = f"https://dexscreener.com/solana/{addr}"
 
     return {
         "symbol": symbol,
         "name": name,
         "address": addr,
+        "chain": chain,
         "price": price,
         "liq": liq,
         "vol": vol,
@@ -501,12 +533,22 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     top_limit = conf.get("top_n_display", 12)
 
+    chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
+    if chain_mode == "BOTH":
+        title = "CHOP RADAR (SOL & ROBINHOOD)"
+    elif chain_mode == "RH":
+        title = f"CHOP RADAR ROBINHOOD ({source_name.upper()})"
+    else:
+        title = f"CHOP RADAR SOLANA ({source_name.upper()})"
+
     lines = [
-        f"🚀 <b>CHOP RADAR SOLANA ({source_name.upper()})</b>",
+        f"🚀 <b>{title}</b>",
         f"⏱ <i>{now_str} · Tiap {conf['interval_sec'] // 60} Menit</i>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"🟢 <b>SIAP LP (Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</b>",
     ]
+    if chain_mode == "BOTH":
+        lines.append("🏷 🟠 <i>Solana</i> │ 🟢 <i>Robinhood</i>")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"🟢 <b>SIAP LP (Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</b>")
 
     if siap_lp:
         for t in siap_lp[:top_limit]:
@@ -514,7 +556,8 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             fee_str = f"<b>${t['fee_hour']:.2f}/h</b>"
             mcap_str = f"MC {_usd(t['mcap'])}"
             er_str = f"ER {t['er']:.1f}"
-            lines.append(f"• {sym_link} ➔ {fee_str} │ {mcap_str} │ {er_str}")
+            badge = "🟢" if str(t.get("chain", "SOL")).upper() == "RH" else "🟠"
+            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {er_str}")
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
     else:
@@ -529,7 +572,8 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             fee_str = f"${t['fee_hour']:.2f}/h"
             mcap_str = f"MC {_usd(t['mcap'])}"
             status = f"🎯 {t['status_label']}"
-            lines.append(f"• {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
+            badge = "🟢" if str(t.get("chain", "SOL")).upper() == "RH" else "🟠"
+            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
@@ -543,51 +587,77 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
 
 # ================= SCAN ROUTINE =================
 
-def run_single_scan(conf: dict[str, Any], dry_run: bool = False) -> None:
+def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain: str = "") -> None:
     """Melakukan 1 siklus scan, memformat pesan, dan mengirim ke Telegram."""
     t0 = time.time()
     source = conf.get("data_source", "GMGN").upper()
-    print(f"[{time.strftime('%H:%M:%S')}] Memulai scan Solana via {source}...")
+    chain_mode = (override_chain or conf.get("chain_mode", "BOTH")).upper()
+
+    scan_conf = dict(conf)
+    scan_conf["chain_mode"] = chain_mode
+
+    print(f"[{time.strftime('%H:%M:%S')}] Memulai scan via {source} (Chain: {chain_mode})...")
 
     scored_tokens: list[dict[str, Any]] = []
 
     if source == "GMGN":
-        raw_gmgn = fetch_gmgn_sol_tokens(api_key=conf.get("gmgn_api_key", GMGN_KEY), limit=50)
-        if raw_gmgn:
-            scored_tokens = [score_gmgn_token(r, conf) for r in raw_gmgn]
-            print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(scored_tokens)} token dari GMGN Solana.")
-        else:
-            print(f"[{time.strftime('%H:%M:%S')}] GMGN tidak merespons, beralih ke Meteora Fallback...")
-            # Fallback ke Meteora DLMM
-            source = "METEORA (Fallback)"
-            pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(conf["min_liq"]))
-            meme_addrs = [
-                (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
-                for p in pools_raw
-            ]
-            dex_data = fetch_dexscreener_batch(meme_addrs)
-            for p in pools_raw:
-                tx = (p.get("token_x") or {}).get("address", "")
-                ty = (p.get("token_y") or {}).get("address", "")
-                m_addr = tx if tx not in QUOTE_MINTS else ty
-                d = dex_data.get(m_addr, {})
-                t_score = score_gmgn_token({
-                    "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
-                    "name": p.get("name", ""),
-                    "address": m_addr,
-                    "price": d.get("priceUsd") or 0.0,
-                    "liquidity": float(p.get("tvl") or 0.0),
-                    "volume": float(p.get("volume", {}).get("1h") or 0.0),
-                    "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
-                    "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
-                    "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
-                    "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
-                    "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
-                }, conf)
-                t_score["url"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
-                scored_tokens.append(t_score)
+        api_key = conf.get("gmgn_api_key", GMGN_KEY)
+
+        # 1. Fetch Solana (jika mode BOTH atau SOL)
+        if chain_mode in ("BOTH", "SOL"):
+            raw_sol = fetch_gmgn_tokens("sol", api_key=api_key, limit=50)
+            if raw_sol:
+                for r in raw_sol:
+                    r["chain"] = "SOL"
+                    scored_tokens.append(score_gmgn_token(r, conf))
+                print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
+            else:
+                print(f"[{time.strftime('%H:%M:%S')}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
+                try:
+                    pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(conf["min_liq"]))
+                    meme_addrs = [
+                        (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
+                        for p in pools_raw
+                    ]
+                    dex_data = fetch_dexscreener_batch(meme_addrs)
+                    for p in pools_raw:
+                        tx = (p.get("token_x") or {}).get("address", "")
+                        ty = (p.get("token_y") or {}).get("address", "")
+                        m_addr = tx if tx not in QUOTE_MINTS else ty
+                        d = dex_data.get(m_addr, {})
+                        t_score = score_gmgn_token({
+                            "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
+                            "name": p.get("name", ""),
+                            "address": m_addr,
+                            "chain": "SOL",
+                            "price": d.get("priceUsd") or 0.0,
+                            "liquidity": float(p.get("tvl") or 0.0),
+                            "volume": float(p.get("volume", {}).get("1h") or 0.0),
+                            "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
+                            "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
+                            "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
+                            "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
+                            "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
+                        }, conf)
+                        t_score["url"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                        scored_tokens.append(t_score)
+                except Exception as e:
+                    print(f"[Meteora Fallback Error]: {e}", file=sys.stderr)
+
+        # 2. Fetch Robinhood (jika mode BOTH atau RH)
+        if chain_mode in ("BOTH", "RH"):
+            if chain_mode == "BOTH":
+                time.sleep(1.5)  # Jeda aman anti rate-limit antar chain
+            raw_rh = fetch_gmgn_tokens("robinhood", api_key=api_key, limit=50)
+            if raw_rh:
+                for r in raw_rh:
+                    r["chain"] = "RH"
+                    scored_tokens.append(score_gmgn_token(r, conf))
+                print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_rh)} token dari GMGN Robinhood.")
+            else:
+                print(f"[{time.strftime('%H:%M:%S')}] GMGN Robinhood tidak merespons atau kosong.")
     else:
-        # User explicitly configured METEORA
+        # User explicitly configured METEORA (Solana only)
         pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(conf["min_liq"]))
         meme_addrs = [
             (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
@@ -603,6 +673,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False) -> None:
                 "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
                 "name": p.get("name", ""),
                 "address": m_addr,
+                "chain": "SOL",
                 "price": d.get("priceUsd") or 0.0,
                 "liquidity": float(p.get("tvl") or 0.0),
                 "volume": float(p.get("volume", {}).get("1h") or 0.0),
@@ -616,14 +687,16 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False) -> None:
             scored_tokens.append(t_score)
 
     elapsed = time.time() - t0
-    chop_count = sum(1 for p in scored_tokens if p["is_chop"])
-    absorb_count = sum(1 for p in scored_tokens if p["micro_state"] in ("ABSORPTION", "REACCUMULATION"))
+    min_mcap = float(conf.get("min_mcap", 500000.0))
+    min_fee = float(conf.get("min_fee_siap_lp", 3.0))
+    chop_count = sum(1 for p in scored_tokens if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee and p.get("mcap", 0.0) >= min_mcap)
+    absorb_count = sum(1 for p in scored_tokens if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)) and p.get("mcap", 0.0) >= min_mcap)
     print(
         f"[{time.strftime('%H:%M:%S')}] Scan selesai dalam {elapsed:.2f}s | "
         f"Total: {len(scored_tokens)} | Siap LP: {chop_count} | Absorption: {absorb_count}"
     )
 
-    report_text = generate_report(scored_tokens, conf, source_name=source)
+    report_text = generate_report(scored_tokens, scan_conf, source_name=source)
 
     token = conf.get("telegram_bot_token") or ""
     chat_id = conf.get("telegram_chat_id") or ""
@@ -671,17 +744,76 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                     if not text:
                         continue
 
-                    if text.startswith("/scan"):
-                        send_telegram_message(token, cid, "⏳ Sedang memindai data GMGN Solana...")
-                        run_single_scan(conf, dry_run=False)
+                    if text == "/scan" or text.startswith("/scan"):
+                        args_list = text.split()
+                        target_chain = ""
+                        if len(args_list) > 1:
+                            sub = args_list[1].upper()
+                            if sub in ("RH", "ROBINHOOD"):
+                                target_chain = "RH"
+                            elif sub in ("SOL", "SOLANA"):
+                                target_chain = "SOL"
+                            elif sub in ("BOTH", "ALL"):
+                                target_chain = "BOTH"
+
+                        active_chain = (target_chain or conf.get("chain_mode", "BOTH")).upper()
+                        send_telegram_message(token, cid, f"⏳ Sedang memindai data GMGN ({active_chain})...")
+                        run_single_scan(conf, dry_run=False, override_chain=target_chain)
+
+                    elif text.startswith("/chain"):
+                        parts = text.split()
+                        if len(parts) > 1:
+                            target = parts[1].upper()
+                            if target in ("RH", "ROBINHOOD"):
+                                conf["chain_mode"] = "RH"
+                                send_telegram_message(
+                                    token,
+                                    cid,
+                                    "✅ Mode pemantauan otomatis diubah ke: 🟢 <b>ROBINHOOD Only</b>\nBot selanjutnya akan memindai chain Robinhood setiap 5 menit."
+                                )
+                            elif target in ("SOL", "SOLANA"):
+                                conf["chain_mode"] = "SOL"
+                                send_telegram_message(
+                                    token,
+                                    cid,
+                                    "✅ Mode pemantauan otomatis diubah ke: 🟠 <b>SOLANA Only</b>\nBot selanjutnya akan memindai chain Solana setiap 5 menit."
+                                )
+                            elif target in ("BOTH", "ALL"):
+                                conf["chain_mode"] = "BOTH"
+                                send_telegram_message(
+                                    token,
+                                    cid,
+                                    "✅ Mode pemantauan otomatis diubah ke: 🟠 <b>SOLANA</b> & 🟢 <b>ROBINHOOD (Dual-Chain)</b>\nBot selanjutnya akan memindai kedua chain setiap 5 menit."
+                                )
+                            else:
+                                send_telegram_message(
+                                    token,
+                                    cid,
+                                    "⚠️ Format perintah salah. Pilihan yang tersedia:\n• <code>/chain both</code> (Solana + Robinhood)\n• <code>/chain sol</code> (Khusus Solana)\n• <code>/chain rh</code> (Khusus Robinhood)"
+                                )
+                        else:
+                            cur = conf.get("chain_mode", "BOTH").upper()
+                            send_telegram_message(
+                                token,
+                                cid,
+                                f"ℹ️ Mode pemantauan aktif saat ini: <b>{cur}</b>\n\nUntuk mengubah, kirim:\n• <code>/chain both</code>\n• <code>/chain sol</code>\n• <code>/chain rh</code>"
+                            )
+
                     elif text.startswith("/start") or text.startswith("/help"):
                         help_msg = (
-                            "🤖 <b>Chop Radar Solana Bot (GMGN Edition)</b>\n\n"
-                            "Bot ini otomatis memindai token Solana dari GMGN setiap 5 menit.\n\n"
+                            "🤖 <b>Chop Radar Bot (Dual-Chain GMGN Edition)</b>\n\n"
+                            "Bot otomatis memindai pool & meme coin dari GMGN setiap 5 menit.\n\n"
+                            "<b>Lencana Rantai:</b>\n"
+                            "• 🟠 <b>Solana (SOL)</b>\n"
+                            "• 🟢 <b>Robinhood (RH)</b>\n\n"
                             "<b>Perintah Tersedia:</b>\n"
-                            "• <code>/scan</code> - Jalankan pemindaian & kirim report sekarang juga\n"
-                            "• <code>/help</code> - Tampilkan pesan ini\n\n"
-                            "<i>Ditenagai oleh GMGN Solana Market API.</i>"
+                            "• <code>/scan</code> - Jalankan pemindaian sesuai mode aktif\n"
+                            "• <code>/scan sol</code> - Quick scan khusus Solana 🟠\n"
+                            "• <code>/scan rh</code> - Quick scan khusus Robinhood 🟢\n"
+                            "• <code>/scan both</code> - Quick scan kedua chain 🟠🟢\n"
+                            "• <code>/chain &lt;both|sol|rh&gt;</code> - Ubah mode pemantauan otomatis\n"
+                            "• <code>/help</code> - Tampilkan pesan bantuan ini\n\n"
+                            "<i>Ditenagai oleh GMGN Market API.</i>"
                         )
                         send_telegram_message(token, cid, help_msg)
         except Exception:
@@ -692,13 +824,14 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
 # ================= MAIN RUNNER =================
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Chop Radar Solana Telegram Bot (GMGN Edition)")
+    parser = argparse.ArgumentParser(description="Chop Radar Multi-Chain Telegram Bot (GMGN Edition)")
     parser.add_argument("--dry-run", action="store_true", help="Jalankan 1x scan tanpa kirim Telegram (cetak di terminal)")
     parser.add_argument("--once", action="store_true", help="Jalankan 1x scan dan kirim Telegram, lalu berhenti")
     parser.add_argument("--token", type=str, default="", help="Telegram Bot Token")
     parser.add_argument("--chat-id", type=str, default="", help="Telegram Chat ID")
     parser.add_argument("--interval", type=int, default=0, help="Interval scan dalam detik (default: 300 / 5 menit)")
     parser.add_argument("--source", type=str, default="", help="Data source: GMGN atau METEORA")
+    parser.add_argument("--chain", type=str, default="", help="Chain mode: BOTH, SOL, atau RH")
     args = parser.parse_args()
 
     conf = get_config()
@@ -710,9 +843,12 @@ def main() -> None:
         conf["interval_sec"] = args.interval
     if args.source:
         conf["data_source"] = args.source.upper()
+    if args.chain:
+        conf["chain_mode"] = args.chain.upper()
 
     print("=" * 65)
-    print(f"🚀 Chop Radar Solana ({conf['data_source']} Edition) — Telegram Bot Reporter")
+    print(f"🚀 Chop Radar ({conf['chain_mode']} - {conf['data_source']}) — Telegram Bot Reporter")
+    print(f"🌐 Chain Mode    : {conf['chain_mode']} (🟠 SOL / 🟢 RH)")
     print(f"⏱️ Jadwal Scan    : Setiap {conf['interval_sec'] // 60} menit ({conf['interval_sec']} detik)")
     print(f"💰 Posisi Modal  : ${conf['position_usd']:.0f} USD")
     print(f"🛡️ Target Min TVL: ${conf['min_liq']:,.0f}")
