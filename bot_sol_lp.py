@@ -536,6 +536,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
 
     lines = [
+        "━━━━━━━━━━━━━━━━━━",
         "✨ <b>CHOP RADAR</b> ✨",
     ]
     if chain_mode == "BOTH":
@@ -545,7 +546,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     else:
         lines.append("🔸 Solana")
 
-    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("")
     lines.append("<b>SIAP LP</b>")
 
     if siap_lp:
@@ -561,7 +562,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     else:
         lines.append("<i>(Belum ada pool memenuhi syarat)</i>")
 
-    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("")
     lines.append("<b>ABSORPTION RADAR</b>")
 
     if absorption:
@@ -576,6 +577,8 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
         lines.append("<i>(Belum ada sinyal absorption baru)</i>")
+
+    lines.append("━━━━━━━━━━━━━━━━━━")
 
     report_body = "\n".join(lines)
     # 1 space / baris kosong sebelum dan sesudah isi chat agar tampilan Telegram tidak bertumpuk terlalu rapat
