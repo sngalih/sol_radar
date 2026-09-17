@@ -338,8 +338,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       --green-bg: rgba(16, 185, 129, 0.12);
       --sol: #ff9800;
       --sol-bg: rgba(255, 152, 0, 0.12);
-      --rh: #10b981;
-      --rh-bg: rgba(16, 185, 129, 0.12);
+      --rh: #3b82f6;
+      --rh-bg: rgba(59, 130, 246, 0.12);
       --blue: #3b82f6;
       --blue-bg: rgba(59, 130, 246, 0.12);
       --red: #ef4444;
@@ -503,8 +503,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-color: rgba(255, 152, 0, 0.35);
     }
     .chain-tab.active[data-chain="rh"] {
-      color: var(--green);
-      border-color: rgba(16, 185, 129, 0.35);
+      color: var(--rh);
+      border-color: rgba(59, 130, 246, 0.35);
     }
 
     /* Main Container */
@@ -627,7 +627,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-left: 3px solid var(--sol);
     }
     .token-card.rh-card {
-      border-left: 3px solid var(--green);
+      border-left: 3px solid var(--rh);
     }
 
     /* Card Row 1: Symbol, Chain, Fee */
@@ -658,8 +658,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
     .chain-pill.rh {
       background: var(--rh-bg);
-      color: var(--green);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--rh);
+      border: 1px solid rgba(59, 130, 246, 0.3);
     }
     .token-symbol {
       font-size: 17px;
@@ -997,16 +997,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Segmented Chain Switcher (ALL, SOL 🟠, RH 🟢) -->
+    <!-- Segmented Chain Switcher (ALL, SOL 🔸, RH 🔹) -->
     <div class="chain-segmented">
       <div class="chain-tab active" data-chain="all" onclick="setChainFilter('all')">
         <span>🌐</span> ALL (<span id="cntChainAll">0</span>)
       </div>
       <div class="chain-tab" data-chain="sol" onclick="setChainFilter('sol')">
-        <span>🟠</span> SOL (<span id="cntChainSol">0</span>)
+        <span>🔸</span> SOL (<span id="cntChainSol">0</span>)
       </div>
       <div class="chain-tab" data-chain="rh" onclick="setChainFilter('rh')">
-        <span>🟢</span> RH (<span id="cntChainRh">0</span>)
+        <span>🔹</span> RH (<span id="cntChainRh">0</span>)
       </div>
     </div>
   </header>
@@ -1361,8 +1361,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       filtered.forEach(t => {
         const isRh = (t.chain || "SOL").toUpperCase() === "RH";
         const chainBadge = isRh 
-          ? `<span class="chain-pill rh">🟢 RH</span>` 
-          : `<span class="chain-pill sol">🟠 SOL</span>`;
+          ? `<span class="chain-pill rh">🔹 RH</span>` 
+          : `<span class="chain-pill sol">🔸 SOL</span>`;
         const cardBorderClass = isRh ? "rh-card" : "sol-card";
 
         const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
@@ -1626,8 +1626,8 @@ def run_server() -> None:
     print("⚡ CHOP LP RADAR — MOBILE WEB DASHBOARD (PORT 8771)")
     print("=" * 60)
     print(f"📡 Shared Engine : bot_sol_lp.py (GMGN Open API Multi-Chain)")
-    print(f"🟠 Solana        : Aktif (GMGN / Fallback Meteora)")
-    print(f"🟢 Robinhood     : Aktif (GMGN Open API)")
+    print(f"🔸 Solana        : Aktif (GMGN / Fallback Meteora)")
+    print(f"🔹 Robinhood     : Aktif (GMGN Open API)")
     print(f"🎯 Strategi      : Chop Sideways LP Farming (100% Bot Parity)")
     print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp')}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 500000))}")
     print(f"🌐 Akses Browser : http://localhost:{PORT} atau http://<IP_VPS>:{PORT}")

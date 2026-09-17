@@ -546,7 +546,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
         f"⏱ <i>{now_str} · Tiap {conf['interval_sec'] // 60} Menit</i>",
     ]
     if chain_mode == "BOTH":
-        lines.append("🏷 🟠 <i>Solana</i> │ 🟢 <i>Robinhood</i>")
+        lines.append("🏷 🔸 <i>Solana</i> │ 🔹 <i>Robinhood</i>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append(f"🟢 <b>SIAP LP (Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</b>")
 
@@ -556,7 +556,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             fee_str = f"<b>${t['fee_hour']:.2f}/h</b>"
             mcap_str = f"MC {_usd(t['mcap'])}"
             er_str = f"ER {t['er']:.1f}"
-            badge = "🟢" if str(t.get("chain", "SOL")).upper() == "RH" else "🟠"
+            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
             lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {er_str}")
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -572,14 +572,16 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             fee_str = f"${t['fee_hour']:.2f}/h"
             mcap_str = f"MC {_usd(t['mcap'])}"
             status = f"🎯 {t['status_label']}"
-            badge = "🟢" if str(t.get("chain", "SOL")).upper() == "RH" else "🟠"
+            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
             lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
         lines.append("<i>(ℹ️ Belum ada sinyal absorption baru)</i>")
 
-    return "\n".join(lines)
+    report_body = "\n".join(lines)
+    # 1 space / baris kosong sebelum dan sesudah isi chat agar tampilan Telegram tidak bertumpuk terlalu rapat
+    return f"\u200b\n{report_body}\n\u200b"
 
 
 # ================= SCAN ROUTINE =================
@@ -766,21 +768,21 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                                 send_telegram_message(
                                     token,
                                     cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🟢 <b>ROBINHOOD Only</b>\nBot selanjutnya akan memindai chain Robinhood setiap 5 menit."
+                                    "✅ Mode pemantauan otomatis diubah ke: 🔹 <b>ROBINHOOD Only</b>\nBot selanjutnya akan memindai chain Robinhood setiap 5 menit."
                                 )
                             elif target in ("SOL", "SOLANA"):
                                 conf["chain_mode"] = "SOL"
                                 send_telegram_message(
                                     token,
                                     cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🟠 <b>SOLANA Only</b>\nBot selanjutnya akan memindai chain Solana setiap 5 menit."
+                                    "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA Only</b>\nBot selanjutnya akan memindai chain Solana setiap 5 menit."
                                 )
                             elif target in ("BOTH", "ALL"):
                                 conf["chain_mode"] = "BOTH"
                                 send_telegram_message(
                                     token,
                                     cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🟠 <b>SOLANA</b> & 🟢 <b>ROBINHOOD (Dual-Chain)</b>\nBot selanjutnya akan memindai kedua chain setiap 5 menit."
+                                    "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA</b> & 🔹 <b>ROBINHOOD (Dual-Chain)</b>\nBot selanjutnya akan memindai kedua chain setiap 5 menit."
                                 )
                             else:
                                 send_telegram_message(
@@ -801,13 +803,13 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                             "🤖 <b>Chop Radar Bot (Dual-Chain GMGN Edition)</b>\n\n"
                             "Bot otomatis memindai pool & meme coin dari GMGN setiap 5 menit.\n\n"
                             "<b>Lencana Rantai:</b>\n"
-                            "• 🟠 <b>Solana (SOL)</b>\n"
-                            "• 🟢 <b>Robinhood (RH)</b>\n\n"
+                            "• 🔸 <b>Solana (SOL)</b>\n"
+                            "• 🔹 <b>Robinhood (RH)</b>\n\n"
                             "<b>Perintah Tersedia:</b>\n"
                             "• <code>/scan</code> - Jalankan pemindaian sesuai mode aktif\n"
-                            "• <code>/scan sol</code> - Quick scan khusus Solana 🟠\n"
-                            "• <code>/scan rh</code> - Quick scan khusus Robinhood 🟢\n"
-                            "• <code>/scan both</code> - Quick scan kedua chain 🟠🟢\n"
+                            "• <code>/scan sol</code> - Quick scan khusus Solana 🔸\n"
+                            "• <code>/scan rh</code> - Quick scan khusus Robinhood 🔹\n"
+                            "• <code>/scan both</code> - Quick scan kedua chain 🔸🔹\n"
                             "• <code>/chain &lt;both|sol|rh&gt;</code> - Ubah mode pemantauan otomatis\n"
                             "• <code>/help</code> - Tampilkan pesan bantuan ini\n\n"
                             "<i>Ditenagai oleh GMGN Market API.</i>"
