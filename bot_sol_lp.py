@@ -528,7 +528,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
         if p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)
     ]
     absorption = deduplicate_best_tokens(absorb_candidates)
-    absorption.sort(key=lambda x: (-x.get("score", 0.0), -x.get("fee_hour", 0.0)))
+    absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     top_limit = conf.get("top_n_display", 12)
@@ -578,9 +578,6 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
         lines.append("<i>(ℹ️ Belum ada sinyal absorption baru)</i>")
-
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append("💡 <i>Tap nama token untuk langsung membuka chart & swap di GMGN</i>")
 
     return "\n".join(lines)
 
