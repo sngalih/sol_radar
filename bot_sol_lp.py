@@ -299,7 +299,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     p5 = num(row, "price_change_percent5m")
     p1 = num(row, "price_change_percent1h")
     mcap = num(row, "market_cap", "marketcap")
-    vl = round((vol / liq), 2) if liq > 0 else 0.0
+    vl = (vol / liq) if liq else 0.0
 
     # On-Chain Security
     top10_rate = round(num(row, "top_10_holder_rate") * 100, 1)
