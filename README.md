@@ -1,16 +1,16 @@
-# 🪓 Chop Radar Solana — Meteora DLMM LP Telegram Bot
+# 🪓 Chop Radar Solana — Telegram LP Reporter Bot (GMGN Edition)
 
-Bot Telegram otomatis yang memindai pool Solana di **Meteora DLMM API** setiap **5 menit** dan mengirimkan laporan terstruktur untuk peluang **Chop Sideways LP Farming**.
+Bot Telegram otomatis yang memindai token Solana dari **GMGN Open API** setiap **5 menit** dan mengirimkan laporan terstruktur untuk peluang **Chop Sideways LP Farming**. Logika perhitungan 100% identik dengan **Dashboard V5**!
 
 ---
 
 ## ⚡ Keunggulan Bot Ini
 
-1. **Bebas Rate Limit (Anti-429)**: Menggunakan official REST API Meteora (`https://dlmm.datapi.meteora.ag/pools`) dengan kapasitas 30 req/s, tanpa Cloudflare blocking di VPS datacenter.
-2. **Super Cepat**: Pemindaian puluhan pool tuntas hanya dalam **~1.3 detik**.
-3. **Real DLMM Fees**: Menghitung estimasi fee aktual on-chain per jam/24 jam dari modal \$100.
-4. **Direct Pool Hyperlink**: Nama token di pesan Telegram langsung berupa link menuju pool di `app.meteora.ag`.
-5. **Zero External Dependencies**: 100% menggunakan pustaka bawaan Python (`urllib`, `json`, `threading`, `time`), tidak perlu `pip install`.
+1. **Sumber Data GMGN Solana**: Mengambil peringkat token Solana langsung dari GMGN Open API, identik dengan Dashboard V5 di laptop.
+2. **Efisien & Anti-429**: Hanya memerlukan 1 request per pemindaian (setiap 5 menit), aman dari rate limit.
+3. **Automatic Meteora Fallback**: Jika GMGN sempat tidak merespons, bot secara otomatis beralih ke Meteora DLMM API agar tidak pernah gagal mengirim laporan.
+4. **Direct GMGN Link**: Nama token langsung berupa link menuju halaman chart & swap di `gmgn.ai`.
+5. **Deduplikasi Cerdas**: Satu token hanya tampil 1 kali (pool/kandidat terbaik).
 6. **Perintah Interaktif**: Kirim perintah `/scan` di chat Telegram untuk memicu pemindaian instan kapan saja.
 
 ---
@@ -20,13 +20,11 @@ Bot Telegram otomatis yang memindai pool Solana di **Meteora DLMM API** setiap *
 Pesan dikirim otomatis tiap 5 menit dengan format yang rapi dan terstruktur:
 
 ```text
-🚀 CHOP RADAR SOLANA (METEORA DLMM)
-⏱ 17/09/2026 14:25 · Tiap 5 Menit
+🚀 CHOP RADAR SOLANA (GMGN)
+⏱ 17/09/2026 13:35 · Tiap 5 Menit
 ━━━━━━━━━━━━━━━━━━━━
 🟢 SIAP LP (Fee ≥ $3/h & MC ≥ $500k)
-• HEV ➔ $6.11/h │ MC $3.11M │ ER 0.1
-• ELON ➔ $5.55/h │ MC $4.63M │ ER 0.2
-• wifout ➔ $3.48/h │ MC $3.65M │ ER 0.4
+• WISH ➔ $5.80/h │ MC $579k │ ER 0.7
 ━━━━━━━━━━━━━━━━━━━━
 📡 ABSORPTION RADAR (MC ≥ $500k)
 • TACZ ➔ $2.91/h │ MC $1.77M │ 🎯 Absorption (Sweet Spot)
