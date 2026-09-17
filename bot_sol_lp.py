@@ -49,13 +49,15 @@ DEFAULT_CONFIG = {
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
     "min_liq": 20000,           # TVL pool min $20k
-    "min_mcap": 0,
+    "min_mcap": 500000.0,       # Market cap minimal $500k
+    "max_mcap": 500000000.0,    # Filter token raksasa / native SOL ($500M)
+    "min_fee_siap_lp": 3.0,     # Hanya tampilkan Siap LP jika fee/hour >= $3.00
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
     "max_1h": 80.0,             # volatilitas 1h max 80%
     "max_er": 20.0,             # Efficiency Ratio max 20
     "min_absorb_score": 65.0,
-    "top_n_display": 15,        # batas tampilan list token per kategori
+    "top_n_display": 12,        # batas tampilan list token per kategori
 }
 
 
@@ -117,6 +119,12 @@ def get_config() -> dict[str, Any]:
         conf["position_usd"] = float(file_env["POSITION_USD"])
     if "MIN_LIQ" in file_env:
         conf["min_liq"] = float(file_env["MIN_LIQ"])
+    if "MIN_MCAP" in file_env:
+        conf["min_mcap"] = float(file_env["MIN_MCAP"])
+    if "MAX_MCAP" in file_env:
+        conf["max_mcap"] = float(file_env["MAX_MCAP"])
+    if "MIN_FEE_SIAP_LP" in file_env:
+        conf["min_fee_siap_lp"] = float(file_env["MIN_FEE_SIAP_LP"])
     if "MIN_VL" in file_env:
         conf["min_vl"] = float(file_env["MIN_VL"])
     if "MAX_5M" in file_env:
@@ -133,6 +141,12 @@ def get_config() -> dict[str, Any]:
         conf["interval_sec"] = int(os.environ["SCAN_INTERVAL"])
     if os.getenv("POSITION_USD"):
         conf["position_usd"] = float(os.environ["POSITION_USD"])
+    if os.getenv("MIN_MCAP"):
+        conf["min_mcap"] = float(os.environ["MIN_MCAP"])
+    if os.getenv("MAX_MCAP"):
+        conf["max_mcap"] = float(os.environ["MAX_MCAP"])
+    if os.getenv("MIN_FEE_SIAP_LP"):
+        conf["min_fee_siap_lp"] = float(os.environ["MIN_FEE_SIAP_LP"])
 
     return conf
 
@@ -210,9 +224,11 @@ def _usd(n: float) -> str:
     if not n:
         return "$0"
     if n >= 1e6:
-        return f"${n / 1e6:.2f}M"
+        val = n / 1e6
+        return f"${val:.2f}M" if val < 10 else f"${val:.1f}M"
     if n >= 1e3:
-        return f"${n / 1e3:.1f}k"
+        val = n / 1e3
+        return f"${val:.0f}k" if (val >= 100 or val == int(val)) else f"${val:.1f}k"
     return f"${n:,.0f}"
 
 
@@ -374,62 +390,102 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> tuple[bool, st
 
 # ================= REPORT GENERATION =================
 
-def generate_report(pools: list[dict[str, Any]], conf: dict[str, Any]) -> str:
-    """Membuat pesan Telegram sesuai format yang diminta:
-    siap LP
-    nama token - fee/h - MCap
+def deduplicate_best_pools(pools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mengelompokkan pool berdasarkan address/symbol token dan memilih HANYA 1 pool DLMM terbaik."""
+    best_map: dict[str, dict[str, Any]] = {}
+    for p in pools:
+        key = (p.get("address") or p.get("symbol", "")).strip().lower()
+        if not key:
+            continue
+        if key not in best_map:
+            best_map[key] = p
+        else:
+            cur = best_map[key]
+            # Bandingkan fee_hour terlebih dahulu, lalu likuiditas sebagai tie-breaker
+            p_score = (p.get("fee_hour", 0.0), p.get("liq", 0.0))
+            cur_score = (cur.get("fee_hour", 0.0), cur.get("liq", 0.0))
+            if p_score > cur_score:
+                best_map[key] = p
+    return list(best_map.values())
 
-    absorption radar
-    nama token - fee/h - Mcap - status
+
+def generate_report(pools: list[dict[str, Any]], conf: dict[str, Any]) -> str:
+    """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
+    🟢 SIAP LP (Fee >= $3/h & MC >= $500k)
+    • TOKEN ➔ Fee/h │ MC │ ER
+
+    📡 ABSORPTION RADAR (MC >= $500k)
+    • TOKEN ➔ Fee/h │ MC │ Status
     """
-    # 1. Kategori Siap LP: lolos kriteria CHOP 100%
-    siap_lp = [p for p in pools if p["is_chop"]]
-    # Urutkan berdasarkan fee_hour tertinggi (paling menguntungkan)
+    min_mcap = float(conf.get("min_mcap", 500000.0))
+    max_mcap = float(conf.get("max_mcap", 500000000.0))
+    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 3.0))
+
+    # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
+    filtered_pools = [
+        p for p in pools
+        if p.get("address") not in QUOTE_MINTS
+        and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
+        and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+    ]
+
+    # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
+    siap_candidates = [
+        p for p in filtered_pools
+        if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+    ]
+    # Deduplikasi: 1 token = 1 pool terbaik (paling cuan)
+    siap_lp = deduplicate_best_pools(siap_candidates)
     siap_lp.sort(key=lambda x: -x["fee_hour"])
 
     # 2. Kategori Absorption Radar: micro_state ABSORPTION atau REACCUMULATION atau score tinggi
-    absorption = [
-        p for p in pools
-        if p["micro_state"] in ("ABSORPTION", "REACCUMULATION") or p["score"] >= conf.get("min_absorb_score", 65.0)
+    absorb_candidates = [
+        p for p in filtered_pools
+        if p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)
     ]
-    # Urutkan berdasarkan score absorption tertinggi
-    absorption.sort(key=lambda x: (-x["score"], -x["fee_hour"]))
+    # Deduplikasi: 1 token = 1 pool terbaik
+    absorption = deduplicate_best_pools(absorb_candidates)
+    absorption.sort(key=lambda x: (-x.get("score", 0.0), -x.get("fee_hour", 0.0)))
 
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-    top_limit = conf.get("top_n_display", 15)
+    top_limit = conf.get("top_n_display", 12)
 
     lines = [
-        f"🚀 <b>CHOP RADAR SOLANA (METEORA DLMM)</b>",
-        f"⏱ <i>{now_str} · Tiap 5 Menit</i>",
-        "",
-        "🟢 <b>siap LP</b>",
+        "🚀 <b>CHOP RADAR SOLANA (METEORA DLMM)</b>",
+        f"⏱ <i>{now_str} · Tiap {conf['interval_sec'] // 60} Menit</i>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"🟢 <b>SIAP LP (Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</b>",
     ]
 
     if siap_lp:
         for t in siap_lp[:top_limit]:
-            sym_link = f'<a href="{t["meteora"]}">{t["symbol"]}</a>'
-            fee_str = f"${t['fee_hour']:.2f}/h"
-            mcap_str = _usd(t["mcap"])
-            lines.append(f"• {sym_link} - {fee_str} - {mcap_str}")
+            sym_link = f'<a href="{t["meteora"]}"><b>{t["symbol"]}</b></a>'
+            fee_str = f"<b>${t['fee_hour']:.2f}/h</b>"
+            mcap_str = f"MC {_usd(t['mcap'])}"
+            er_str = f"ER {t['er']:.1f}"
+            lines.append(f"• {sym_link} ➔ {fee_str} │ {mcap_str} │ {er_str}")
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
     else:
-        lines.append("<i>(Belum ada token memenuhi kriteria Chop LP)</i>")
+        lines.append(f"<i>(ℹ️ Belum ada pool memenuhi syarat Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</i>")
 
-    lines.append("")
-    lines.append("📡 <b>absorption radar</b>")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"📡 <b>ABSORPTION RADAR (MC ≥ {_usd(min_mcap)})</b>")
 
     if absorption:
         for t in absorption[:top_limit]:
-            sym_link = f'<a href="{t["meteora"]}">{t["symbol"]}</a>'
+            sym_link = f'<a href="{t["meteora"]}"><b>{t["symbol"]}</b></a>'
             fee_str = f"${t['fee_hour']:.2f}/h"
-            mcap_str = _usd(t["mcap"])
-            status = t["status_label"]
-            lines.append(f"• {sym_link} - {fee_str} - {mcap_str} - {status}")
+            mcap_str = f"MC {_usd(t['mcap'])}"
+            status = f"🎯 {t['status_label']}"
+            lines.append(f"• {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
-        lines.append("<i>(Belum ada sinyal absorption baru)</i>")
+        lines.append("<i>(ℹ️ Belum ada sinyal absorption baru)</i>")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("💡 <i>Tap nama token untuk langsung membuka pool di Meteora DLMM</i>")
 
     return "\n".join(lines)
 

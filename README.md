@@ -17,27 +17,28 @@ Bot Telegram otomatis yang memindai pool Solana di **Meteora DLMM API** setiap *
 
 ## 📋 Format Laporan Telegram
 
-Pesan dikirim otomatis tiap 5 menit dengan format:
+Pesan dikirim otomatis tiap 5 menit dengan format yang rapi dan terstruktur:
 
 ```text
 🚀 CHOP RADAR SOLANA (METEORA DLMM)
-⏱ 17/09/2026 11:47 · Tiap 5 Menit
-
-🟢 siap LP
-• HEV - $6.11/h - $3.11M
-• ELON - $5.55/h - $4.63M
-• wifout - $3.48/h - $3.65M
-...
-
-📡 absorption radar
-• HEV - $6.11/h - $3.11M - Absorption (Sweet Spot)
-• TACZ - $2.91/h - $1.77M - Absorption (Sweet Spot)
-• baton - $0.46/h - $3.29M - Absorption (Sweet Spot)
-...
+⏱ 17/09/2026 14:25 · Tiap 5 Menit
+━━━━━━━━━━━━━━━━━━━━
+🟢 SIAP LP (Fee ≥ $3/h & MC ≥ $500k)
+• HEV ➔ $6.11/h │ MC $3.11M │ ER 0.1
+• ELON ➔ $5.55/h │ MC $4.63M │ ER 0.2
+• wifout ➔ $3.48/h │ MC $3.65M │ ER 0.4
+━━━━━━━━━━━━━━━━━━━━
+📡 ABSORPTION RADAR (MC ≥ $500k)
+• TACZ ➔ $2.91/h │ MC $1.77M │ 🎯 Absorption (Sweet Spot)
+• baton ➔ $0.46/h │ MC $3.29M │ 🎯 Absorption (Sweet Spot)
+• LEVERHEDGE ➔ $0.59/h │ MC $1.98M │ 🎯 Absorption (Sweet Spot)
+━━━━━━━━━━━━━━━━━━━━
+💡 Tap nama token untuk langsung membuka pool di Meteora DLMM
 ```
 
-- **siap LP**: Pool yang 100% lolos kriteria Chop Sideways LP ($ER \le 20$, $V/L \ge 2x$, $|p5| \le 15\%$, $|p1| \le 80\%$).
-- **absorption radar**: Pool dengan status `Absorption (Sweet Spot)` atau `Ugly Reaccumulation` di mana volume transaksi tinggi terserap dengan range pergerakan harga sempit.
+- **Deduplikasi Cerdas**: Satu token hanya tampil **1 pool DLMM terbaik** (tidak ada lagi koin ganda seperti `PAID` muncul berulang).
+- **🟢 SIAP LP**: Pool yang 100% lolos kriteria Chop Sideways LP ($ER \le 20$, $V/L \ge 2x$, $|p5| \le 15\%$, $|p1| \le 80\%$) dengan estimasi fee $\ge \$3.00$/jam dan Mcap $\ge \$500k$.
+- **📡 ABSORPTION RADAR**: Pool dengan status `Absorption (Sweet Spot)` atau `Ugly Reaccumulation` di mana volume transaksi tinggi terserap dengan pergerakan harga sempit.
 
 ---
 
@@ -145,3 +146,5 @@ git push -u origin main
 | `MAX_5M` | `15.0` | Batas maksimal volatilitas harga 5 menit ($\le 15\%$). |
 | `MAX_1H` | `80.0` | Batas maksimal volatilitas harga 1 jam ($\le 80\%$). |
 | `MAX_ER` | `20.0` | Batas maksimal Efficiency Ratio ($\le 20.0$, ideal $\le 5.0$). |
+| `MIN_MCAP` | `500000` | Batas minimal Market Cap token (\$500,000). |
+| `MIN_FEE_SIAP_LP` | `3.0` | Batas minimal estimasi fee/jam untuk kategori Siap LP (\$3.00/jam). |
