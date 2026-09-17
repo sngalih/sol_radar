@@ -534,21 +534,19 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     top_limit = conf.get("top_n_display", 12)
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
-    if chain_mode == "BOTH":
-        title = "CHOP RADAR (SOL & ROBINHOOD)"
-    elif chain_mode == "RH":
-        title = f"CHOP RADAR ROBINHOOD ({source_name.upper()})"
-    else:
-        title = f"CHOP RADAR SOLANA ({source_name.upper()})"
 
     lines = [
-        f"🚀 <b>{title}</b>",
-        f"⏱ <i>{now_str} · Tiap {conf['interval_sec'] // 60} Menit</i>",
+        "✨ <b>CHOP RADAR</b> ✨",
     ]
     if chain_mode == "BOTH":
-        lines.append("🏷 🔸 <i>Solana</i> │ 🔹 <i>Robinhood</i>")
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append(f"🟢 <b>SIAP LP (Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</b>")
+        lines.append("🔸 Solana │ 🔹 Robinhood")
+    elif chain_mode == "RH":
+        lines.append("🔹 Robinhood")
+    else:
+        lines.append("🔸 Solana")
+
+    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("<b>SIAP LP</b>")
 
     if siap_lp:
         for t in siap_lp[:top_limit]:
@@ -561,23 +559,23 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
     else:
-        lines.append(f"<i>(ℹ️ Belum ada pool memenuhi syarat Fee ≥ ${min_fee_siap_lp:.0f}/h & MC ≥ {_usd(min_mcap)})</i>")
+        lines.append("<i>(Belum ada pool memenuhi syarat)</i>")
 
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append(f"📡 <b>ABSORPTION RADAR (MC ≥ {_usd(min_mcap)})</b>")
+    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("<b>ABSORPTION RADAR</b>")
 
     if absorption:
         for t in absorption[:top_limit]:
             sym_link = f'<a href="{t["url"]}"><b>{t["symbol"]}</b></a>'
             fee_str = f"${t['fee_hour']:.2f}/h"
             mcap_str = f"MC {_usd(t['mcap'])}"
-            status = f"🎯 {t['status_label']}"
+            status = str(t.get("status_label", "")).strip()
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
             lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
-        lines.append("<i>(ℹ️ Belum ada sinyal absorption baru)</i>")
+        lines.append("<i>(Belum ada sinyal absorption baru)</i>")
 
     report_body = "\n".join(lines)
     # 1 space / baris kosong sebelum dan sesudah isi chat agar tampilan Telegram tidak bertumpuk terlalu rapat
