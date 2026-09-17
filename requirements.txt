@@ -1,0 +1,5 @@
+# Bot ini 100% menggunakan Python Standard Library bawaan (tanpa perlu install paket tambahan)
+# Python 3.8+ didukung secara native.
+
+# Opsional: Jika Anda ingin memuat file .env menggunakan pustaka pihak ketiga:
+# python-dotenv>=1.0.0
