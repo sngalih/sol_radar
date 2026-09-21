@@ -76,7 +76,7 @@ def load_persistent_filters() -> dict[str, Any]:
         "max_er": 20.0,
         "min_absorb_score": 65.0,
         "interval_sec": 300,
-        "chain_mode": "BOTH",
+        "chain_mode": "RH",
     }
     for k, v in defaults.items():
         if k not in conf or conf[k] is None:

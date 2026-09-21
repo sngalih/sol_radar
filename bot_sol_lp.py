@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "data_source": "GMGN",      # "GMGN" (default) atau "METEORA"
-    "chain_mode": "BOTH",       # "BOTH" (default: SOL + RH), "SOL", atau "RH"
+    "chain_mode": "RH",         # "RH" (default), "SOL", atau "BOTH"
     "gmgn_api_key": GMGN_KEY,   # GMGN Open API Key
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
@@ -445,17 +445,20 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
 
 # ================= TELEGRAM COMMUNICATION =================
 
-def send_telegram_message(token: str, chat_id: str, text: str) -> tuple[bool, str]:
-    """Kirim pesan Telegram via HTTP REST API (HTML parse mode)."""
+def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dict[str, Any] | None = None) -> tuple[bool, str]:
+    """Kirim pesan Telegram via HTTP REST API (HTML parse mode) dengan opsional reply_markup."""
     if not token or not chat_id:
         return False, "Token atau Chat ID belum diisi"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
+    body: dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
-    }).encode("utf-8")
+    }
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    payload = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=payload,
@@ -467,10 +470,143 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> tuple[bool, st
             data = json.loads(res.read().decode())
             return (True, "") if data.get("ok") else (False, str(data.get("description", "Unknown error")))
     except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace")[:250]
-        return False, f"HTTP {e.code}: {body}"
+        body_err = e.read().decode("utf-8", "replace")[:250]
+        return False, f"HTTP {e.code}: {body_err}"
     except Exception as e:
         return False, str(e)
+
+
+def edit_telegram_message(token: str, chat_id: str, message_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> tuple[bool, str]:
+    """Mengedit teks dan tombol inline pesan Telegram yang sudah terkirim secara in-place."""
+    if not token or not chat_id or not message_id:
+        return False, "Parameter editMessageText tidak lengkap"
+    url = f"https://api.telegram.org/bot{token}/editMessageText"
+    body: dict[str, Any] = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    payload = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as res:
+            data = json.loads(res.read().decode())
+            return (True, "") if data.get("ok") else (False, str(data.get("description", "Unknown error")))
+    except Exception as e:
+        return False, str(e)
+
+
+def answer_callback_query(token: str, callback_query_id: str, text: str = "", show_alert: bool = False) -> tuple[bool, str]:
+    """Merespons callback_query dari inline button agar tidak spinning di Telegram client."""
+    if not token or not callback_query_id:
+        return False, "Token atau callback_query_id kosong"
+    url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
+    body: dict[str, Any] = {
+        "callback_query_id": callback_query_id,
+    }
+    if text:
+        body["text"] = text
+        body["show_alert"] = show_alert
+    payload = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            data = json.loads(res.read().decode())
+            return (True, "") if data.get("ok") else (False, str(data.get("description", "Unknown error")))
+    except Exception as e:
+        return False, str(e)
+
+
+def save_persistent_chain_mode(new_mode: str) -> None:
+    """Menyimpan mode chain terpilih ke sol-hp-filters.json secara persisten."""
+    fp = BASE_DIR / "sol-hp-filters.json"
+    try:
+        data: dict[str, Any] = {}
+        if fp.exists():
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        data["chain_mode"] = new_mode
+        fp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        print(f"[{time.strftime('%H:%M:%S')}] [Config] chain_mode disimpan ke {fp.name}: {new_mode}")
+    except Exception as e:
+        print(f"[WARN] Gagal menyimpan chain_mode ke {fp.name}: {e}", file=sys.stderr)
+
+
+def build_chain_inline_markup(current_mode: str) -> dict[str, Any]:
+    """Menghasilkan Inline Keyboard Toggle Menu dengan indikator centang ✅ pada mode aktif."""
+    mode = (current_mode or "RH").upper()
+    c_rh = " ✅" if mode == "RH" else ""
+    c_sol = " ✅" if mode == "SOL" else ""
+    c_both = " ✅" if mode == "BOTH" else ""
+
+    return {
+        "inline_keyboard": [
+            [
+                {"text": f"🔹 RH Only{c_rh}", "callback_data": "set_chain_rh"},
+                {"text": f"🔸 SOL Only{c_sol}", "callback_data": "set_chain_sol"},
+            ],
+            [
+                {"text": f"🔸🔹 SOL + RH (Dual){c_both}", "callback_data": "set_chain_both"},
+            ],
+            [
+                {"text": "⚡ Scan Sekarang", "callback_data": "action_scan"},
+                {"text": "🔄 Refresh Status", "callback_data": "action_refresh"},
+            ],
+        ]
+    }
+
+
+def build_chain_reply_keyboard() -> dict[str, Any]:
+    """Menghasilkan Persistent Quick-Keyboard di bilah bawah layar HP."""
+    return {
+        "keyboard": [
+            [{"text": "🔹 RH Only"}, {"text": "🔸 SOL Only"}, {"text": "🔸🔹 SOL + RH"}],
+            [{"text": "⚡ Scan Sekarang"}, {"text": "⚙️ Menu Toggle"}],
+        ],
+        "resize_keyboard": True,
+        "is_persistent": True,
+    }
+
+
+def build_chain_menu_text(current_mode: str, interval_sec: int = 300) -> str:
+    """Menghasilkan pesan status pengaturan toggle menu."""
+    mode = (current_mode or "RH").upper()
+    if mode == "RH":
+        label = "🔹 <b>ROBINHOOD Only</b> (Default)"
+        desc = "Bot hanya memindai pool & meme coin Robinhood."
+    elif mode == "SOL":
+        label = "🔸 <b>SOLANA Only</b>"
+        desc = "Bot hanya memindai pool & meme coin Solana."
+    else:
+        label = "🔸 <b>SOLANA</b> & 🔹 <b>ROBINHOOD</b> (Dual-Chain)"
+        desc = "Bot memindai kedua chain secara bersamaan."
+
+    mins = interval_sec // 60
+    return (
+        "⚙️ <b>PENGATURAN MONITORING RADAR LP</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"Mode Aktif : {label}\n"
+        f"Interval   : <b>Tiap {mins} Menit</b>\n"
+        f"Keterangan : <i>{desc}</i>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "<i>Tap tombol di bawah untuk mengganti mode atau memindai langsung:</i>"
+    )
 
 
 # ================= REPORT GENERATION =================
@@ -710,7 +846,22 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         if not token or not chat_id:
             print("⚠️ Token Bot atau Chat ID belum diisi. Isi di .env atau jalankan dengan parameter.")
     else:
-        ok, err = send_telegram_message(token, chat_id, report_text)
+        # Lampirkan quick inline toggle buttons di bawah laporan
+        active_mode = scan_conf.get("chain_mode", "RH").upper()
+        report_buttons = {
+            "inline_keyboard": [
+                [
+                    {"text": f"🔹 RH{' ✅' if active_mode == 'RH' else ''}", "callback_data": "set_chain_rh"},
+                    {"text": f"🔸 SOL{' ✅' if active_mode == 'SOL' else ''}", "callback_data": "set_chain_sol"},
+                    {"text": f"🔸🔹 Both{' ✅' if active_mode == 'BOTH' else ''}", "callback_data": "set_chain_both"},
+                ],
+                [
+                    {"text": "⚡ Scan Sekarang", "callback_data": "action_scan"},
+                    {"text": "⚙️ Menu Toggle", "callback_data": "action_menu"},
+                ],
+            ]
+        }
+        ok, err = send_telegram_message(token, chat_id, report_text, reply_markup=report_buttons)
         if ok:
             print(f"[{time.strftime('%H:%M:%S')}] ✅ Berhasil mengirim report ke Telegram chat {chat_id}!")
         else:
@@ -720,13 +871,13 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
 # ================= INTERACTIVE TELEGRAM LISTENER =================
 
 def telegram_poller_thread(conf: dict[str, Any]) -> None:
-    """Mendengarkan chat masuk di Telegram secara polling untuk command /scan atau /help."""
+    """Mendengarkan chat masuk di Telegram secara polling untuk command, callback query toggle, dan scan."""
     token = conf.get("telegram_bot_token", "")
     if not token:
         return
     offset = 0
     poll_url = f"https://api.telegram.org/bot{token}/getUpdates"
-    print("🤖 Bot listener aktif (/scan, /help siap digunakan)")
+    print("🤖 Bot listener aktif (/menu, /scan, toggle inline & keyboard siap digunakan)")
 
     while True:
         try:
@@ -737,6 +888,53 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                 data = json.loads(res.read().decode())
                 for item in data.get("result", []):
                     offset = max(offset, item["update_id"] + 1)
+
+                    # 1. Tangani Interaksi Tombol Inline (Callback Query)
+                    cq = item.get("callback_query")
+                    if cq:
+                        cq_id = str(cq.get("id") or "")
+                        c_data = str(cq.get("data") or "")
+                        c_msg = cq.get("message") or {}
+                        c_cid = str(c_msg.get("chat", {}).get("id") or "")
+                        c_mid = c_msg.get("message_id")
+
+                        if c_data.startswith("set_chain_"):
+                            target_mode = c_data.replace("set_chain_", "").upper()
+                            conf["chain_mode"] = target_mode
+                            save_persistent_chain_mode(target_mode)
+
+                            if target_mode == "RH":
+                                toast = "✅ Mode aktif: 🔹 Robinhood Only"
+                            elif target_mode == "SOL":
+                                toast = "✅ Mode aktif: 🔸 Solana Only"
+                            else:
+                                toast = "✅ Mode aktif: 🔸 Solana + 🔹 Robinhood"
+
+                            answer_callback_query(token, cq_id, text=toast)
+
+                            # Perbarui pesan inline
+                            new_text = build_chain_menu_text(target_mode, conf.get("interval_sec", 300))
+                            new_markup = build_chain_inline_markup(target_mode)
+                            edit_telegram_message(token, c_cid, c_mid, new_text, reply_markup=new_markup)
+
+                        elif c_data == "action_scan":
+                            cur_mode = conf.get("chain_mode", "RH").upper()
+                            answer_callback_query(token, cq_id, text=f"⏳ Memulai scan GMGN ({cur_mode})...")
+                            threading.Thread(target=run_single_scan, args=(conf, False, cur_mode), daemon=True).start()
+
+                        elif c_data in ("action_refresh", "action_menu"):
+                            cur_mode = conf.get("chain_mode", "RH").upper()
+                            answer_callback_query(token, cq_id, text="🔄 Menu diperbarui")
+                            new_text = build_chain_menu_text(cur_mode, conf.get("interval_sec", 300))
+                            new_markup = build_chain_inline_markup(cur_mode)
+                            if c_data == "action_menu":
+                                send_telegram_message(token, c_cid, new_text, reply_markup=new_markup)
+                            else:
+                                edit_telegram_message(token, c_cid, c_mid, new_text, reply_markup=new_markup)
+
+                        continue
+
+                    # 2. Tangani Pesan Teks Masuk
                     msg = item.get("message") or {}
                     text = str(msg.get("text") or "").strip().lower()
                     cid = str(msg.get("chat", {}).get("id") or "")
@@ -744,7 +942,8 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                     if not text:
                         continue
 
-                    if text == "/scan" or text.startswith("/scan"):
+                    # Perintah Scan
+                    if text in ("/scan", "⚡ scan sekarang") or text.startswith("/scan"):
                         args_list = text.split()
                         target_chain = ""
                         if len(args_list) > 1:
@@ -756,66 +955,71 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                             elif sub in ("BOTH", "ALL"):
                                 target_chain = "BOTH"
 
-                        active_chain = (target_chain or conf.get("chain_mode", "BOTH")).upper()
+                        active_chain = (target_chain or conf.get("chain_mode", "RH")).upper()
                         send_telegram_message(token, cid, f"⏳ Sedang memindai data GMGN ({active_chain})...")
-                        run_single_scan(conf, dry_run=False, override_chain=target_chain)
+                        threading.Thread(target=run_single_scan, args=(conf, False, target_chain), daemon=True).start()
 
-                    elif text.startswith("/chain"):
-                        parts = text.split()
-                        if len(parts) > 1:
-                            target = parts[1].upper()
-                            if target in ("RH", "ROBINHOOD"):
-                                conf["chain_mode"] = "RH"
-                                send_telegram_message(
-                                    token,
-                                    cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🔹 <b>ROBINHOOD Only</b>\nBot selanjutnya akan memindai chain Robinhood setiap 5 menit."
-                                )
-                            elif target in ("SOL", "SOLANA"):
-                                conf["chain_mode"] = "SOL"
-                                send_telegram_message(
-                                    token,
-                                    cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA Only</b>\nBot selanjutnya akan memindai chain Solana setiap 5 menit."
-                                )
-                            elif target in ("BOTH", "ALL"):
-                                conf["chain_mode"] = "BOTH"
-                                send_telegram_message(
-                                    token,
-                                    cid,
-                                    "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA</b> & 🔹 <b>ROBINHOOD (Dual-Chain)</b>\nBot selanjutnya akan memindai kedua chain setiap 5 menit."
-                                )
-                            else:
-                                send_telegram_message(
-                                    token,
-                                    cid,
-                                    "⚠️ Format perintah salah. Pilihan yang tersedia:\n• <code>/chain both</code> (Solana + Robinhood)\n• <code>/chain sol</code> (Khusus Solana)\n• <code>/chain rh</code> (Khusus Robinhood)"
-                                )
-                        else:
-                            cur = conf.get("chain_mode", "BOTH").upper()
-                            send_telegram_message(
-                                token,
-                                cid,
-                                f"ℹ️ Mode pemantauan aktif saat ini: <b>{cur}</b>\n\nUntuk mengubah, kirim:\n• <code>/chain both</code>\n• <code>/chain sol</code>\n• <code>/chain rh</code>"
-                            )
+                    # Quick Button atau Command Ganti Chain
+                    elif text in ("🔹 rh only", "rh only", "rh", "/chain rh"):
+                        conf["chain_mode"] = "RH"
+                        save_persistent_chain_mode("RH")
+                        menu_text = build_chain_menu_text("RH", conf.get("interval_sec", 300))
+                        send_telegram_message(
+                            token,
+                            cid,
+                            "✅ Mode pemantauan otomatis diubah ke: 🔹 <b>ROBINHOOD Only</b> (Default)\nBot selanjutnya akan memindai chain Robinhood setiap 5 menit.\n\n" + menu_text,
+                            reply_markup=build_chain_inline_markup("RH"),
+                        )
+
+                    elif text in ("🔸 sol only", "sol only", "sol", "/chain sol"):
+                        conf["chain_mode"] = "SOL"
+                        save_persistent_chain_mode("SOL")
+                        menu_text = build_chain_menu_text("SOL", conf.get("interval_sec", 300))
+                        send_telegram_message(
+                            token,
+                            cid,
+                            "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA Only</b>\nBot selanjutnya akan memindai chain Solana setiap 5 menit.\n\n" + menu_text,
+                            reply_markup=build_chain_inline_markup("SOL"),
+                        )
+
+                    elif text in ("🔸🔹 sol + rh", "sol + rh", "both", "/chain both"):
+                        conf["chain_mode"] = "BOTH"
+                        save_persistent_chain_mode("BOTH")
+                        menu_text = build_chain_menu_text("BOTH", conf.get("interval_sec", 300))
+                        send_telegram_message(
+                            token,
+                            cid,
+                            "✅ Mode pemantauan otomatis diubah ke: 🔸 <b>SOLANA</b> & 🔹 <b>ROBINHOOD</b> (Dual-Chain)\nBot selanjutnya akan memindai kedua chain setiap 5 menit.\n\n" + menu_text,
+                            reply_markup=build_chain_inline_markup("BOTH"),
+                        )
+
+                    elif text in ("/menu", "/settings", "⚙️ menu toggle", "⚙️ menu / status", "/chain"):
+                        cur_mode = conf.get("chain_mode", "RH").upper()
+                        menu_text = build_chain_menu_text(cur_mode, conf.get("interval_sec", 300))
+                        send_telegram_message(token, cid, menu_text, reply_markup=build_chain_inline_markup(cur_mode))
 
                     elif text.startswith("/start") or text.startswith("/help"):
+                        cur_mode = conf.get("chain_mode", "RH").upper()
+                        mode_desc = "🔹 <b>ROBINHOOD Only</b> (Default)" if cur_mode == "RH" else ("🔸 <b>SOLANA Only</b>" if cur_mode == "SOL" else "🔸 <b>SOLANA</b> & 🔹 <b>ROBINHOOD</b>")
                         help_msg = (
                             "🤖 <b>Chop Radar Bot (Dual-Chain GMGN Edition)</b>\n\n"
                             "Bot otomatis memindai pool & meme coin dari GMGN setiap 5 menit.\n\n"
-                            "<b>Lencana Rantai:</b>\n"
-                            "• 🔸 <b>Solana (SOL)</b>\n"
-                            "• 🔹 <b>Robinhood (RH)</b>\n\n"
+                            f"<b>Mode Aktif Saat Ini:</b>\n"
+                            f"• {mode_desc}\n\n"
                             "<b>Perintah Tersedia:</b>\n"
+                            "• <code>/menu</code> - Buka toggle menu pengaturan rantai\n"
                             "• <code>/scan</code> - Jalankan pemindaian sesuai mode aktif\n"
-                            "• <code>/scan sol</code> - Quick scan khusus Solana 🔸\n"
                             "• <code>/scan rh</code> - Quick scan khusus Robinhood 🔹\n"
+                            "• <code>/scan sol</code> - Quick scan khusus Solana 🔸\n"
                             "• <code>/scan both</code> - Quick scan kedua chain 🔸🔹\n"
-                            "• <code>/chain &lt;both|sol|rh&gt;</code> - Ubah mode pemantauan otomatis\n"
+                            "• <code>/chain &lt;rh|sol|both&gt;</code> - Ubah mode pemantauan\n"
                             "• <code>/help</code> - Tampilkan pesan bantuan ini\n\n"
                             "<i>Ditenagai oleh GMGN Market API.</i>"
                         )
-                        send_telegram_message(token, cid, help_msg)
+                        # Kirim persistent reply keyboard di bilah bawah dan inline menu toggle
+                        send_telegram_message(token, cid, help_msg, reply_markup=build_chain_reply_keyboard())
+                        menu_text = build_chain_menu_text(cur_mode, conf.get("interval_sec", 300))
+                        send_telegram_message(token, cid, menu_text, reply_markup=build_chain_inline_markup(cur_mode))
         except Exception:
             time.sleep(5)
         time.sleep(1)
