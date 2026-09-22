@@ -464,69 +464,70 @@ def fetch_geckoterminal_new_pools(chain: str = "solana", pages: int = 2) -> list
 # ================= SECOND WAVE HUNTER SCORER =================
 
 def score_second_wave_candidates(
-    new_pool_tokens: list[dict],
-    ath_cache: dict,
+    scored_tokens: list[dict],
     conf: dict,
 ) -> list[dict]:
-    """Filter dan score kandidat Second Wave Hunter.
+    """Filter dan score kandidat Second Wave Hunter dari GMGN scored tokens.
+
+    Menggunakan data langsung dari GMGN:
+      - ath_mcap  → history_highest_market_cap (ATH MC historis dari GMGN)
+      - age_hours → dihitung dari open_timestamp
+      - mcap      → MC saat ini
+      - liq       → Likuiditas pool
+      - vol       → Volume 24h (proxy untuk volume 6h: vol/4)
+      - buy_ratio → Rasio pembeli
 
     Kriteria wajib (3 tahap):
-    1. Usia ≤ 24j, MC $10k–$60k, Liq ≥ $10k, Vol6h ≥ $10k
-    2. ATH cache ≥ $200k DAN current MC ≤ 35% ATH (pullback ≥ 65%)
-    3. buy_ratio ≥ 52% ATAU vol_h1 ≥ $1500 (buying activity naik lagi)
-
-    Return: list of dict dengan keys: symbol, url, chain_badge, fdv_usd,
-            ath_mcap, reserve_usd, vol_h6, buy_ratio, age_hours
+    1. Usia ≤ 24j, MC $10k–$60k, Liq ≥ $10k, Vol 24h ≥ $10k
+    2. ATH GMGN ≥ $200k DAN current MC ≤ 35% ATH (pullback ≥ 65%)
+    3. buy_ratio ≥ 52% ATAU vol/24 ≥ $1500 (buying activity naik lagi)
     """
     candidates: list[dict] = []
-    for t in new_pool_tokens:
-        # Tahap 1: filter dasar
-        age_h = float(t.get("age_hours") or 9999.0)
-        fdv = float(t.get("fdv_usd") or 0.0)
-        reserve = float(t.get("reserve_usd") or 0.0)
-        vol_h6 = float(t.get("vol_h6") or 0.0)
+    for t in scored_tokens:
+        # Tahap 1: filter dasar — pakai field GMGN scored token
+        age_h   = float(t.get("age_hours") or 9999.0)
+        mcap    = float(t.get("mcap") or 0.0)
+        liq     = float(t.get("liq") or 0.0)
+        vol     = float(t.get("vol") or 0.0)
 
         if age_h > 24.0:
             continue
-        if not (10_000 <= fdv <= 60_000):
+        if not (10_000 <= mcap <= 60_000):
             continue
-        if reserve < 10_000:
+        if liq < 10_000:
             continue
-        if vol_h6 < 10_000:
+        if vol < 10_000:    # vol 24h > $10k sudah cukup (ada trading real)
             continue
 
-        # Tahap 2: ATH cache — pernah hit ≥ $200k dan sekarang pullback ≥ 65%
-        token_addr = str(t.get("token_address") or "").strip()
-        cached = ath_cache.get(token_addr)
-        if not cached:
-            continue
-        ath_mcap = float(cached.get("ath_mcap") or 0.0)
+        # Tahap 2: ATH GMGN — pernah hit ≥ $200k dan sekarang pullback ≥ 65%
+        ath_mcap = float(t.get("ath_mcap") or 0.0)
         if ath_mcap < 200_000:
             continue
-        if fdv > ath_mcap * 0.35:
-            continue  # belum cukup pullback (< 65% drop)
+        if mcap > ath_mcap * 0.35:
+            continue  # belum cukup pullback (< 65% drop dari ATH)
 
-        # Tahap 3: sinyal "volume naik lagi"
-        buy_ratio = float(t.get("buy_ratio") or 50.0)
-        vol_h1 = float(t.get("vol_h1") or 0.0)
-        if buy_ratio < 52.0 and vol_h1 < 1_500.0:
+        # Tahap 3: sinyal "volume naik lagi / pembeli masuk"
+        buy_ratio  = float(t.get("buy_ratio") or 50.0)
+        vol_h1_est = vol / 24.0   # estimasi vol per jam
+        if buy_ratio < 52.0 and vol_h1_est < 1_500.0:
             continue
 
+        chain = str(t.get("chain") or "SOL").upper()
+        badge = "🔹" if chain == "RH" else "🔸"
         candidates.append({
-            "symbol": t.get("symbol") or "?",
-            "url": t.get("url") or "#",
-            "chain_badge": t.get("chain_badge") or "🔸",
-            "chain": t.get("chain") or "SOL",
-            "fdv_usd": fdv,
-            "ath_mcap": ath_mcap,
-            "reserve_usd": reserve,
-            "vol_h6": vol_h6,
-            "vol_h1": vol_h1,
-            "buy_ratio": buy_ratio,
-            "age_hours": age_h,
+            "symbol":     t.get("symbol") or "?",
+            "url":        t.get("url") or "#",
+            "chain_badge": badge,
+            "chain":      chain,
+            "mcap":       mcap,
+            "ath_mcap":   ath_mcap,
+            "liq":        liq,
+            "vol":        vol,
+            "buy_ratio":  buy_ratio,
+            "age_hours":  age_h,
         })
 
-    # Urutkan: ATH tertinggi dulu (token yang pernah paling tinggi = paling menarik)
+    # Urutkan: ATH tertinggi dulu (token yang pernah paling jauh dari MC sekarang = paling menarik)
     candidates.sort(key=lambda x: -x["ath_mcap"])
     return candidates
 
@@ -654,6 +655,13 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
         dex_url = f"https://dexscreener.com/solana/{addr}"
 
+    # ATH Market Cap langsung dari GMGN (history_highest_market_cap)
+    ath_mcap = num(row, "history_highest_market_cap")
+
+    # Usia token dalam jam (dari open_timestamp atau creation_timestamp)
+    open_ts = num(row, "open_timestamp", "creation_timestamp")
+    age_hours = round((time.time() - open_ts) / 3600.0, 1) if open_ts > 0 else 9999.0
+
     return {
         "symbol": symbol,
         "name": name,
@@ -677,6 +685,8 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "url": gmgn_url,
         "gmgn": gmgn_url,
         "dexscreener": dex_url,
+        "ath_mcap": ath_mcap,       # ATH MC dari GMGN (history_highest_market_cap)
+        "age_hours": age_hours,     # Usia token dalam jam (dari open_timestamp)
     }
 
 
@@ -962,15 +972,16 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
         lines.append("<i>⚠️ Bukan LP · Spot Trading · DYOR</i>")
         for sw in sw_list[:8]:  # maks 8 sinyal
             sym_link = f'<a href="{sw["url"]}"><b>{sw["symbol"]}</b></a>'
-            mc_str = _usd(sw["fdv_usd"])
-            ath_str = _usd(sw["ath_mcap"])
-            liq_str = _usd(sw["reserve_usd"])
-            vol6_str = _usd(sw["vol_h6"])
-            buy_str = f"{sw['buy_ratio']:.0f}%"
-            age_str = f"{sw['age_hours']:.1f}j"
-            badge = sw.get("chain_badge", "🔸")
+            mc_str   = _usd(sw["mcap"])
+            ath_str  = _usd(sw["ath_mcap"])
+            liq_str  = _usd(sw["liq"])
+            vol_str  = _usd(sw["vol"])
+            buy_str  = f"{sw['buy_ratio']:.0f}%"
+            age_str  = f"{sw['age_hours']:.1f}j"
+            pullback = round((1 - sw["mcap"] / sw["ath_mcap"]) * 100, 0) if sw["ath_mcap"] > 0 else 0
+            badge    = sw.get("chain_badge", "🔸")
             lines.append(
-                f"• {badge} {sym_link} ➔ MC {mc_str} │ ATH {ath_str} │ Liq {liq_str} │ Vol6h {vol6_str} │ Buy {buy_str} │ Usia {age_str}"
+                f"• {badge} {sym_link} ➔ MC {mc_str} │ ATH {ath_str} (-{pullback:.0f}%) │ Liq {liq_str} │ Vol {vol_str} │ Buy {buy_str} │ {age_str}"
             )
 
     lines.append("━━━━━━━━━━━━━━━━━━")
@@ -1092,47 +1103,16 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
     )
 
     # ── Second Wave Hunter ──────────────────────────────────────────────────
-    # 1. Update ATH cache dari semua token yang baru di-score (tidak mempengaruhi LP logic)
-    update_ath_cache(scored_tokens)
-
-    # 2. Fetch new pools & score Second Wave candidates (pipeline terpisah dari LP)
+    # Langsung gunakan scored_tokens dari GMGN yang sudah punya ath_mcap + age_hours
+    # Tidak perlu GeckoTerminal, tidak perlu ATH cache — semua data ada di response GMGN
     sw_candidates: list[dict] = []
     try:
-        if chain_mode in ("BOTH", "SOL") and source == "GMGN":
-            gt_pools = fetch_geckoterminal_new_pools("solana", pages=2)
-            if gt_pools:
-                sw_sol = score_second_wave_candidates(gt_pools, ATH_CACHE, conf)
-                sw_candidates.extend(sw_sol)
-                print(f"[{time.strftime('%H:%M:%S')}] [SW] GeckoTerminal: {len(gt_pools)} pools → {len(sw_sol)} kandidat")
-        if chain_mode in ("BOTH", "RH"):
-            # Gunakan token RH dari GMGN rank yang sudah di-fetch, filter MC micro (<$60k)
-            rh_micro = [
-                {
-                    "symbol": t.get("symbol", "?"),
-                    "token_address": t.get("address", ""),
-                    "age_hours": 0.5,   # GMGN rank = token aktif, asumsikan usia singkat
-                    "fdv_usd": t.get("mcap", 0.0),
-                    "reserve_usd": t.get("liq", 0.0),
-                    "vol_h6": t.get("vol", 0.0) / 4.0,   # Proxy: vol 24h / 4 ≈ vol 6h
-                    "vol_h1": t.get("vol", 0.0) / 24.0,
-                    "buy_ratio": t.get("buy_ratio", 50.0),
-                    "chain_badge": "🔹",
-                    "chain": "RH",
-                    "url": t.get("url", "#"),
-                }
-                for t in scored_tokens
-                if str(t.get("chain", "")).upper() == "RH" and 10_000 <= t.get("mcap", 0.0) <= 60_000
-            ]
-            if rh_micro:
-                sw_rh = score_second_wave_candidates(rh_micro, ATH_CACHE, conf)
-                sw_candidates.extend(sw_rh)
-                print(f"[{time.strftime('%H:%M:%S')}] [SW] RH micro-cap: {len(rh_micro)} kandidat → {len(sw_rh)} lolos")
+        sw_candidates = score_second_wave_candidates(scored_tokens, conf)
+        if sw_candidates:
+            print(f"[{time.strftime('%H:%M:%S')}] [SW] {len(sw_candidates)} kandidat Second Wave (GMGN ATH native)")
     except Exception as sw_err:
         print(f"[{time.strftime('%H:%M:%S')}] [SW] Error (diabaikan, LP tetap jalan): {sw_err}", file=sys.stderr)
         sw_candidates = []
-
-    # Simpan ATH cache setelah update
-    save_ath_cache()
     # ── End Second Wave Hunter ──────────────────────────────────────────────
 
     report_text = generate_report(scored_tokens, scan_conf, source_name=source, sw_candidates=sw_candidates)
