@@ -189,13 +189,17 @@ def perform_scan() -> None:
                     r["chain"] = "RH"
                     scored_tokens.append(bot_sol_lp.score_gmgn_token(r, conf))
 
-        # Filter dasar (Exclude native tokens & batasi rentang MCAP)
+        # Filter dasar (Exclude native tokens, batasi rentang MCAP, dan block tokenized stocks)
+        do_filter_stocks = bool(conf.get("filter_stocks", True))
         filtered = [
             p for p in scored_tokens
             if p.get("address") not in bot_sol_lp.QUOTE_MINTS
             and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
             and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+            and not (do_filter_stocks and bot_sol_lp.is_tokenized_stock(p))
         ]
+
+        min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
 
         # 1. Kategori Siap LP (100% lolos Chop Sideways, Fee >= min_fee_siap_lp)
         siap_candidates = [
@@ -205,10 +209,12 @@ def perform_scan() -> None:
         siap_lp = bot_sol_lp.deduplicate_best_tokens(siap_candidates)
         siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
-        # 2. Kategori Absorption Radar (Microstate ABSORPTION / REACCUMULATION atau score tinggi, sorted Fee/h desc)
+        # 2. Kategori Absorption Radar (Microstate ABSORPTION / REACCUMULATION atau score tinggi)
+        # Opsi B: fee_hour >= min_fee_absorb agar koin "mati yield" seperti saham tidak nongol
         absorb_candidates = [
             p for p in filtered
-            if p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)
+            if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
+            and p.get("fee_hour", 0.0) >= min_fee_absorb
         ]
         absorption = bot_sol_lp.deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))

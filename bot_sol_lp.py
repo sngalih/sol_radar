@@ -50,6 +50,51 @@ QUOTE_MINTS = {
     "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
 }
 
+# ================= TOKENIZED STOCK FILTER =================
+# Daftar ticker saham AS / ETF yang di-tokenisasi di Robinhood Chain.
+# Koin-koin ini bukan meme coin — pergerakannya sangat lambat dan yield LP-nya receh.
+TOKENIZED_STOCK_SYMBOLS: frozenset[str] = frozenset({
+    "META", "NVDA", "GOOGL", "GOOG", "SPY", "SPCX", "MU", "MSTR",
+    "GLD", "HIMS", "AAPL", "GME", "AMC", "TSLA", "MSFT", "AMZN",
+    "QQQ", "COIN", "AMD", "NFLX", "PLTR", "BABA", "DIS", "INTC",
+    "BRK", "JPM", "V", "WMT", "SLV", "USO", "TLT", "IWM", "VIX",
+    "NVDL", "TQQQ", "SQQQ", "SPXL", "SPXS", "UPRO", "SOXL", "BITX",
+    "HOOD", "RBLX", "SNAP", "LYFT", "UBER", "ABNB", "RIVN", "F",
+})
+
+# Substring yang selalu ada di nama resmi tokenized equity dari GMGN
+_STOCK_NAME_MARKERS: tuple[str, ...] = (
+    "• robinhood token",
+    "robinhood token",
+    "common stock",
+    "etf trust",
+    "class a common stock",
+    "class b common stock",
+)
+
+
+def is_tokenized_stock(token: dict) -> bool:
+    """Deteksi apakah token adalah saham/ETF AS yang di-tokenisasi di Robinhood Chain.
+
+    Menggunakan 2 pengecekan:
+    1. Nama token (pattern GMGN seperti "NVIDIA • Robinhood Token")
+    2. Ticker simbol yang dikenal sebagai saham AS (hanya di-apply untuk chain RH)
+    """
+    name = str(token.get("name") or "").lower()
+    symbol = str(token.get("symbol") or "").upper()
+    chain = str(token.get("chain") or "").upper()
+
+    # Cek marker di nama token (berlaku untuk semua chain)
+    if any(m in name for m in _STOCK_NAME_MARKERS):
+        return True
+
+    # Cek ticker saham bursa (hanya RH chain agar tidak salah block meme coin SOL)
+    if chain == "RH" and symbol in TOKENIZED_STOCK_SYMBOLS:
+        return True
+
+    return False
+
+
 # ================= ATH CACHE (Second Wave Hunter) =================
 # Menyimpan All-Time-High MC per token. Diupdate tiap scan, persist ke sol-hp-cache.json.
 ATH_CACHE: dict[str, dict] = {}  # { addr: { "symbol": str, "ath_mcap": float, "last_seen": int } }
@@ -66,6 +111,8 @@ DEFAULT_CONFIG = {
     "min_mcap": 500000.0,       # Market cap minimal $500k
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
     "min_fee_siap_lp": 3.0,     # Hanya tampilkan Siap LP jika fee/hour >= $3.00
+    "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
+    "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
     "max_1h": 80.0,             # volatilitas 1h max 80%
@@ -891,13 +938,17 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     min_mcap = float(conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
     min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 3.0))
+    min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
+    do_filter_stocks = bool(conf.get("filter_stocks", True))
 
     # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
+    # Opsi A: Exclude tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     filtered = [
         p for p in tokens
         if p.get("address") not in QUOTE_MINTS
         and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
         and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+        and not (do_filter_stocks and is_tokenized_stock(p))
     ]
 
     # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
@@ -908,10 +959,12 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     siap_lp = deduplicate_best_tokens(siap_candidates)
     siap_lp.sort(key=lambda x: -x["fee_hour"])
 
-    # 2. Kategori Absorption Radar: micro_state ABSORPTION atau REACCUMULATION atau score tinggi
+    # 2. Kategori Absorption Radar: micro_state ABSORPTION / REACCUMULATION atau score tinggi
+    # Opsi B: Tambah batas minimum fee agar koin "mati yield" tidak mengganggu radar
     absorb_candidates = [
         p for p in filtered
-        if p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)
+        if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
+        and p.get("fee_hour", 0.0) >= min_fee_absorb
     ]
     absorption = deduplicate_best_tokens(absorb_candidates)
     absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))

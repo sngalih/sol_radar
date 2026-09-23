@@ -47,11 +47,13 @@ DEFAULT_FILTERS = {
     "max_er": 20,
     "max_dev_hold": 20,
     "max_insider": 10,
-    "min_holder": 150,          # AI-recommended: min 150 holder untuk safety distribusi
+    "min_holder": 150,          # min 150 holder untuk safety distribusi
     "position": 100,
     "interval": 300,
     "min_absorb_score": 65,
     "min_absorb_mcap": 500000,
+    "min_fee_absorb": 0.50,     # Opsi B: min fee/h untuk Absorption Radar ($0.50/h)
+    "filter_stocks": True,      # Opsi A: filter saham sintetis Robinhood (META, NVDA, dll.)
     "telegram_token": "",
     "telegram_chat_id": "",
     "telegram_enabled": False,
@@ -672,6 +674,34 @@ def get_next_boundary(interval_sec: int = INTERVAL_SEC, offset_sec: int = 1) -> 
     return float(next_slot + offset_sec)
 
 
+# Daftar ticker saham AS / ETF di Robinhood Chain (Tokenized Equity)
+_STOCK_TICKERS: frozenset = frozenset({
+    "META", "NVDA", "GOOGL", "GOOG", "SPY", "SPCX", "MU", "MSTR",
+    "GLD", "HIMS", "AAPL", "GME", "AMC", "TSLA", "MSFT", "AMZN",
+    "QQQ", "COIN", "AMD", "NFLX", "PLTR", "BABA", "DIS", "INTC",
+    "BRK", "JPM", "V", "WMT", "SLV", "USO", "TLT", "IWM", "VIX",
+    "NVDL", "TQQQ", "SQQQ", "SPXL", "SPXS", "UPRO", "SOXL", "BITX",
+    "HOOD", "RBLX", "SNAP", "LYFT", "UBER", "ABNB", "RIVN", "F",
+})
+_STOCK_NAME_MARKERS: tuple = (
+    "• robinhood token", "robinhood token",
+    "common stock", "etf trust",
+    "class a common stock", "class b common stock",
+)
+
+
+def _is_stock_row(row: dict) -> bool:
+    """Deteksi apakah scored row adalah tokenized equity/ETF yang tidak relevan untuk LP meme."""
+    name = str(row.get("name") or "").lower()
+    sym = str(row.get("symbol") or "").upper()
+    chain = str(row.get("chain") or "").upper()
+    if any(m in name for m in _STOCK_NAME_MARKERS):
+        return True
+    if chain == "RH" and sym in _STOCK_TICKERS:
+        return True
+    return False
+
+
 def scan() -> None:
     with lock:
         if state["scanning"]:
@@ -702,6 +732,12 @@ def scan() -> None:
                 time.sleep(3.5)
 
         rows = [score(r, f) for r in raw_items]
+
+        # Opsi A: Filter tokenized stocks/ETF (META, NVDA, GOOGL, dll.) dari semua view
+        do_filter_stocks = bool(f.get("filter_stocks", True))
+        if do_filter_stocks:
+            rows = [r for r in rows if not _is_stock_row(r)]
+
         sw_rows = score_second_wave(rows, f)
 
         with lock:
@@ -2326,6 +2362,11 @@ function renderCurrentView() {
     const minHolder = Number(document.getElementById('f-holder-micro')?.value);
     if (!isNaN(minHolder) && minHolder > 0) {
       filtered = filtered.filter(r => (r.holders || 0) >= minHolder);
+    }
+    // Opsi B: Filter fee rendah di Absorption view (default min $0.50/h)
+    const minFeeAbsorb = Number(currentData.filters?.min_fee_absorb ?? 0.50);
+    if (minFeeAbsorb > 0) {
+      filtered = filtered.filter(r => (r.fee_hour || 0) >= minFeeAbsorb);
     }
     if (activeMicroFilter === 'ABSORPTION') {
       filtered = filtered.filter(r => r.micro && (r.micro.state === 'ABSORPTION' || r.micro.state === 'REACCUMULATION'));
