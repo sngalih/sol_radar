@@ -65,6 +65,7 @@ DEFAULT_FILTERS = {
     "break_ath_min_fee": 3.0,
     "break_ath_min_scans": 3,
     "break_ath_min_buy": 50,
+    "break_ath_min_mcap": 500000,
 }
 
 lock = threading.Lock()
@@ -765,6 +766,8 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
     min_fee = float(f.get("break_ath_min_fee") or 3.0)
     min_liq = float(f.get("min_liq") or 20000)
     min_buy = float(f.get("break_ath_min_buy") or 50.0)
+    min_mcap = float(f.get("break_ath_min_mcap") or f.get("min_mcap") or 500000)
+    max_mcap = float(f.get("max_mcap") or 500000000)
 
     now = int(time.time())
     candidates: list[dict] = []
@@ -779,6 +782,11 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
         scans = int(cached.get("break_scans") or 0)
         if scans < min_scans:
             continue
+
+        mcap = float(t.get("mcap") or 0.0)
+        if not (min_mcap <= mcap <= max_mcap):
+            continue
+
         fee_h = float(t.get("fee_hour") or 0.0)
         if fee_h < min_fee:
             continue
@@ -791,7 +799,6 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
         if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0:
             continue
 
-        mcap = float(t.get("mcap") or 0.0)
         ath_old = float(cached.get("ath_mcap") or 0.0)
         breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
         first_ts = int(cached.get("first_break_ts") or now)
@@ -1805,16 +1812,20 @@ th.sortable:hover {
 
     <div class="filter-bar">
       <div class="f-input-group">
+        <label>Min MC $</label>
+        <input id="f-bath-mcap" style="width:65px" value="500000"/>
+      </div>
+      <div class="f-input-group">
         <label>Min Fee $/h</label>
-        <input id="f-bath-fee" style="width:55px" value="3.0"/>
+        <input id="f-bath-fee" style="width:50px" value="3.0"/>
       </div>
       <div class="f-input-group">
         <label>Min Scans</label>
-        <input id="f-bath-scans" style="width:45px" value="3"/>
+        <input id="f-bath-scans" style="width:40px" value="3"/>
       </div>
       <div class="f-input-group">
         <label>Min Buy %</label>
-        <input id="f-bath-buy" style="width:45px" value="50"/>
+        <input id="f-bath-buy" style="width:40px" value="50"/>
       </div>
       <button class="btn-apply" id="btn-apply-bath" type="button" style="background:linear-gradient(135deg,#0284c7,#2563eb); border-color:#0284c7">Terapkan ATH</button>
     </div>
@@ -2700,6 +2711,10 @@ function renderCurrentView() {
     if (activeChainFilter !== 'BOTH') {
       bathList = bathList.filter(r => (r.chain || 'RH').toUpperCase() === activeChainFilter);
     }
+    const minMcap = Number(document.getElementById('f-bath-mcap')?.value);
+    if (!isNaN(minMcap) && minMcap > 0) {
+      bathList = bathList.filter(r => (r.mcap || 0) >= minMcap);
+    }
     const minFee = Number(document.getElementById('f-bath-fee')?.value);
     if (!isNaN(minFee) && minFee > 0) {
       bathList = bathList.filter(r => (r.fee_hour || 0) >= minFee);
@@ -2763,6 +2778,7 @@ document.getElementById('tabs-bath').onclick = e => {
   renderCurrentView();
 };
 
+document.getElementById('f-bath-mcap').addEventListener('input', renderCurrentView);
 document.getElementById('f-bath-fee').addEventListener('input', renderCurrentView);
 document.getElementById('f-bath-scans').addEventListener('input', renderCurrentView);
 document.getElementById('f-bath-buy').addEventListener('input', renderCurrentView);
@@ -2771,6 +2787,7 @@ document.getElementById('btn-apply-bath').onclick = async () => {
   const btn = document.getElementById('btn-apply-bath');
   btn.textContent = 'Menyimpan...';
   const body = {
+    break_ath_min_mcap: Number(document.getElementById('f-bath-mcap').value),
     break_ath_min_fee: Number(document.getElementById('f-bath-fee').value),
     break_ath_min_scans: Number(document.getElementById('f-bath-scans').value),
     break_ath_min_buy: Number(document.getElementById('f-bath-buy').value),

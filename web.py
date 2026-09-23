@@ -53,8 +53,9 @@ app_state: dict[str, Any] = {
     "total_scanned": 0,
     "siap_lp": [],
     "absorption": [],
+    "break_ath": [],
     "gaps": [],
-    "counts": {"siap": 0, "absorption": 0, "gaps": 0, "total": 0},
+    "counts": {"siap": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "total": 0},
     "top_yield": 0.0,
     "filters": {},
 }
@@ -603,6 +604,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-color: var(--blue);
       color: var(--blue);
     }
+    .cat-tab.active[data-cat="break_ath"] {
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
     .cat-tab.active[data-cat="gaps"] {
       border-color: var(--yellow);
       color: var(--yellow);
@@ -614,6 +619,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .cat-tab.active[data-cat="absorption"] .badge-count {
       background: rgba(59, 130, 246, 0.2);
       color: var(--blue);
+    }
+    .cat-tab.active[data-cat="break_ath"] .badge-count {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
     }
     .cat-tab.active[data-cat="gaps"] .badge-count {
       background: rgba(245, 158, 11, 0.2);
@@ -1059,6 +1068,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <span>📡 ABSORPTION</span>
         <span id="badgeAbsorb" class="badge-count">0</span>
       </div>
+      <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')">
+        <span>🚀 BREAK ATH</span>
+        <span id="badgeBath" class="badge-count">0</span>
+      </div>
       <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')">
         <span>⚠️ GAPS / RADAR</span>
         <span id="badgeGaps" class="badge-count">0</span>
@@ -1332,6 +1345,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         rawList = globalState.siap_lp || [];
       } else if (activeCategory === "absorption") {
         rawList = globalState.absorption || [];
+      } else if (activeCategory === "break_ath") {
+        rawList = globalState.break_ath || [];
       } else {
         rawList = globalState.gaps || [];
       }
@@ -1359,6 +1374,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         let emptyMsg = "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).";
         if (activeCategory === "absorption") {
           emptyMsg = "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.";
+        } else if (activeCategory === "break_ath") {
+          emptyMsg = "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, MC ≥ $500k).";
         } else if (activeCategory === "gaps") {
           emptyMsg = "Tidak ada token radar yang berada di luar kriteria.";
         }
@@ -1504,6 +1521,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // Update Category Badges
         document.getElementById("badgeSiap").innerText = data.counts.siap || 0;
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
+        if (document.getElementById("badgeBath")) {
+          document.getElementById("badgeBath").innerText = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
+        }
         document.getElementById("badgeGaps").innerText = data.counts.gaps || 0;
 
         renderCards();
@@ -1577,6 +1597,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "filters": app_state["filters"],
                     "siap_lp": app_state["siap_lp"],
                     "absorption": app_state["absorption"],
+                    "break_ath": app_state.get("break_ath", []),
                     "gaps": app_state["gaps"],
                 }
             self.send_json(data)
