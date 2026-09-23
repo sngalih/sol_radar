@@ -219,7 +219,14 @@ def perform_scan() -> None:
         absorption = bot_sol_lp.deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
-        # 3. Kategori Gaps (Token dalam rentang Mcap yang belum 100% lolos kriteria CHOP Siap LP)
+        # 3. Kategori Break ATH LP (15m+ Confirmed)
+        try:
+            bot_sol_lp.update_ath_cache(scored_tokens)
+        except Exception:
+            pass
+        break_ath = bot_sol_lp.score_break_ath_candidates(scored_tokens, conf)
+
+        # 4. Kategori Gaps (Token dalam rentang Mcap yang belum 100% lolos kriteria CHOP Siap LP)
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         gaps_candidates = []
         for p in filtered:
@@ -267,10 +274,12 @@ def perform_scan() -> None:
             app_state["total_scanned"] = len(scored_tokens)
             app_state["siap_lp"] = siap_lp
             app_state["absorption"] = absorption
+            app_state["break_ath"] = break_ath
             app_state["gaps"] = gaps[:40]  # Limit agar tidak membebani browser HP
             app_state["counts"] = {
                 "siap": len(siap_lp),
                 "absorption": len(absorption),
+                "break_ath": len(break_ath),
                 "gaps": len(gaps),
                 "total": len(scored_tokens),
             }

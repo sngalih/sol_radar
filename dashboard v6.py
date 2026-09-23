@@ -62,6 +62,9 @@ DEFAULT_FILTERS = {
     "sw_min_liq": 10000,
     "sw_max_age": 24,
     "sw_min_buy": 52,
+    "break_ath_min_fee": 3.0,
+    "break_ath_min_scans": 3,
+    "break_ath_min_buy": 50,
 }
 
 lock = threading.Lock()
@@ -702,6 +705,113 @@ def _is_stock_row(row: dict) -> bool:
     return False
 
 
+# ================= BREAK ATH LP TRACKING & SCORER =================
+ATH_CACHE: dict[str, dict] = {}
+
+
+def update_ath_cache_v6(rows: list[dict]) -> None:
+    """Lacak siklus Break ATH (consecutive scans) per token di dashboard v6."""
+    now = int(time.time())
+    for t in rows:
+        addr = str(t.get("address") or "").strip()
+        mcap = float(t.get("mcap") or 0.0)
+        gmgn_ath = float(t.get("ath_mc") or 0.0)
+        sym = str(t.get("symbol") or "?")
+        chain = str(t.get("chain") or "SOL").upper()
+
+        if not addr or mcap <= 0:
+            continue
+
+        existing = ATH_CACHE.get(addr)
+        if existing is None:
+            baseline_ath = gmgn_ath if gmgn_ath > mcap * 1.02 else mcap
+            is_breaking = (mcap >= baseline_ath * 1.02)
+            ATH_CACHE[addr] = {
+                "symbol": sym,
+                "chain": chain,
+                "ath_mcap": baseline_ath,
+                "peak_mcap": mcap,
+                "break_scans": 1 if is_breaking else 0,
+                "first_break_ts": now if is_breaking else 0,
+                "last_seen": now,
+            }
+        else:
+            existing["symbol"] = sym
+            existing["chain"] = chain
+            existing["last_seen"] = now
+            baseline_ath = float(existing.get("ath_mcap") or 0.0)
+            if baseline_ath <= 0:
+                baseline_ath = gmgn_ath if gmgn_ath > 0 else mcap
+                existing["ath_mcap"] = baseline_ath
+
+            if mcap >= baseline_ath * 1.02:
+                existing["break_scans"] = existing.get("break_scans", 0) + 1
+                if not existing.get("first_break_ts"):
+                    existing["first_break_ts"] = now
+                existing["peak_mcap"] = max(existing.get("peak_mcap", 0.0), mcap)
+            elif mcap >= baseline_ath * 0.98:
+                pass  # Retest support zone
+            else:
+                if existing.get("peak_mcap", 0.0) > baseline_ath * 1.05:
+                    existing["ath_mcap"] = existing["peak_mcap"]
+                existing["break_scans"] = 0
+                existing["first_break_ts"] = 0
+                existing["peak_mcap"] = mcap
+
+
+def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
+    """Filter dan score kandidat Break ATH LP untuk dashboard v6."""
+    min_scans = int(f.get("break_ath_min_scans") or 3)
+    min_fee = float(f.get("break_ath_min_fee") or 3.0)
+    min_liq = float(f.get("min_liq") or 20000)
+    min_buy = float(f.get("break_ath_min_buy") or 50.0)
+
+    now = int(time.time())
+    candidates: list[dict] = []
+
+    for t in rows:
+        addr = str(t.get("address") or "")
+        if not addr or _is_stock_row(t):
+            continue
+        cached = ATH_CACHE.get(addr)
+        if not cached:
+            continue
+        scans = int(cached.get("break_scans") or 0)
+        if scans < min_scans:
+            continue
+        fee_h = float(t.get("fee_hour") or 0.0)
+        if fee_h < min_fee:
+            continue
+        liq = float(t.get("liq") or 0.0)
+        if liq < min_liq:
+            continue
+        buy_ratio = float(t.get("buy_ratio") or 50.0)
+        if buy_ratio < min_buy:
+            continue
+        if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0:
+            continue
+
+        mcap = float(t.get("mcap") or 0.0)
+        ath_old = float(cached.get("ath_mcap") or 0.0)
+        breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
+        first_ts = int(cached.get("first_break_ts") or now)
+        duration_mins = max(15, int((now - first_ts) // 60))
+
+        price_val = float(t.get("price") or 0.0)
+        item = dict(t)
+        item["breakout_pct"] = breakout_pct
+        item["break_scans"] = scans
+        item["duration_mins"] = duration_mins
+        item["ath_old"] = ath_old
+        item["peak_mc"] = float(cached.get("peak_mcap") or mcap)
+        item["range_low"] = round(price_val * 0.80, 8)
+        item["range_high"] = round(price_val * 1.20, 8)
+        candidates.append(item)
+
+    candidates.sort(key=lambda x: -x["fee_hour"])
+    return candidates
+
+
 def scan() -> None:
     with lock:
         if state["scanning"]:
@@ -738,7 +848,10 @@ def scan() -> None:
         if do_filter_stocks:
             rows = [r for r in rows if not _is_stock_row(r)]
 
+        # Lacak siklus breakout ATH & skor kandidat
+        update_ath_cache_v6(rows)
         sw_rows = score_second_wave(rows, f)
+        break_ath_rows = score_break_ath(rows, f)
 
         with lock:
             fees = state.setdefault("fees", {})
@@ -835,6 +948,7 @@ def scan() -> None:
         with lock:
             state["rows"] = rows
             state["sw_rows"] = sw_rows
+            state["break_ath_rows"] = break_ath_rows
             state["log"] = log
             state["n"] = len(rows)
             state["scanned_at"] = now_ms
@@ -959,6 +1073,21 @@ body { display: flex; flex-direction: column; }
   background: linear-gradient(135deg, rgba(249, 115, 22, 0.3) 0%, rgba(234, 179, 8, 0.25) 100%);
   border-color: rgba(249, 115, 22, 0.5);
   color: #fed7aa;
+}
+.mode-btn.active.mode-breakath {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.35) 0%, rgba(59, 130, 246, 0.3) 100%);
+  border-color: rgba(6, 182, 212, 0.55);
+  color: #a5f3fc;
+}
+.bath-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px;
+  font-weight: 700; font-family: 'JetBrains Mono', monospace;
+}
+.bath-badge-confirmed {
+  background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4);
+}
+.bath-badge-duration {
+  background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);
 }
 .sw-badge {
   display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px;
@@ -1324,6 +1453,9 @@ th.sortable:hover {
     <button class="mode-btn mode-secondwave" id="btn-mode-secondwave" onclick="switchMasterMode('SECONDWAVE')">
       <span>🎯</span> Second Wave Hunter (Spot)
     </button>
+    <button class="mode-btn mode-breakath" id="btn-mode-breakath" onclick="switchMasterMode('BREAKATH')">
+      <span>🚀</span> Break ATH LP Radar
+    </button>
   </div>
 
   <!-- Real-Time Chain Switcher -->
@@ -1636,6 +1768,72 @@ th.sortable:hover {
   </main>
 </div>
 
+<!-- ================= MODE 4: BREAK ATH LP (15M+ CONFIRMED) ================= -->
+<div class="subview" id="view-breakath">
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-label">🚀 Terkonfirmasi (≥ 15m)</div>
+      <div class="kpi-val chop" id="kpi-bath-count">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">💰 Top Fee / Jam</div>
+      <div class="kpi-val" id="kpi-bath-top-fee" style="color:#22d3ee">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">⚡ Rata-rata Breakout</div>
+      <div class="kpi-val purple" id="kpi-bath-avg-break">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🛡️ Rekomendasi Range</div>
+      <div class="kpi-val" style="color:#38bdf8">±20% LP Range</div>
+    </div>
+  </div>
+
+  <div class="strategy-banner" style="background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%); border-color: rgba(6, 182, 212, 0.3)">
+    <div class="strat-text">
+      <b>🚀 Break ATH LP Edge</b>: Token yang bertahan konsisten <b>≥ 15 menit (3 scan)</b> di atas ATH lama membuktikan resistance berhasil diubah menjadi support baru. Di fase price discovery, volume melesat tajam dan menghasilkan fee LP tinggi (<b>≥ $3.00/jam</b>).
+    </div>
+    <div class="strat-tag" style="background: rgba(6, 182, 212, 0.2); color: #a5f3fc; border: 1px solid rgba(6, 182, 212, 0.4)">BREAK ATH MOMENTUM LP</div>
+  </div>
+
+  <div class="control-bar">
+    <div class="tabs-group" id="tabs-bath">
+      <button class="tab-btn active" data-bath="ALL">Semua Breakout</button>
+      <button class="tab-btn" data-bath="HIGH_YIELD" style="color:#22d3ee">💎 High Yield (≥ $4/h)</button>
+      <button class="tab-btn" data-bath="FRESH" style="color:#34d399">⚡ Fresh Break (15–30m)</button>
+    </div>
+
+    <div class="filter-bar">
+      <div class="f-input-group">
+        <label>Min Fee $/h</label>
+        <input id="f-bath-fee" style="width:55px" value="3.0"/>
+      </div>
+      <div class="f-input-group">
+        <label>Min Scans</label>
+        <input id="f-bath-scans" style="width:45px" value="3"/>
+      </div>
+      <div class="f-input-group">
+        <label>Min Buy %</label>
+        <input id="f-bath-buy" style="width:45px" value="50"/>
+      </div>
+      <button class="btn-apply" id="btn-apply-bath" type="button" style="background:linear-gradient(135deg,#0284c7,#2563eb); border-color:#0284c7">Terapkan ATH</button>
+    </div>
+  </div>
+
+  <main class="workstation" style="padding-top:0">
+    <section class="panel" style="flex:1">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span>🚀 Tabel Sinyal Break ATH LP Radar (15m+ Confirmed)</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; padding:1px 6px; border-radius:10px; background:rgba(6,182,212,0.15); color:#a5f3fc" id="bath-count">0 Token</span>
+        </div>
+        <div style="font-size:11px; color:var(--mut);">High Momentum LP · Refresh Otomatis Tiap 5 Menit · Port 8772</div>
+      </div>
+      <div class="panel-scroll" id="bath-scroll"></div>
+    </section>
+  </main>
+</div>
+
 <script>
 const usd = n => !n ? '—' : n >= 1e6 ? (n/1e6).toFixed(2)+'m' : n >= 1e3 ? (n/1e3).toFixed(1)+'k' : String(Math.round(n));
 const fee = n => n == null || n === 0 ? '—' : '$' + n.toFixed(2) + '/h';
@@ -1750,9 +1948,11 @@ function switchMasterMode(mode) {
   document.getElementById('btn-mode-standard').classList.toggle('active', mode === 'STANDARD');
   document.getElementById('btn-mode-micro').classList.toggle('active', mode === 'MICRO');
   document.getElementById('btn-mode-secondwave').classList.toggle('active', mode === 'SECONDWAVE');
+  document.getElementById('btn-mode-breakath').classList.toggle('active', mode === 'BREAKATH');
   document.getElementById('view-standard').classList.toggle('active-view', mode === 'STANDARD');
   document.getElementById('view-micro').classList.toggle('active-view', mode === 'MICRO');
   document.getElementById('view-secondwave').classList.toggle('active-view', mode === 'SECONDWAVE');
+  document.getElementById('view-breakath').classList.toggle('active-view', mode === 'BREAKATH');
   renderCurrentView();
 }
 
@@ -1993,6 +2193,94 @@ function renderSecondWaveTable(rows) {
           ${t.dexscreener ? `<a class="btn-link" href="${t.dexscreener}" target="_blank" rel="noreferrer">DexS</a>` : ''}
           ${t.fomo ? `<a class="btn-link" href="${t.fomo}" target="_blank" rel="noreferrer">FOMO</a>` : ''}
         </div>
+      </td>
+    </tr>`;
+  });
+
+  h += `</tbody></table>`;
+  return h;
+}
+
+function renderBreakAthTable(rows) {
+  if (!rows || !rows.length) {
+    return `<div style="padding:60px 20px; text-align:center; background:rgba(255,255,255,0.015); border-radius:12px; border:1px dashed var(--line); margin:20px;">
+      <div style="font-size:36px; margin-bottom:12px">🚀</div>
+      <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:6px">Belum Ada Token Break ATH yang Bertahan ≥ 15 Menit Saat Ini</div>
+      <div style="font-size:12px; color:var(--mut); max-width:580px; margin:0 auto; line-height:1.6">
+        Kriteria: Bertahan di atas ATH lama selama minimal 15 menit (3 scan berturut-turut) · Yield Fee ≥ $3.00/h ($100 posisi) · Likuiditas ≥ $20k · Buy Ratio ≥ 50%.
+        <br><br>Token yang lolos konfirmasi akan muncul otomatis di sini lengkap dengan rekomendasi range LP.
+      </div>
+    </div>`;
+  }
+
+  let h = `<table><thead><tr>
+    <th>Token</th>
+    <th class="num">Current MC</th>
+    <th class="num" title="ATH lama yang berhasil ditembus">ATH Lama</th>
+    <th style="text-align:center" title="Persentase kenaikan di atas ATH lama & konfirmasi waktu">🚀 Breakout & Durasi</th>
+    <th class="num" title="Estimasi fee harian & per jam posisi $100">Est. Fee Yield ($100)</th>
+    <th>Rekomendasi Range LP (±20%)</th>
+    <th class="num">Likuiditas / V/L</th>
+    <th style="text-align:center" title="Order Flow Pembeli">Order Flow</th>
+    <th style="text-align:center">🛡️ On-Chain Risk</th>
+    <th style="text-align:right">Riset & Eksekusi</th>
+  </tr></thead><tbody>`;
+
+  rows.forEach(t => {
+    const durMins = t.duration_mins || 15;
+    const scans = t.break_scans || 3;
+    const boPct = t.breakout_pct || 0;
+    const feeH = t.fee_hour || 0;
+    const fee24 = t.fee_24h || (feeH * 24);
+    const lowS = t.range_low != null ? (t.range_low < 0.0001 ? t.range_low.toExponential(3) : t.range_low.toFixed(6)) : '—';
+    const upS = t.range_high != null ? (t.range_high < 0.0001 ? t.range_high.toExponential(3) : t.range_high.toFixed(6)) : '—';
+    const buyRatio = t.buy_ratio || 50;
+    const flowColor = buyRatio >= 55 ? 'var(--chop)' : buyRatio >= 45 ? 'var(--mut-light)' : 'var(--bad)';
+
+    h += `<tr>
+      <td>
+        <div style="display:flex; align-items:center; gap:5px">
+          <span style="font-weight:700; color:#fff">${t.symbol}</span>
+          <span class="chain-pill ${t.chain === 'SOL' ? 'chain-sol' : t.chain === 'ARC' ? 'chain-arc' : 'chain-rh'}">${t.chain}</span>
+          <button class="btn-copy-ca" onclick="copyText('${t.address}', this)" title="Salin CA">📋</button>
+        </div>
+      </td>
+      <td class="num">
+        <div style="font-weight:700; color:#fff">$${usd(t.mcap)}</div>
+        <div style="font-size:10px; color:var(--mut)">$${(t.price || 0).toFixed(6)}</div>
+      </td>
+      <td class="num">
+        <div style="font-weight:600; color:var(--mut-light)">$${usd(t.ath_old || t.ath_mc)}</div>
+      </td>
+      <td style="text-align:center">
+        <span class="bath-badge bath-badge-confirmed">+${boPct.toFixed(0)}% ATH</span>
+        <div style="font-size:10px; color:var(--chop); margin-top:2px; font-weight:600">⏱️ ${durMins}m (${scans} scan)</div>
+      </td>
+      <td class="num">
+        <div style="color:var(--chop); font-weight:700">$${feeH.toFixed(2)}/h</div>
+        <div style="font-size:10px; color:var(--mut-light)">$${fee24.toFixed(2)}/d · V/L: ${(t.vl || 0).toFixed(1)}×</div>
+      </td>
+      <td>
+        <div class="lp-range-box">
+          <div class="lp-range-vals">
+            <span>${lowS}</span> — <span>${upS}</span>
+            <button class="btn-copy-ca" style="font-size:9px" onclick="copyText('${lowS} - ${upS}', this)" title="Salin Range">📋</button>
+          </div>
+          <span class="lp-range-badge badge-safe">±20% Momentum LP</span>
+        </div>
+      </td>
+      <td class="num">
+        <div>$${usd(t.liq)}</div>
+        <div style="font-size:10px; color:var(--mut)">Vol: $${usd(t.vol)}</div>
+      </td>
+      <td style="text-align:center">
+        <span class="safe-pill" style="color:${flowColor}; background:rgba(255,255,255,0.05)">${buyRatio.toFixed(0)}% Buy</span>
+      </td>
+      <td style="text-align:center">
+        <div style="font-size:10px; color:var(--mut)">Top10: ${t.top10_rate || 0}%</div>
+      </td>
+      <td style="text-align:right">
+        ${renderSecondWaveLinks(t)}
       </td>
     </tr>`;
   });
@@ -2256,6 +2544,19 @@ function paint(data) {
     document.getElementById('kpi-sw-top-ath').textContent = '—';
     document.getElementById('kpi-sw-avg-drop').textContent = '—';
   }
+
+  // KPI Break ATH LP
+  const bathRows = data.break_ath_rows || [];
+  document.getElementById('kpi-bath-count').textContent = bathRows.length;
+  if (bathRows.length > 0) {
+    const maxFee = Math.max(...bathRows.map(r => r.fee_hour || 0));
+    document.getElementById('kpi-bath-top-fee').textContent = '$' + maxFee.toFixed(2) + '/h';
+    const avgBo = bathRows.reduce((a, r) => a + (r.breakout_pct || 0), 0) / bathRows.length;
+    document.getElementById('kpi-bath-avg-break').textContent = '+' + avgBo.toFixed(0) + '%';
+  } else {
+    document.getElementById('kpi-bath-top-fee').textContent = '—';
+    document.getElementById('kpi-bath-avg-break').textContent = '—';
+  }
   if (rows.length > 0) {
     const maxScore = Math.max(...rows.map(r => (r.micro ? r.micro.score : 0)));
     document.getElementById('kpi-top-score').textContent = `${maxScore.toFixed(0)} / 100`;
@@ -2394,6 +2695,30 @@ function renderCurrentView() {
 
     document.getElementById('micro-count').textContent = `${filtered.length} Token`;
     document.getElementById('micro-scroll').innerHTML = renderMicroTable(filtered);
+  } else if (masterMode === 'BREAKATH') {
+    let bathList = currentData.break_ath_rows || [];
+    if (activeChainFilter !== 'BOTH') {
+      bathList = bathList.filter(r => (r.chain || 'RH').toUpperCase() === activeChainFilter);
+    }
+    const minFee = Number(document.getElementById('f-bath-fee')?.value);
+    if (!isNaN(minFee) && minFee > 0) {
+      bathList = bathList.filter(r => (r.fee_hour || 0) >= minFee);
+    }
+    const minScans = Number(document.getElementById('f-bath-scans')?.value);
+    if (!isNaN(minScans) && minScans > 0) {
+      bathList = bathList.filter(r => (r.break_scans || 0) >= minScans);
+    }
+    const minBuy = Number(document.getElementById('f-bath-buy')?.value);
+    if (!isNaN(minBuy) && minBuy > 0) {
+      bathList = bathList.filter(r => (r.buy_ratio || 0) >= minBuy);
+    }
+    if (activeBathFilter === 'HIGH_YIELD') {
+      bathList = bathList.filter(r => (r.fee_hour || 0) >= 4.0);
+    } else if (activeBathFilter === 'FRESH') {
+      bathList = bathList.filter(r => (r.duration_mins || 0) <= 30);
+    }
+    document.getElementById('bath-count').textContent = `${bathList.length} Token`;
+    document.getElementById('bath-scroll').innerHTML = renderBreakAthTable(bathList);
   }
 }
 
@@ -2412,7 +2737,7 @@ function updateTimeDisplay() {
       const min = Math.floor((remainMs / 1000) / 60);
       document.getElementById('txt-timer').textContent = `Next scan: ${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
     } else {
-      document.getElementById('txt-timer').textContent = currentData.scanning ? 'Memindai...' : 'Segera scan';
+      document.getElementById('txt-timer').textContent = 'Memindai...';
     }
   }
 }
@@ -2426,6 +2751,50 @@ async function load() {
     console.error('Fetch error:', err);
   }
 }
+
+let activeBathFilter = 'ALL';
+
+// Event Listeners for Break ATH Tabs & Filter
+document.getElementById('tabs-bath').onclick = e => {
+  const btn = e.target.closest('button');
+  if (!btn || !btn.dataset.bath) return;
+  document.querySelectorAll('#tabs-bath .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  activeBathFilter = btn.dataset.bath;
+  renderCurrentView();
+};
+
+document.getElementById('f-bath-fee').addEventListener('input', renderCurrentView);
+document.getElementById('f-bath-scans').addEventListener('input', renderCurrentView);
+document.getElementById('f-bath-buy').addEventListener('input', renderCurrentView);
+
+document.getElementById('btn-apply-bath').onclick = async () => {
+  const btn = document.getElementById('btn-apply-bath');
+  btn.textContent = 'Menyimpan...';
+  const body = {
+    break_ath_min_fee: Number(document.getElementById('f-bath-fee').value),
+    break_ath_min_scans: Number(document.getElementById('f-bath-scans').value),
+    break_ath_min_buy: Number(document.getElementById('f-bath-buy').value),
+  };
+  try {
+    await fetch('/api/filters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    await fetch('/api/scan', { method: 'POST' });
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      const res = await fetch('/api/state');
+      const data = await res.json();
+      paint(data);
+      if (!data.scanning) break;
+    }
+  } catch (err) {
+    console.error('Filter Break ATH save error:', err);
+  } finally {
+    btn.textContent = 'Terapkan ATH';
+  }
+};
 
 // Event Listeners for Second Wave Tabs
 document.getElementById('tabs-sw').onclick = e => {
@@ -2629,6 +2998,7 @@ class Handler(BaseHTTPRequestHandler):
                     "n": state["n"],
                     "rows": state["rows"],
                     "sw_rows": state.get("sw_rows", []),
+                    "break_ath_rows": state.get("break_ath_rows", []),
                     "log": state["log"],
                     "filters": state["filters"],
                 }

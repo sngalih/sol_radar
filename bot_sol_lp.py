@@ -112,6 +112,9 @@ DEFAULT_CONFIG = {
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
     "min_fee_siap_lp": 3.0,     # Hanya tampilkan Siap LP jika fee/hour >= $3.00
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
+    "min_fee_break_ath": 3.0,   # Hanya tampilkan Break ATH LP jika fee/hour >= $3.00
+    "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
+    "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
@@ -380,30 +383,170 @@ def save_ath_cache() -> None:
 
 
 def update_ath_cache(scored_tokens: list[dict]) -> None:
-    """Update ATH cache dari token yang di-score tiap scan.
+    """Update ATH cache dan lacak siklus Break ATH (consecutive scans) per token.
     Prune otomatis: hapus entry tidak terlihat > 72 jam."""
     global ATH_CACHE
     now = int(time.time())
     for t in scored_tokens:
         addr = str(t.get("address") or "").strip()
         mcap = float(t.get("mcap") or 0.0)
+        gmgn_ath = float(t.get("ath_mcap") or 0.0)
+        symbol = str(t.get("symbol") or "?")
+        chain = str(t.get("chain") or "SOL").upper()
+
         if not addr or mcap <= 0:
             continue
+
         existing = ATH_CACHE.get(addr)
-        if existing is None or mcap > existing.get("ath_mcap", 0.0):
+        if existing is None:
+            # Token baru: jika MC saat ini di bawah ATH GMGN, baseline adalah gmgn_ath.
+            # Jika MC saat ini sudah di puncak, baseline adalah mcap.
+            baseline_ath = gmgn_ath if gmgn_ath > mcap * 1.02 else mcap
+            is_breaking = (mcap >= baseline_ath * 1.02)
             ATH_CACHE[addr] = {
-                "symbol": str(t.get("symbol") or "?"),
-                "ath_mcap": mcap,
+                "symbol": symbol,
+                "chain": chain,
+                "ath_mcap": baseline_ath,
+                "peak_mcap": mcap,
+                "break_scans": 1 if is_breaking else 0,
+                "first_break_ts": now if is_breaking else 0,
                 "last_seen": now,
             }
         else:
-            ATH_CACHE[addr]["last_seen"] = now
+            existing["symbol"] = symbol
+            existing["chain"] = chain
+            existing["last_seen"] = now
+            baseline_ath = float(existing.get("ath_mcap") or 0.0)
+            if baseline_ath <= 0:
+                baseline_ath = gmgn_ath if gmgn_ath > 0 else mcap
+                existing["ath_mcap"] = baseline_ath
+
+            # Evaluasi breakout dengan buffer +2% dari ATH lama
+            if mcap >= baseline_ath * 1.02:
+                existing["break_scans"] = existing.get("break_scans", 0) + 1
+                if not existing.get("first_break_ts"):
+                    existing["first_break_ts"] = now
+                existing["peak_mcap"] = max(existing.get("peak_mcap", 0.0), mcap)
+            elif mcap >= baseline_ath * 0.98:
+                # Retest zone (antara -2% s/d +2% dari ATH)
+                # Tahan status scans tanpa reset (sedang menguji support ATH lama)
+                pass
+            else:
+                # Dump / jatuh kembali di bawah ATH (< 98% ATH lama)
+                # Jika sempat mencetak peak baru yang signifikan, perbarui baseline ATH
+                if existing.get("peak_mcap", 0.0) > baseline_ath * 1.05:
+                    existing["ath_mcap"] = existing["peak_mcap"]
+                existing["break_scans"] = 0
+                existing["first_break_ts"] = 0
+                existing["peak_mcap"] = mcap
 
     # Prune: hapus token yang tidak muncul > 72 jam (259200 detik)
     cutoff = now - 259200
     stale = [a for a, v in ATH_CACHE.items() if v.get("last_seen", 0) < cutoff]
     for a in stale:
         del ATH_CACHE[a]
+
+    # Persist perubahan cache
+    save_ath_cache()
+
+
+# ================= BREAK ATH LP SCORER =================
+
+def score_break_ath_candidates(
+    scored_tokens: list[dict],
+    conf: dict,
+) -> list[dict]:
+    """Filter token yang berhasil break ATH dan bertahan konsisten (default >= 3 scan / 15 menit).
+
+    Kriteria lolos:
+    1. break_scans >= min_scans (default: 3 scan berturut-turut = 15 menit)
+    2. fee_hour >= min_fee (default: $3.00/jam)
+    3. liq >= min_liq (default: $20,000)
+    4. buy_ratio >= min_buy (default: 50%)
+    5. Bukan tokenized stock
+    6. Lolos on-chain safety: top10 <= 60%, insider <= 25%, not honeypot
+    """
+    min_scans = int(conf.get("break_ath_min_scans", 3))
+    min_fee = float(conf.get("min_fee_break_ath", 3.0))
+    min_liq = float(conf.get("min_liq", 20000.0))
+    min_buy = float(conf.get("break_ath_min_buy", 50.0))
+
+    candidates: list[dict] = []
+    now = int(time.time())
+
+    for t in scored_tokens:
+        addr = str(t.get("address") or "").strip()
+        if not addr:
+            continue
+
+        # Exclude tokenized stock & quote mints
+        if is_tokenized_stock(t) or addr in QUOTE_MINTS:
+            continue
+
+        cached = ATH_CACHE.get(addr)
+        if not cached:
+            continue
+
+        scans = int(cached.get("break_scans") or 0)
+        if scans < min_scans:
+            continue
+
+        fee_h = float(t.get("fee_hour") or 0.0)
+        if fee_h < min_fee:
+            continue
+
+        liq = float(t.get("liq") or 0.0)
+        if liq < min_liq:
+            continue
+
+        buy_ratio = float(t.get("buy_ratio") or 50.0)
+        if buy_ratio < min_buy:
+            continue
+
+        # On-Chain Safety
+        if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0 or float(t.get("insider_rate") or 0) > 25.0:
+            continue
+
+        mcap = float(t.get("mcap") or 0.0)
+        ath_old = float(cached.get("ath_mcap") or 0.0)
+        breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
+
+        first_ts = int(cached.get("first_break_ts") or now)
+        duration_mins = max(15, int((now - first_ts) // 60))
+
+        chain = str(t.get("chain") or "SOL").upper()
+        badge = "🔹" if chain == "RH" else "🔸"
+        price_val = float(t.get("price") or 0.0)
+
+        candidates.append({
+            "symbol": t.get("symbol") or "?",
+            "name": t.get("name") or "",
+            "address": addr,
+            "chain": chain,
+            "chain_badge": badge,
+            "url": t.get("url") or "#",
+            "mcap": mcap,
+            "ath_mcap": ath_old,
+            "peak_mcap": float(cached.get("peak_mcap") or mcap),
+            "breakout_pct": breakout_pct,
+            "break_scans": scans,
+            "duration_mins": duration_mins,
+            "fee_hour": fee_h,
+            "fee_24h": float(t.get("fee_24h") or 0.0),
+            "liq": liq,
+            "vol": float(t.get("vol") or 0.0),
+            "vl": float(t.get("vl") or 0.0),
+            "buy_ratio": buy_ratio,
+            "price": price_val,
+            "range_low": round(price_val * 0.80, 8),
+            "range_high": round(price_val * 1.20, 8),
+            "range_pct": 20.0,
+        })
+
+    # Urutkan: yield fee tertinggi dulu
+    candidates.sort(key=lambda x: -x["fee_hour"])
+    return candidates
+
 
 
 # ================= GECKOTERMINAL NEW POOLS (Second Wave Data Source) =================
@@ -924,13 +1067,22 @@ def deduplicate_best_tokens(tokens: list[dict[str, Any]]) -> list[dict[str, Any]
     return list(best_map.values())
 
 
-def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_name: str = "GMGN", sw_candidates: list[dict] | None = None) -> str:
+def generate_report(
+    tokens: list[dict[str, Any]],
+    conf: dict[str, Any],
+    source_name: str = "GMGN",
+    sw_candidates: list[dict] | None = None,
+    break_ath_candidates: list[dict] | None = None,
+) -> str:
     """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
     🟢 SIAP LP (Fee >= $3/h & MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ ER
 
     📡 ABSORPTION RADAR (MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ Status
+
+    🚀 BREAK ATH LP (15m+ Confirmed, Fee >= $3/h)
+    • TOKEN ➔ Fee/h │ MC │ Durasi
 
     🎯 SECOND WAVE RADAR (opsional, hanya jika ada kandidat)
     • TOKEN ➔ MC $38k │ ATH $215k │ Vol6h $12k │ Buy 68%
@@ -991,7 +1143,7 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
     if siap_lp:
         for t in siap_lp[:top_limit]:
             sym_link = f'<a href="{t["url"]}"><b>{t["symbol"]}</b></a>'
-            fee_str = f"<b>${t['fee_hour']:.2f}/h</b>"
+            fee_str = f"${t['fee_hour']:.2f}/h"
             mcap_str = f"MC {_usd(t['mcap'])}"
             er_str = f"ER {t['er']:.1f}"
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
@@ -1016,6 +1168,24 @@ def generate_report(tokens: list[dict[str, Any]], conf: dict[str, Any], source_n
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
         lines.append("<i>(Belum ada sinyal absorption baru)</i>")
+
+    # 2.5 Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
+    bath_list = break_ath_candidates or []
+    if bath_list:
+        lines.append("")
+        lines.append("🚀 <b>BREAK ATH LP</b> (15m+ Confirmed)")
+        lines.append("<i>⚡ Momentum LP · Range ±20% · Fee ≥ $3.00/h</i>")
+        for b in bath_list[:8]:
+            sym_link = f'<a href="{b["url"]}"><b>{b["symbol"]}</b></a>'
+            fee_str  = f"${b['fee_hour']:.2f}/h"
+            mc_str   = _usd(b['mcap'])
+            ath_str  = _usd(b['ath_mcap'])
+            dur_str  = f"{b['duration_mins']}m ({b['break_scans']} scan)"
+            badge    = b.get("chain_badge", "🔹")
+            pct_sign = "+" if b["breakout_pct"] >= 0 else ""
+            lines.append(
+                f"• {badge} {sym_link} ➔ {fee_str} │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}% vs ATH {ath_str}) │ {dur_str} │ Range ±20%"
+            )
 
     # 3. Second Wave Hunter — hanya tampil jika ada kandidat
     sw_list = sw_candidates or []
@@ -1155,6 +1325,22 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         f"Total: {len(scored_tokens)} | Siap LP: {chop_count} | Absorption: {absorb_count}"
     )
 
+    # ── Update ATH Cache & Breakout Tracking ─────────────────────────────────
+    try:
+        update_ath_cache(scored_tokens)
+    except Exception as ath_err:
+        print(f"[{time.strftime('%H:%M:%S')}] [ATH] Update cache error: {ath_err}", file=sys.stderr)
+
+    # ── Break ATH LP Candidates ──────────────────────────────────────────────
+    break_ath_candidates: list[dict] = []
+    try:
+        break_ath_candidates = score_break_ath_candidates(scored_tokens, conf)
+        if break_ath_candidates:
+            print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] {len(break_ath_candidates)} kandidat Break ATH terkonfirmasi >= 15m")
+    except Exception as bath_err:
+        print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] Error: {bath_err}", file=sys.stderr)
+        break_ath_candidates = []
+
     # ── Second Wave Hunter ──────────────────────────────────────────────────
     # Langsung gunakan scored_tokens dari GMGN yang sudah punya ath_mcap + age_hours
     # Tidak perlu GeckoTerminal, tidak perlu ATH cache — semua data ada di response GMGN
@@ -1168,7 +1354,13 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         sw_candidates = []
     # ── End Second Wave Hunter ──────────────────────────────────────────────
 
-    report_text = generate_report(scored_tokens, scan_conf, source_name=source, sw_candidates=sw_candidates)
+    report_text = generate_report(
+        scored_tokens,
+        scan_conf,
+        source_name=source,
+        sw_candidates=sw_candidates,
+        break_ath_candidates=break_ath_candidates,
+    )
 
     token = conf.get("telegram_bot_token") or ""
     chat_id = conf.get("telegram_chat_id") or ""
