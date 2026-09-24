@@ -688,11 +688,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(6,182,212,0.25); color: var(--cyan-light); }
     .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.25); color: var(--sol-light); }
 
+    /* Controls Right: Search + View Switcher */
+    .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
     /* Quick Search Input */
     .search-wrap {
       position: relative;
       display: flex;
       align-items: center;
+      flex: 1;
     }
     .search-icon {
       position: absolute;
@@ -706,8 +715,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 11px;
-      padding: 9px 34px 9px 34px;
-      font-size: 13px;
+      padding: 8px 32px 8px 34px;
+      font-size: 12.5px;
       color: #ffffff;
       outline: none;
       transition: border-color 0.15s, box-shadow 0.15s;
@@ -729,6 +738,232 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
     .search-clear.visible { display: block; }
 
+    /* View Switcher: Cards vs Table */
+    .view-toggle {
+      display: inline-flex;
+      background: rgba(11, 17, 32, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 2px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .btn-view {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .btn-view:hover { color: var(--text-main); }
+    .btn-view.active {
+      background: var(--card-bg);
+      color: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    /* ===== TOKEN AVATAR (ArcTools Monogram / Image) ===== */
+    .tok-avatar-wrap {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: #0e1118;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .tok-avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .tok-avatar-mono {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      color: rgba(255, 255, 255, 0.95);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+
+    /* ===== RANK BADGES ===== */
+    .rank-badge {
+      font-size: 10px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+    .rank-gold {
+      background: rgba(245, 196, 81, 0.16);
+      color: #f5c542;
+      border: 1px solid rgba(245, 196, 81, 0.45);
+      box-shadow: 0 0 8px rgba(245, 196, 81, 0.2);
+    }
+    .rank-silver {
+      background: rgba(226, 232, 240, 0.14);
+      color: #e2e8f0;
+      border: 1px solid rgba(226, 232, 240, 0.35);
+    }
+    .rank-bronze {
+      background: rgba(217, 119, 6, 0.14);
+      color: #fb923c;
+      border: 1px solid rgba(217, 119, 6, 0.35);
+    }
+    .rank-dim {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* ===== MICRO METADATA (Age & Venue) ===== */
+    .meta-age {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+    .meta-age.fresh {
+      color: var(--green-light);
+    }
+    .venue-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-sub);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: var(--font-mono);
+    }
+
+    /* Inline CA Copy */
+    .btn-copy-inline {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-sub);
+      border-radius: 5px;
+      padding: 1px 6px;
+      font-size: 10.5px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s;
+    }
+    .btn-copy-inline:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-copy-inline.copied {
+      background: var(--green-bg);
+      color: var(--green-light);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    /* ===== ORDER FLOW BAR (ArcTools Trade Split) ===== */
+    .orderflow-wrap {
+      background: rgba(11, 17, 32, 0.75);
+      border-radius: 8px;
+      padding: 6px 9px;
+      margin-bottom: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .orderflow-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      margin-bottom: 5px;
+      font-family: var(--font-mono);
+    }
+    .of-label {
+      color: var(--text-dim);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 9.5px;
+      letter-spacing: 0.3px;
+    }
+    .of-ratio {
+      font-weight: 700;
+      color: var(--text-sub);
+      font-size: 10.5px;
+    }
+    .of-buy-txt {
+      color: var(--green-light);
+      font-weight: 800;
+    }
+    .orderflow-bar {
+      height: 5px;
+      background: rgba(244, 63, 94, 0.25);
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+    }
+    .of-fill-buy {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      transition: width 0.3s ease;
+    }
+    .of-fill-sell {
+      height: 100%;
+      background: linear-gradient(90deg, #f43f5e, #e11d48);
+      transition: width 0.3s ease;
+    }
+
+    /* ===== SAFETY AUDIT BADGE ===== */
+    .safety-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-sub);
+    }
+    .safety-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-weight: 800;
+      font-size: 11px;
+      line-height: 1;
+      font-family: var(--font-mono);
+    }
+    .safety-A { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .safety-B { background: rgba(59, 130, 246, 0.18); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .safety-C { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .safety-D { background: rgba(244, 63, 94, 0.18);  color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .safety-sub { color: var(--text-dim); font-size: 10.5px; }
+
     /* ===== CARD LIST ===== */
     .card-list {
       display: grid;
@@ -741,7 +976,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: var(--radius-card);
-      padding: 14px 15px;
+      padding: 13px 14px;
       position: relative;
       transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
       overflow: hidden;
@@ -763,13 +998,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-left: 3px solid var(--cyan);
       background: linear-gradient(180deg, rgba(6,182,212,0.04) 0%, var(--card-bg) 60px);
     }
+    .token-card.rank-1 { box-shadow: 0 0 0 1px rgba(245, 196, 81, 0.22); }
 
     /* Card Top Row */
     .card-row-top {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 11px;
+      margin-bottom: 10px;
       gap: 8px;
     }
 
@@ -781,10 +1017,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .chain-pill {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 800;
-      padding: 3px 7px;
-      border-radius: 7px;
+      padding: 2px 6px;
+      border-radius: 6px;
       display: inline-flex;
       align-items: center;
       gap: 3px;
@@ -799,54 +1035,36 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .token-symbol {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 800;
       letter-spacing: -0.2px;
       color: #ffffff;
       line-height: 1.2;
     }
 
-    /* One-tap Copy CA button */
-    .btn-copy-ca {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text-sub);
-      border-radius: 6px;
-      padding: 2px 6px;
-      font-size: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      transition: all 0.15s;
-      flex-shrink: 0;
-      font-family: var(--font-mono);
-    }
-    .btn-copy-ca:hover { background: rgba(255,255,255,0.14); color: #ffffff; }
-    .btn-copy-ca:active { transform: scale(0.92); }
-    .btn-copy-ca.copied { background: var(--green-bg); color: var(--green-light); border-color: rgba(16,185,129,0.4); }
-
     .token-sub-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 2px;
+      gap: 5px;
+      margin-top: 3px;
       font-size: 11px;
       color: var(--text-sub);
+      flex-wrap: wrap;
     }
     .token-price {
       font-family: var(--font-mono);
-      font-weight: 600;
+      font-weight: 700;
       color: #cbd5e1;
     }
     .token-name {
-      max-width: 130px;
+      max-width: 120px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: var(--text-dim);
     }
 
     .token-fee-right { text-align: right; flex-shrink: 0; }
@@ -859,7 +1077,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       line-height: 1.2;
     }
     .fee-day {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--text-sub);
       font-weight: 600;
       font-family: var(--font-mono);
@@ -873,14 +1091,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: var(--card-inner);
       border-radius: 10px;
       padding: 8px 6px;
-      margin-bottom: 10px;
+      margin-bottom: 9px;
       border: 1px solid rgba(255,255,255,0.05);
       gap: 4px;
     }
 
     .metric-cell { text-align: center; }
     .m-label {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 700;
       color: var(--text-dim);
       text-transform: uppercase;
@@ -899,7 +1117,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       padding: 1px 6px;
       border-radius: 5px;
       font-weight: 800;
-      font-size: 11px;
+      font-size: 10.5px;
       font-family: var(--font-mono);
     }
     .er-prime { background: rgba(16,185,129,0.25); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
@@ -912,16 +1130,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
-      padding: 8px 10px;
+      margin-bottom: 9px;
+      padding: 7px 10px;
       background: rgba(6, 182, 212, 0.08);
-      border-radius: 9px;
+      border-radius: 8px;
       border: 1px solid rgba(6, 182, 212, 0.22);
       align-items: center;
       justify-content: space-between;
     }
     .ath-tag {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
       color: var(--cyan-light);
       display: inline-flex;
@@ -931,17 +1149,19 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
     .ath-tag .ath-label { color: var(--text-sub); font-weight: 500; }
 
-    /* Volatility Row */
+    /* Volatility & Safety Row */
     .card-row-vol {
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-size: 11px;
       font-weight: 600;
-      padding: 0 4px;
-      margin-bottom: 11px;
+      padding: 0 2px;
+      margin-bottom: 10px;
       color: var(--text-sub);
       font-family: var(--font-mono);
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .vol-tag { display: inline-flex; align-items: center; gap: 3px; }
     .vol-pos { color: var(--green-light); font-weight: 700; }
@@ -958,10 +1178,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .state-pill {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 8px;
+      padding: 4px 9px;
+      border-radius: 7px;
       display: inline-flex;
       align-items: center;
       gap: 5px;
@@ -985,22 +1205,23 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .btn-chart {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       text-decoration: none;
       font-size: 11px;
       font-weight: 700;
-      padding: 6px 11px;
-      border-radius: 8px;
+      padding: 5px 10px;
+      border-radius: 7px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
       border: none;
-      box-shadow: 0 2px 6px rgba(37,99,235,0.35);
+      box-shadow: 0 2px 6px rgba(16,185,129,0.35);
       cursor: pointer;
       transition: all 0.15s;
+      white-space: nowrap;
     }
-    .btn-chart:hover { box-shadow: 0 4px 14px rgba(37,99,235,0.55); transform: translateY(-1px); }
+    .btn-chart:hover { box-shadow: 0 4px 14px rgba(16,185,129,0.55); transform: translateY(-1px); }
     .btn-chart:active { transform: scale(0.95); }
 
     .btn-chart-secondary {
@@ -1013,7 +1234,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     /* Gap reasons pills */
     .gap-reasons-box {
-      margin-top: 9px;
+      margin-top: 8px;
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
@@ -1032,6 +1253,82 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       align-items: center;
       gap: 4px;
       font-family: var(--font-mono);
+    }
+
+    /* ===== ARCTOOLS DENSE TABLE STYLES ===== */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-card);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      -webkit-overflow-scrolling: touch;
+    }
+    .arc-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+      min-width: 960px;
+    }
+    .arc-thead th {
+      background: rgba(11, 17, 32, 0.95);
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--card-border);
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .arc-tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.12s ease;
+    }
+    .arc-tr:hover {
+      background: rgba(255, 255, 255, 0.035);
+    }
+    .arc-tr.rank-1 { box-shadow: inset 3px 0 0 #f5c542; background: rgba(245, 196, 81, 0.02); }
+    .arc-tr.rank-2 { box-shadow: inset 3px 0 0 #e2e8f0; }
+    .arc-tr.rank-3 { box-shadow: inset 3px 0 0 #fb923c; }
+
+    .arc-td {
+      padding: 10px 10px;
+      vertical-align: middle;
+      font-family: var(--font-sans);
+    }
+    .arc-td.mono {
+      font-family: var(--font-mono);
+    }
+    .arc-tok-cell {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 200px;
+    }
+    .arc-tok-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      color: var(--text-dim);
+      margin-top: 2px;
+      font-family: var(--font-mono);
+    }
+    .arc-of-bar-mini {
+      width: 60px;
+      height: 4px;
+      background: rgba(244, 63, 94, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+      display: inline-flex;
+      vertical-align: middle;
+      margin-right: 5px;
     }
 
     /* ===== EMPTY STATE ===== */
@@ -1281,14 +1578,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       .kpi-card { padding: 12px 10px; }
       .kpi-val { font-size: 18px; }
 
-      /* Desktop Controls: Tabs + Search in single row */
+      /* Desktop Controls: Tabs + Search & View Switcher in single row */
       .controls-strip {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
       }
-      .cat-tabs { flex: 1; }
-      .search-wrap { width: 280px; }
+      .cat-tabs { flex: 1; margin-bottom: 0; }
+      .controls-right {
+        width: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .search-wrap { width: 230px; }
 
       /* Card Grid: 2 columns on tablet */
       .card-list {
@@ -1316,7 +1619,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         grid-template-columns: repeat(3, 1fr);
         gap: 14px;
       }
-      .token-name { max-width: 150px; }
+      .token-name { max-width: 160px; }
+      .search-wrap { width: 270px; }
     }
   </style>
 </head>
@@ -1412,16 +1716,27 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Quick Search Bar -->
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="tokenSearch" class="search-input" placeholder="Cari simbol atau CA..." oninput="onSearchInput()">
-        <button id="searchClear" class="search-clear" onclick="clearSearch()">✕</button>
+      <!-- Controls Right: Quick Search + View Switcher -->
+      <div class="controls-right">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="tokenSearch" class="search-input" placeholder="Cari simbol atau CA... ( / )" oninput="onSearchInput()">
+          <button id="searchClear" class="search-clear" onclick="clearSearch()">✕</button>
+        </div>
+
+        <div class="view-toggle" title="Ubah Tampilan Daftar (Hotkey: V)">
+          <button id="btnViewCards" class="btn-view active" onclick="setViewMode('cards')">
+            <span>⊞</span> Cards
+          </button>
+          <button id="btnViewTable" class="btn-view" onclick="setViewMode('table')">
+            <span>☰</span> Table
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Token Cards List Feed -->
-    <div id="tokenCardsList" class="card-list"></div>
+    <!-- Token Cards / Table List Feed -->
+    <div id="tokenCardsList" class="token-container"></div>
 
     <!-- Footer Counter -->
     <div class="footer-info" id="footerInfo" style="display:none">
@@ -1539,6 +1854,75 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     let activeCategory = 'siap';
     let searchQuery = '';
     let countdownInterval = null;
+    let viewMode = localStorage.getItem("lp_view_mode") || (window.innerWidth >= 1024 ? "table" : "cards");
+
+    /* ---- ArcTools Style Avatar Generator ---- */
+    function getAvatarGradient(s) {
+      let hash = 0;
+      const str = String(s || "?").toUpperCase();
+      for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      const h1 = Math.abs(hash) % 360;
+      const h2 = (h1 + 45) % 360;
+      return `linear-gradient(135deg, hsl(${h1}, 65%, 38%), hsl(${h2}, 70%, 20%))`;
+    }
+
+    function renderAvatar(symbol, logoUrl, size = 38) {
+      const sym = String(symbol || "?").toUpperCase();
+      const clean = sym.replace(/[^A-Z0-9]/g, "");
+      const initials = clean.slice(0, 2) || sym.slice(0, 2) || "??";
+      const grad = getAvatarGradient(sym);
+      if (logoUrl && (logoUrl.startsWith("http://") || logoUrl.startsWith("https://"))) {
+        return `
+          <div class="tok-avatar-wrap" style="width:${size}px;height:${size}px">
+            <img src="${logoUrl}" class="tok-avatar-img" alt="${sym}" loading="lazy" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+            <div class="tok-avatar-mono" style="display:none;background:${grad}">${initials}</div>
+          </div>`;
+      }
+      return `
+        <div class="tok-avatar-wrap" style="width:${size}px;height:${size}px">
+          <div class="tok-avatar-mono" style="background:${grad}">${initials}</div>
+        </div>`;
+    }
+
+    /* ---- ArcTools Rank Badges ---- */
+    function getRankBadge(idx) {
+      if (idx === 0) return `<span class="rank-badge rank-gold" title="Rank #1 by Yield">🥇 #1</span>`;
+      if (idx === 1) return `<span class="rank-badge rank-silver" title="Rank #2 by Yield">🥈 #2</span>`;
+      if (idx === 2) return `<span class="rank-badge rank-bronze" title="Rank #3 by Yield">🥉 #3</span>`;
+      return `<span class="rank-badge rank-dim">#${idx + 1}</span>`;
+    }
+
+    /* ---- Age Formatter ---- */
+    function formatAge(ageHours) {
+      if (ageHours === undefined || ageHours === null || ageHours >= 9000 || ageHours <= 0) return "";
+      if (ageHours < 1) {
+        const m = Math.max(1, Math.round(ageHours * 60));
+        return `<span class="meta-age fresh" title="Pool berusia ${m} menit">${m}m</span>`;
+      }
+      if (ageHours < 24) {
+        return `<span class="meta-age fresh" title="Pool berusia ${ageHours.toFixed(1)} jam">${ageHours.toFixed(0)}h</span>`;
+      }
+      const d = Math.round(ageHours / 24);
+      return `<span class="meta-age" title="Pool berusia ${d} hari">${d}d</span>`;
+    }
+
+    /* ---- Format Numbers & Transactions ---- */
+    function formatTx(num) {
+      if (!num || num <= 0) return "0";
+      if (num >= 1e3) return (num / 1e3).toFixed(1) + "k";
+      return num.toString();
+    }
+
+    /* ---- View Mode Toggle ---- */
+    function setViewMode(mode) {
+      viewMode = mode;
+      localStorage.setItem("lp_view_mode", mode);
+      const bCards = document.getElementById("btnViewCards");
+      const bTable = document.getElementById("btnViewTable");
+      if (bCards) bCards.classList.toggle("active", mode === "cards");
+      if (bTable) bTable.classList.toggle("active", mode === "table");
+      renderCards();
+    }
 
     /* ---- Helpers ---- */
     function formatUsd(val) {
@@ -1767,9 +2151,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
-    /* ---- Render Token Cards ---- */
+    /* ---- Render Token Cards & Table ---- */
     function renderCards() {
       const container = document.getElementById("tokenCardsList");
+      if (!container) return;
+
+      // Update active toggle buttons
+      const bCards = document.getElementById("btnViewCards");
+      const bTable = document.getElementById("btnViewTable");
+      if (bCards) bCards.classList.toggle("active", viewMode === "cards");
+      if (bTable) bTable.classList.toggle("active", viewMode === "table");
+
       if (!globalState) {
         container.innerHTML = `<div class="empty-box"><div class="empty-icon">⏳</div><div class="empty-title">Memuat data radar...</div></div>`;
         return;
@@ -1829,14 +2221,186 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         return;
       }
 
-      // Build Cards HTML
-      let html = "";
-      filtered.forEach(t => {
+      // Render Table View (ArcTools Dense Trading Style)
+      if (viewMode === "table") {
+        let tRows = "";
+        filtered.forEach((t, idx) => {
+          const isRh = (t.chain || "SOL").toUpperCase() === "RH";
+          const chainBadge = isRh
+            ? `<span class="chain-pill rh" style="font-size:9px;padding:1px 4px;margin-left:4px">RH</span>`
+            : `<span class="chain-pill sol" style="font-size:9px;padding:1px 4px;margin-left:4px">SOL</span>`;
+          const rankBadge = getRankBadge(idx);
+          const rankClass = idx === 0 ? "rank-1" : (idx === 1 ? "rank-2" : (idx === 2 ? "rank-3" : ""));
+
+          const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
+          const feeDay  = t.fee_24h  ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
+          const mcapStr = formatUsd(t.mcap || 0);
+          const liqStr  = formatUsd(t.liq  || 0);
+          const vlStr   = (t.vl || 0).toFixed(1) + "x";
+          const priceStr = formatPrice(t.price || 0);
+          const addrStr = t.address || "";
+          const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
+          const ageHtml = formatAge(t.age_hours);
+          const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
+          const avatarHtml = renderAvatar(t.symbol, t.logo, 34);
+
+          // ER badge
+          const erVal = t.er !== undefined ? t.er : 999;
+          let erClass = "er-high", erText = "High";
+          if      (erVal <= 3)  { erClass = "er-prime"; erText = "Prime"; }
+          else if (erVal <= 6)  { erClass = "er-good";  erText = "Good"; }
+          else if (erVal <= 15) { erClass = "er-mid";   erText = "Mid"; }
+          const erBadge = `<span class="er-badge ${erClass}">${erVal.toFixed(1)} · ${erText}</span>`;
+
+          // Volatility
+          const p5 = t.p5 || 0, p1 = t.p1 || 0;
+          const p5Str = (p5 >= 0 ? "+" : "") + p5.toFixed(1) + "%";
+          const p1Str = (p1 >= 0 ? "+" : "") + p1.toFixed(1) + "%";
+
+          // Order flow
+          const buys = t.buys || 0, sells = t.sells || 0;
+          const buyRatio = t.buy_ratio !== undefined ? Math.round(t.buy_ratio) : 50;
+
+          // Safety grade
+          const sScore = Math.round(t.score || 0);
+          const sGrade = sScore >= 80 ? "A" : (sScore >= 65 ? "B" : (sScore >= 50 ? "C" : "D"));
+
+          // State Pill
+          const mState = t.micro_state || "NEUTRAL";
+          let spClass = "state-neutral", spIcon = "🎯";
+          if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
+          else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
+          else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
+          else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
+          else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
+          const spLabel = activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring"));
+
+          const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
+          const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
+
+          // Sub-details if ATH or Gaps
+          let subRowHtml = "";
+          if (activeCategory === "break_ath") {
+            const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
+            const dur = t.duration_mins !== undefined ? `${t.duration_mins}m` : "—";
+            const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
+            subRowHtml = `
+              <div style="font-size:10.5px;color:var(--cyan-light);font-family:var(--font-mono);margin-top:3px;display:flex;gap:8px">
+                <span>🚀 Breakout: <b>${bp}</b></span>
+                <span>⏱️ Durasi: <b>${dur}</b></span>
+                <span>📊 Rekor: <b>${athOld}</b></span>
+              </div>`;
+          } else if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length) {
+            subRowHtml = `
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+                ${t.gap_reasons.slice(0, 3).map(r => `<span class="gap-pill" style="font-size:9px;padding:1px 5px">${r}</span>`).join("")}
+              </div>`;
+          }
+
+          tRows += `
+            <tr class="arc-tr ${rankClass}">
+              <td class="arc-td" style="width:36px;text-align:center">${rankBadge}</td>
+              <td class="arc-td">
+                <div class="arc-tok-cell">
+                  ${avatarHtml}
+                  <div>
+                    <div style="display:flex;align-items:center;gap:5px">
+                      <span style="font-weight:800;font-size:13.5px;color:#fff">${t.symbol || "?"}</span>
+                      ${chainBadge}
+                      <span style="color:var(--text-dim);font-size:11px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name || ""}</span>
+                    </div>
+                    <div class="arc-tok-meta">
+                      ${ageHtml ? ageHtml + " · " : ""}
+                      <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Copy CA: ${addrStr}">
+                        <span>${caShort}</span> <span>⧉</span>
+                      </button>
+                      <span class="venue-pill">${venueTag}</span>
+                      ${t.holders ? `<span title="Holders">👥${formatTx(t.holders)}</span>` : ""}
+                    </div>
+                    ${subRowHtml}
+                  </div>
+                </div>
+              </td>
+              <td class="arc-td mono">
+                <div style="font-weight:700;color:#fff">${mcapStr}</div>
+                <div style="font-size:10.5px;color:var(--text-dim)">${priceStr} <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">(${p1Str})</span></div>
+              </td>
+              <td class="arc-td mono">
+                <div style="color:#cbd5e1;font-weight:600">${liqStr}</div>
+                <div style="font-size:10.5px;color:var(--text-dim)">V/L ${vlStr}</div>
+              </td>
+              <td class="arc-td mono">${erBadge}</td>
+              <td class="arc-td mono">
+                <div style="font-size:10.5px"><span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">5m ${p5Str}</span></div>
+                <div style="font-size:10.5px"><span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">1h ${p1Str}</span></div>
+              </td>
+              <td class="arc-td mono" style="min-width:115px">
+                <div style="font-size:11px;font-weight:700;display:flex;align-items:center">
+                  <span class="arc-of-bar-mini"><span style="width:${buyRatio}%;background:#10b981;height:100%;display:block"></span></span>
+                  <span style="color:var(--green-light)">${buyRatio}%</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin-top:2px">
+                  <span style="color:var(--green-light)">${formatTx(buys)}</span> / <span style="color:var(--red)">${formatTx(sells)}</span>
+                </div>
+              </td>
+              <td class="arc-td">
+                <div class="safety-block">
+                  <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100">${sGrade} ${sScore}</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono);margin-top:2px">
+                  t10 ${t.top10_rate || 0}% · dev ${t.dev_team_hold || 0}%
+                </div>
+              </td>
+              <td class="arc-td mono" style="text-align:right">
+                <div class="fee-hour">${feeHour}</div>
+                <div class="fee-day">${feeDay}</div>
+              </td>
+              <td class="arc-td" style="text-align:right">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+                  <span class="state-pill ${spClass}" style="max-width:120px;font-size:9.5px;padding:3px 6px">${spIcon} ${spLabel}</span>
+                  <div class="card-actions">
+                    <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-chart btn-chart-secondary" style="padding:4px 7px;font-size:10px">${dexsLabel}</a>
+                    <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:4px 7px;font-size:10px">GMGN ↗</a>
+                  </div>
+                </div>
+              </td>
+            </tr>`;
+        });
+
+        container.innerHTML = `
+          <div class="table-container">
+            <table class="arc-table">
+              <thead class="arc-thead">
+                <tr>
+                  <th style="width:36px;text-align:center">#</th>
+                  <th>TOKEN</th>
+                  <th>MCAP / PRICE</th>
+                  <th>LIQ / V/L</th>
+                  <th>ER SCORE</th>
+                  <th>VOLATILITAS</th>
+                  <th>ORDER FLOW</th>
+                  <th>SAFETY</th>
+                  <th style="text-align:right">EST. FEE/H</th>
+                  <th style="text-align:right">AKSI</th>
+                </tr>
+              </thead>
+              <tbody>${tRows}</tbody>
+            </table>
+          </div>`;
+        updateFooter(filtered.length, globalState.total_scanned || 0);
+        return;
+      }
+
+      // Render Cards View (Modern Responsive Grid)
+      let html = `<div class="card-list">`;
+      filtered.forEach((t, idx) => {
         const isRh = (t.chain || "SOL").toUpperCase() === "RH";
         const chainBadge = isRh
-          ? `<span class="chain-pill rh">🔹 RH</span>`
-          : `<span class="chain-pill sol">🔸 SOL</span>`;
+          ? `<span class="chain-pill rh">RH</span>`
+          : `<span class="chain-pill sol">SOL</span>`;
         const cardClass = activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card");
+        const rankBadge = getRankBadge(idx);
+        const rankClass = idx === 0 ? "rank-1" : "";
 
         const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
         const feeDay  = t.fee_24h  ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
@@ -1845,6 +2409,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const vlStr   = (t.vl || 0).toFixed(1) + "x";
         const priceStr = formatPrice(t.price || 0);
         const addrStr = t.address || "";
+        const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
+        const ageHtml = formatAge(t.age_hours);
+        const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
+        const avatarHtml = renderAvatar(t.symbol, t.logo, 38);
 
         // ER badge
         const erVal = t.er !== undefined ? t.er : 999;
@@ -1858,6 +2426,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const p5 = t.p5 || 0, p1 = t.p1 || 0;
         const p5Str = (p5 >= 0 ? "▲ +" : "▼ ") + p5.toFixed(1) + "%";
         const p1Str = (p1 >= 0 ? "▲ +" : "▼ ") + p1.toFixed(1) + "%";
+
+        // Order flow
+        const buys = t.buys || 0, sells = t.sells || 0;
+        const buyRatio = t.buy_ratio !== undefined ? Math.round(t.buy_ratio) : 50;
+
+        // Safety grade
+        const sScore = Math.round(t.score || 0);
+        const sGrade = sScore >= 80 ? "A" : (sScore >= 65 ? "B" : (sScore >= 50 ? "C" : "D"));
 
         // State Pill
         const mState = t.micro_state || "NEUTRAL";
@@ -1902,26 +2478,27 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             `</div>`;
         }
 
-        // Secondary DEX Link
-        const dexsUrl = isRh
-          ? `https://fomo.family/token/${addrStr}`
-          : `https://dexscreener.com/solana/${addrStr}`;
+        const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
         const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
         html += `
-          <div class="token-card ${cardClass}">
+          <div class="token-card ${cardClass} ${rankClass}">
             <div class="card-row-top">
               <div class="token-info-left">
-                ${chainBadge}
+                ${rankBadge}
+                ${avatarHtml}
                 <div class="token-name-block">
                   <div class="symbol-row">
                     <span class="token-symbol">${t.symbol || "?"}</span>
-                    <button class="btn-copy-ca" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
-                      📋 Copy
+                    ${chainBadge}
+                    <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
+                      <span>${caShort}</span> <span>⧉</span>
                     </button>
                   </div>
                   <div class="token-sub-row">
                     <span class="token-price">${priceStr}</span>
+                    ${ageHtml ? "<span>·</span>" + ageHtml : ""}
+                    <span class="venue-pill">${venueTag}</span>
                     <span>·</span>
                     <span class="token-name" title="${t.name || ''}">${t.name || ""}</span>
                   </div>
@@ -1942,11 +2519,28 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
             ${athHtml}
 
+            <!-- Order Flow Bar -->
+            <div class="orderflow-wrap">
+              <div class="orderflow-header">
+                <span class="of-label">Order Flow</span>
+                <span class="of-ratio">
+                  <span class="of-buy-txt">${buyRatio}% Buy</span>
+                  <span style="color:var(--text-dim)">(${formatTx(buys)} / ${formatTx(sells)})</span>
+                </span>
+              </div>
+              <div class="orderflow-bar">
+                <div class="of-fill-buy" style="width:${buyRatio}%"></div>
+                <div class="of-fill-sell" style="width:${100 - buyRatio}%"></div>
+              </div>
+            </div>
+
             <div class="card-row-vol">
               <div class="vol-tag"><span>5m:</span>&nbsp;<span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span></div>
               <div class="vol-tag"><span>1h:</span>&nbsp;<span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span></div>
-              <div class="vol-tag"><span>Buy:</span>&nbsp;<span style="color:#ffffff">${t.buy_ratio || 50}%</span></div>
-              <div class="vol-tag"><span>Score:</span>&nbsp;<span style="color:#ffffff;font-weight:700">${t.score || 0}</span></div>
+              <div class="safety-block">
+                <span class="safety-pill safety-${sGrade}" title="Audit Score: ${sScore}/100">${sGrade} ${sScore}</span>
+                <span class="safety-sub">t10 ${t.top10_rate || 0}% · dev ${t.dev_team_hold || 0}%</span>
+              </div>
             </div>
 
             <div class="card-row-bottom">
@@ -1967,6 +2561,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           </div>`;
       });
 
+      html += `</div>`;
       container.innerHTML = html;
       updateFooter(filtered.length, globalState.total_scanned || 0);
     }
@@ -2032,6 +2627,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         e.preventDefault();
         const inp = document.getElementById("tokenSearch");
         if (inp) inp.focus();
+      }
+      else if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setViewMode(viewMode === "cards" ? "table" : "cards");
+        showToast(`Tampilan: ${viewMode === "cards" ? "Cards ⊞" : "Table ☰"}`);
       }
     });
 

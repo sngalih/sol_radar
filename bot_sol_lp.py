@@ -888,6 +888,13 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "dexscreener": dex_url,
         "ath_mcap": ath_mcap,       # ATH MC dari GMGN (history_highest_market_cap)
         "age_hours": age_hours,     # Usia token dalam jam (dari open_timestamp)
+        "top10_rate": top10_rate,
+        "dev_team_hold": dev_team_hold,
+        "insider_rate": insider_rate,
+        "buys": buys,
+        "sells": sells,
+        "holders": int(num(row, "holder_count", "holders")),
+        "logo": str(row.get("logo") or row.get("image_url") or row.get("logo_url") or ""),
     }
 
 
