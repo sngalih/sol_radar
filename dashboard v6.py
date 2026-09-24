@@ -52,7 +52,7 @@ DEFAULT_FILTERS = {
     "interval": 300,
     "min_absorb_score": 65,
     "min_absorb_mcap": 500000,
-    "min_fee_absorb": 0.50,     # Opsi B: min fee/h untuk Absorption Radar ($0.50/h)
+    "min_fee_absorb": 1.0,     # Opsi B: min fee/h untuk Absorption Radar ($1.00/h)
     "filter_stocks": True,      # Opsi A: filter saham sintetis Robinhood (META, NVDA, dll.)
     "telegram_token": "",
     "telegram_chat_id": "",
@@ -244,19 +244,13 @@ def record_hits(live: list[dict]) -> list[dict]:
 def gmgn_rank(chain: str = "robinhood", limit: int = 40) -> list[dict]:
     qs = urllib.parse.urlencode(
         {
-            "chain": chain,
-            "interval": "1h",
-            "limit": str(limit),
-            "order_by": "volume",
+            "orderby": "volume",
             "direction": "desc",
-            "timestamp": str(int(time.time())),
-            "client_id": str(uuid.uuid4()),
         }
     )
     req = urllib.request.Request(
-        "https://openapi.gmgn.ai/v1/market/rank?" + qs,
+        f"https://gmgn.ai/defi/quotation/v1/rank/{chain}/swaps/1h?{qs}",
         headers={
-            "X-APIKEY": GMGN_KEY,
             "Accept": "application/json, text/plain, */*",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
@@ -298,7 +292,7 @@ def gmgn_rank(chain: str = "robinhood", limit: int = 40) -> list[dict]:
             item = dict(row)
             item["chain"] = chain_tag
             out.append(item)
-    return out
+    return out[:limit]
 
 
 def calculate_microstructure(row: dict, f: dict, vl: float, er: float, p5: float, p1: float, liq: float, mcap: float = 0.0) -> dict:
@@ -617,62 +611,6 @@ def score(row: dict, f: dict) -> dict:
     }
 
 
-def score_second_wave(rows: list[dict], f: dict) -> list[dict]:
-    """Filter kandidat Second Wave Hunter dari scored rows GMGN.
-    Kriteria wajib:
-    1. Usia <= 24j
-    2. MC $10k - $60k
-    3. Liq >= $10k
-    4. Vol 24h >= $10k
-    5. ATH GMGN >= $200k & current MC <= 35% ATH (pullback >= 65%)
-    6. buy_ratio >= 52% atau vol/24 >= $1500
-    """
-    sw_min_ath = float(f.get("sw_min_ath") or 200000)
-    sw_max_mcap = float(f.get("sw_max_mcap") or 60000)
-    sw_min_liq = float(f.get("sw_min_liq") or 10000)
-    sw_max_age = float(f.get("sw_max_age") or 24)
-    sw_min_buy = float(f.get("sw_min_buy") or 52)
-
-    candidates: list[dict] = []
-    for t in rows:
-        age_h = float(t.get("age_hours") or 9999.0)
-        mcap = float(t.get("mcap") or 0.0)
-        liq = float(t.get("liq") or 0.0)
-        vol = float(t.get("vol") or 0.0)
-        ath_mc = float(t.get("ath_mc") or 0.0)
-        buy_ratio = float(t.get("buy_ratio") or 50.0)
-
-        # Stage 1: Basic constraints
-        if age_h > sw_max_age:
-            continue
-        if not (10_000 <= mcap <= sw_max_mcap):
-            continue
-        if liq < sw_min_liq:
-            continue
-        if vol < 10_000:
-            continue
-
-        # Stage 2: ATH & Pullback
-        if ath_mc < sw_min_ath:
-            continue
-        if mcap > ath_mc * 0.35:
-            continue
-
-        # Stage 3: Buying pressure
-        vol_h1_est = vol / 24.0
-        if buy_ratio < sw_min_buy and vol_h1_est < 1500.0:
-            continue
-
-        pullback = round((1 - mcap / ath_mc) * 100, 1) if ath_mc > 0 else 0.0
-        item = dict(t)
-        item["sw_pullback"] = pullback
-        item["sw_vol_h1"] = vol_h1_est
-        candidates.append(item)
-
-    candidates.sort(key=lambda x: -x["ath_mc"])
-    return candidates
-
-
 def get_next_boundary(interval_sec: int = INTERVAL_SEC, offset_sec: int = 1) -> float:
     now = time.time()
     next_slot = ((int(now) // interval_sec) + 1) * interval_sec
@@ -840,7 +778,7 @@ def scan() -> None:
             raw_items = gmgn_rank("sol", 50)
         elif chain_mode == "ARC":
             raw_items = gmgn_rank("arc", 50)
-        else:  # BOTH — 3 chain, 50 pairs masing-masing (dengan jeda 3.5s & fallback)
+        else:  # BOTH — 3 chain, 50 pairs masing-masing
             raw_items = []
             for ch in ["robinhood", "sol", "arc"]:
                 try:
@@ -848,10 +786,9 @@ def scan() -> None:
                     raw_items.extend(items)
                 except urllib.error.HTTPError as e:
                     if e.code == 429 and raw_items:
-                        print(f"[GMGN] ⚠️ Chain {ch} dilewati sementara karena kuota rate limit 429 (tetap tampilkan {len(raw_items)} pairs)")
+                        print(f"[GMGN] ⚠️ Chain {ch} dilewati sementara karena kuota rate limit 429")
                     else:
                         raise
-                time.sleep(3.5)
 
         rows = [score(r, f) for r in raw_items]
 
@@ -862,7 +799,7 @@ def scan() -> None:
 
         # Lacak siklus breakout ATH & skor kandidat
         update_ath_cache_v6(rows)
-        sw_rows = score_second_wave(rows, f)
+        sw_rows = []
         break_ath_rows = score_break_ath(rows, f)
 
         with lock:
@@ -1462,9 +1399,7 @@ th.sortable:hover {
     <button class="mode-btn mode-absorb" id="btn-mode-micro" onclick="switchMasterMode('MICRO')">
       <span>🔬</span> Absorption LP Radar (Mage Microstructure)
     </button>
-    <button class="mode-btn mode-secondwave" id="btn-mode-secondwave" onclick="switchMasterMode('SECONDWAVE')">
-      <span>🎯</span> Second Wave Hunter (Spot)
-    </button>
+
     <button class="mode-btn mode-breakath" id="btn-mode-breakath" onclick="switchMasterMode('BREAKATH')">
       <span>🚀</span> Break ATH LP Radar
     </button>
@@ -1701,85 +1636,6 @@ th.sortable:hover {
 
 
 
-<!-- ================= MODE 3: SECOND WAVE HUNTER (PULLBACK RUNNER SPOT RADAR) ================= -->
-<div class="subview" id="view-secondwave">
-  <div class="kpi-strip">
-    <div class="kpi-card">
-      <div class="kpi-label">🎯 Kandidat Second Wave</div>
-      <div class="kpi-val" id="kpi-sw-count" style="color:#fb923c">0</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Top ATH Runner</div>
-      <div class="kpi-val purple" id="kpi-sw-top-ath">—</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Rata-rata Diskon (Pullback)</div>
-      <div class="kpi-val" id="kpi-sw-avg-drop" style="color:#38bdf8">—</div>
-      <div style="font-size:10px; color:var(--mut-light); font-family:'JetBrains Mono',monospace">Dari Puncak ATH</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Kriteria Strategi</div>
-      <div class="kpi-val" style="color:#facc15; font-size:13.5px">ATH ≥ $200k · &lt;24j</div>
-      <div style="font-size:10px; color:var(--mut-light); font-family:'JetBrains Mono',monospace">MC $10k–$60k · Buy ≥ 52%</div>
-    </div>
-  </div>
-
-  <div class="strategy-banner" style="background: linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 179, 8, 0.08) 100%); border-color: rgba(249, 115, 22, 0.25)">
-    <div class="strat-text">
-      <b>🎯 Second Wave Hunter Edge</b>: 
-      <i>"Bukan LP · Spot Trading Runner Strategy · ⚠️ DYOR"</i>.
-      Mencari token berumur <b>&lt; 24 jam</b> yang sempat meledak hingga <b>ATH ~$200k+</b>, lalu pullback sehat ke kisaran <b>$10k–$60k (drop ≥ 65%)</b>.
-      Ketika likuiditas bertahan tebal (≥ $10k) dan pembeli baru mulai masuk kembali (Buy Ratio ≥ 52% atau Vol H1 naik), beli gelombang kedua (second wave).
-    </div>
-    <div class="strat-tag" style="background: rgba(249, 115, 22, 0.2); color: #fed7aa; border: 1px solid rgba(249, 115, 22, 0.4)">SECOND WAVE SPOT</div>
-  </div>
-
-  <div class="control-bar">
-    <div class="tabs-group" id="tabs-sw">
-      <button class="tab-btn active" data-sw="ALL">Semua Sinyal SW</button>
-      <button class="tab-btn" data-sw="STRONG_BUY" style="color:#34d399">🟢 Strong Buyer (Buy ≥ 60%)</button>
-      <button class="tab-btn" data-sw="DEEP_DROP" style="color:#38bdf8">📉 Diskon Dalam (Drop ≥ 75%)</button>
-    </div>
-
-    <div class="filter-bar">
-      <div class="f-input-group">
-        <label>Min ATH $</label>
-        <input id="f-sw-ath" style="width:75px" value="200000"/>
-      </div>
-      <div class="f-input-group">
-        <label>Max MC $</label>
-        <input id="f-sw-mc" style="width:65px" value="60000"/>
-      </div>
-      <div class="f-input-group">
-        <label>Min Liq $</label>
-        <input id="f-sw-liq" style="width:65px" value="10000"/>
-      </div>
-      <div class="f-input-group">
-        <label>Max Usia (j)</label>
-        <input id="f-sw-age" style="width:45px" value="24"/>
-      </div>
-      <div class="f-input-group">
-        <label>Min Buy %</label>
-        <input id="f-sw-buy" style="width:45px" value="52"/>
-      </div>
-      <button class="btn-apply" id="btn-apply-sw" type="button" style="background:linear-gradient(135deg,#ea580c,#d97706); border-color:#ea580c">Terapkan SW</button>
-    </div>
-  </div>
-
-  <main class="workstation" style="padding-top:0">
-    <section class="panel" style="flex:1">
-      <div class="panel-head">
-        <div class="panel-title">
-          <span>🎯 Tabel Sinyal Second Wave Hunter (Pullback & Runner Reaccumulation)</span>
-          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; padding:1px 6px; border-radius:10px; background:rgba(249,115,22,0.15); color:#fed7aa" id="sw-count">0 Token</span>
-        </div>
-        <div style="font-size:11px; color:var(--mut);">Spot Trade Sinyal · Refresh Otomatis Tiap 5 Menit · Port 8772</div>
-      </div>
-      <div class="panel-scroll" id="sw-scroll"></div>
-    </section>
-  </main>
-</div>
-
 <!-- ================= MODE 4: BREAK ATH LP (15M+ CONFIRMED) ================= -->
 <div class="subview" id="view-breakath">
   <div class="kpi-strip">
@@ -1803,7 +1659,7 @@ th.sortable:hover {
 
   <div class="strategy-banner" style="background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%); border-color: rgba(6, 182, 212, 0.3)">
     <div class="strat-text">
-      <b>🚀 Break ATH LP Edge</b>: Token yang bertahan konsisten <b>≥ 15 menit (3 scan)</b> di atas ATH lama membuktikan resistance berhasil diubah menjadi support baru. Di fase price discovery, volume melesat tajam dan menghasilkan fee LP tinggi (<b>≥ $3.00/jam</b>).
+      <b>🚀 Break ATH LP Edge</b>: Token yang bertahan konsisten <b>≥ 15 menit (3 scan)</b> di atas ATH lama membuktikan resistance berhasil diubah menjadi support baru. Di fase price discovery, volume melesat tajam dan menghasilkan fee LP tinggi (<b>≥ $1.00/jam</b>).
     </div>
     <div class="strat-tag" style="background: rgba(6, 182, 212, 0.2); color: #a5f3fc; border: 1px solid rgba(6, 182, 212, 0.4)">BREAK ATH MOMENTUM LP</div>
   </div>
@@ -2226,7 +2082,7 @@ function renderBreakAthTable(rows) {
       <div style="font-size:36px; margin-bottom:12px">🚀</div>
       <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:6px">Belum Ada Token Break ATH yang Bertahan ≥ 15 Menit Saat Ini</div>
       <div style="font-size:12px; color:var(--mut); max-width:580px; margin:0 auto; line-height:1.6">
-        Kriteria: Bertahan di atas ATH lama selama minimal 15 menit (3 scan berturut-turut) · Yield Fee ≥ $3.00/h ($100 posisi) · Likuiditas ≥ $20k · Buy Ratio ≥ 50%.
+        Kriteria: Bertahan di atas ATH lama selama minimal 15 menit (3 scan berturut-turut) · Yield Fee ≥ $1.00/h ($100 posisi) · Likuiditas ≥ $20k · Buy Ratio ≥ 50%.
         <br><br>Token yang lolos konfirmasi akan muncul otomatis di sini lengkap dengan rekomendasi range LP.
       </div>
     </div>`;
@@ -2685,7 +2541,7 @@ function renderCurrentView() {
       filtered = filtered.filter(r => (r.holders || 0) >= minHolder);
     }
     // Opsi B: Filter fee rendah di Absorption view (default min $0.50/h)
-    const minFeeAbsorb = Number(currentData.filters?.min_fee_absorb ?? 0.50);
+    const minFeeAbsorb = Number(currentData.filters?.min_fee_absorb ?? 1.0);
     if (minFeeAbsorb > 0) {
       filtered = filtered.filter(r => (r.fee_hour || 0) >= minFeeAbsorb);
     }

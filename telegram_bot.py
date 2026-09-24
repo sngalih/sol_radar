@@ -87,14 +87,8 @@ def fmt_absorption_alert(t: dict) -> str:
     be_s = f"{be:.0f}h" if be and be < 9999 else "--"
 
     links = []
-    if t.get("meteora"):
-        links.append(f'<a href="{t.get("meteora", "")}">Meteora DLMM</a>')
     if t.get("gmgn"):
-        links.append(f'<a href="{t.get("gmgn", "")}">GMGN</a>')
-    if t.get("dexscreener"):
-        links.append(f'<a href="{t.get("dexscreener", "")}">DexScreener</a>')
-    if t.get("fomo"):
-        links.append(f'<a href="{t.get("fomo", "")}">FOMO</a>')
+        links.append(f'<a href="{t.get("gmgn", "")}">GMGN Chart ↗</a>')
 
     lines = [
         f"🟢 <b>[ENTRY LP ABSORPTION]</b> <b>${sym}</b> <code>[{chain}]</code>",
@@ -120,8 +114,8 @@ def fmt_fee_decay_alert(t: dict) -> str:
     fee_h = t.get("fee_hour", 0)
     vl = t.get("vl", 0)
     trend = t.get("fee_trend", "--")
-    open_link = t.get("meteora") or t.get("gmgn", "")
-    btn_name = "Meteora DLMM" if t.get("meteora") else "GMGN"
+    open_link = t.get("gmgn", "")
+    btn_name = "GMGN Chart ↗"
 
     lines = [
         f"🟡 <b>[PERINGATAN FEE DECAY]</b> <b>${sym}</b> <code>[{chain}]</code>",
@@ -132,7 +126,7 @@ def fmt_fee_decay_alert(t: dict) -> str:
         "⚠️ <i>Volume transaksi pool mulai melemah drastis.</i>",
         "💡 <b>Saran:</b> Pantau ketat & pertimbangkan exit LP dalam 1-2 jam.",
         "━━━━━━━━━━━━━━━━━━━━",
-        f'<a href="{open_link}">🔗 Buka {btn_name}</a>',
+        f'<a href="{open_link}">🔗 {btn_name}</a>',
     ]
     return "\n".join(lines)
 
@@ -143,8 +137,8 @@ def fmt_emergency_exit_alert(t: dict) -> str:
     sym = str(t.get("symbol") or "?")
     p1, p5 = t.get("p1", 0), t.get("p5", 0)
     s1, s5 = ("+" if p1 >= 0 else ""), ("+" if p5 >= 0 else "")
-    open_link = t.get("meteora") or t.get("gmgn", "")
-    btn_name = "Meteora DLMM" if t.get("meteora") else "GMGN"
+    open_link = t.get("gmgn", "")
+    btn_name = "GMGN Chart ↗"
 
     lines = [
         f"🔴 <b>[EXIT LP SEKARANG!]</b> <b>${sym}</b> <code>[{chain}]</code>",
@@ -156,7 +150,7 @@ def fmt_emergency_exit_alert(t: dict) -> str:
         "Harga koin keluar dari zona sideways dan bergerak directional tajam!",
         "Segera tarik likuiditas untuk menghindari <b>Impermanent Loss parah</b>.",
         "━━━━━━━━━━━━━━━━━━━━",
-        f'<a href="{open_link}">🔗 Buka {btn_name} Sekarang</a>',
+        f'<a href="{open_link}">🔗 {btn_name}</a>',
     ]
     return "\n".join(lines)
 

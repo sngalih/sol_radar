@@ -248,19 +248,13 @@ def fetch_gmgn_tokens(chain: str = "sol", api_key: str = "", limit: int = 50) ->
     api_chain = "robinhood" if chain.lower() in ("rh", "robinhood") else "sol"
     chain_tag = "RH" if api_chain == "robinhood" else "SOL"
     qs = urllib.parse.urlencode({
-        "chain": api_chain,
-        "interval": "1h",
-        "limit": str(limit),
-        "order_by": "volume",
+        "orderby": "volume",
         "direction": "desc",
-        "timestamp": str(int(time.time())),
-        "client_id": str(uuid.uuid4()),
     })
-    url = "https://openapi.gmgn.ai/v1/market/rank?" + qs
+    url = f"https://gmgn.ai/defi/quotation/v1/rank/{api_chain}/swaps/1h?{qs}"
     req = urllib.request.Request(
         url,
         headers={
-            "X-APIKEY": key,
             "Accept": "application/json, text/plain, */*",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
@@ -285,7 +279,7 @@ def fetch_gmgn_tokens(chain: str = "sol", api_key: str = "", limit: int = 50) ->
                 if rows:
                     for r in rows:
                         r["chain"] = chain_tag
-                    return rows
+                    return rows[:limit]
             return []
         except urllib.error.HTTPError as err:
             if err.code == 429 and attempt < 2:
