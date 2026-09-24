@@ -86,22 +86,17 @@ def fmt_absorption_alert(t: dict) -> str:
     fee_24_s = f"${fee_24:.2f}/24h" if fee_24 else "--"
     be_s = f"{be:.0f}h" if be and be < 9999 else "--"
 
-    links = []
-    if t.get("gmgn"):
-        links.append(f'<a href="{t.get("gmgn", "")}">GMGN Chart ↗</a>')
+    addr = t.get("address", "")
+    ca_code = f"<code>{addr}</code>" if addr else ""
+    sym_link = f'<a href="{t.get("gmgn", "")}"><b>${sym}</b></a>'
 
     lines = [
-        f"🟢 <b>[ENTRY LP ABSORPTION]</b> <b>${sym}</b> <code>[{chain}]</code>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"🎯 <b>Score:</b> {score:.0f}/100 | <b>MC:</b> {_usd(mcap)}",
-        f"⚡ <b>V/L:</b> {vl:.1f}x | <b>ER:</b> {er:.1f} (Chop)",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"📐 <b>Range LP:</b> {_lp_price(lp, 'lower')} ➔ {_lp_price(lp, 'upper')}",
-        f"🛡️ <i>{lp.get('note', '--')}</i>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"💰 <b>Est Fee @$100:</b> {fee_h_s} | {fee_24_s} (BE: {be_s})",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"🔗 <b>Link:</b> {' | '.join(links)}",
+        f"🟢 <b>[ENTRY LP ABSORPTION]</b>",
+        f"• {sym_link} {ca_code} ({chain})",
+        f"  <b>{fee_h_s}</b> | MC {_usd(mcap)} | {score:.0f}/100",
+        f"  V/L {vl:.1f}x | ER {er:.1f} | BE: {be_s}",
+        f"  📐 Range: {_lp_price(lp, 'lower')} ➔ {_lp_price(lp, 'upper')}",
+        f"  🛡️ {lp.get('note', '--')}"
     ]
     return "\n".join(lines)
 
@@ -115,18 +110,16 @@ def fmt_fee_decay_alert(t: dict) -> str:
     vl = t.get("vl", 0)
     trend = t.get("fee_trend", "--")
     open_link = t.get("gmgn", "")
-    btn_name = "GMGN Chart ↗"
+    addr = t.get("address", "")
+    ca_code = f"<code>{addr}</code>" if addr else ""
+    sym_link = f'<a href="{open_link}"><b>${sym}</b></a>'
 
     lines = [
-        f"🟡 <b>[PERINGATAN FEE DECAY]</b> <b>${sym}</b> <code>[{chain}]</code>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"📉 <b>Fee Trend:</b> {trend} | <b>Fee:</b> ${fee_h:.2f}/h",
-        f"⚡ <b>V/L:</b> {vl:.1f}x | <b>1h Chg:</b> {sign}{p1:.1f}%",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "⚠️ <i>Volume transaksi pool mulai melemah drastis.</i>",
-        "💡 <b>Saran:</b> Pantau ketat & pertimbangkan exit LP dalam 1-2 jam.",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f'<a href="{open_link}">🔗 {btn_name}</a>',
+        f"🟡 <b>[FEE DECAY]</b> Volume melemah drastis!",
+        f"• {sym_link} {ca_code} ({chain})",
+        f"  📉 Trend: {trend} | <b>${fee_h:.2f}/h</b>",
+        f"  ⚡ V/L: {vl:.1f}x | 1h: {sign}{p1:.1f}%",
+        f"  💡 Pantau ketat & pertimbangkan exit."
     ]
     return "\n".join(lines)
 
@@ -138,19 +131,16 @@ def fmt_emergency_exit_alert(t: dict) -> str:
     p1, p5 = t.get("p1", 0), t.get("p5", 0)
     s1, s5 = ("+" if p1 >= 0 else ""), ("+" if p5 >= 0 else "")
     open_link = t.get("gmgn", "")
-    btn_name = "GMGN Chart ↗"
+    addr = t.get("address", "")
+    ca_code = f"<code>{addr}</code>" if addr else ""
+    sym_link = f'<a href="{open_link}"><b>${sym}</b></a>'
 
     lines = [
-        f"🔴 <b>[EXIT LP SEKARANG!]</b> <b>${sym}</b> <code>[{chain}]</code>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"💥 <b>Status:</b> {m.get('state_title', 'DISTRIBUTION')} (Breakout)",
-        f"📊 <b>5m:</b> {s5}{p5:.1f}% | <b>1h:</b> {s1}{p1:.1f}% | <b>Buy:</b> {m.get('buy_ratio', 50):.0f}%",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "🚨 <b>PERINGATAN KERAS:</b>",
-        "Harga koin keluar dari zona sideways dan bergerak directional tajam!",
-        "Segera tarik likuiditas untuk menghindari <b>Impermanent Loss parah</b>.",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f'<a href="{open_link}">🔗 {btn_name}</a>',
+        f"🔴 <b>[EXIT LP SEKARANG!]</b> Breakout tajam!",
+        f"• {sym_link} {ca_code} ({chain})",
+        f"  💥 Status: {m.get('state_title', 'DISTRIBUTION')}",
+        f"  📊 5m: {s5}{p5:.1f}% | 1h: {s1}{p1:.1f}% | Buy: {m.get('buy_ratio', 50):.0f}%",
+        f"  🚨 Tarik likuiditas segera hindari IL parah!"
     ]
     return "\n".join(lines)
 

@@ -1203,22 +1203,16 @@ def generate_report(
             if idx < 3:
                 # Top 1-3 Podium Cards
                 medal = "🥇" if idx == 0 else ("🥈" if idx == 1 else "🥉")
-                lines.append(f"{medal} {sym_link} {meta_tag}")
-                lines.append(f"   {fee_str} │ {mc_str} │ {er_str}")
-                lines.append(f"   📊 {vl_str} │ {vol_str} │ {tx_str}")
-                lines.append(f"   {safety_str}")
-                if ca_code:
-                    lines.append(f"   📋 {ca_code}")
-                lines.append(f'   🔗 <a href="{t["url"]}">Buka GMGN Chart ↗</a>')
+                lines.append(f"{medal} {sym_link} {ca_code} {meta_tag}")
+                lines.append(f"   {fee_str} | {mc_str} | {er_str}")
+                lines.append(f"   {vl_str} | {tx_str} | 🛡️ {grade} {score}")
                 lines.append("")
             else:
-                # Rank 4+ Compact Rows with Single-Tap Copyable CA
+                # Rank 4+ Compact Rows
                 rank_num = f"#{idx + 1}"
                 badge_icon = "🔹" if chain == "RH" else "🔸"
-                lines.append(f"• {rank_num} {badge_icon} {sym_link} ➔ <b>${fee_h:.2f}/h</b> │ {mc_str} │ ER {er_val:.1f}")
-                if ca_code:
-                    lines.append(f"  📋 {ca_code}")
-                lines.append(f'  🔗 <a href="{t["url"]}">GMGN Chart ↗</a>')
+                lines.append(f"• {rank_num} {badge_icon} {sym_link} {ca_code}")
+                lines.append(f"  <b>${fee_h:.2f}/h</b> | {mc_str} | ER {er_val:.1f}")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -1230,14 +1224,12 @@ def generate_report(
     if m5_list:
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("⚡ <b>5M MOMENTUM</b> (Vol > $100k · Pump Up)")
-        lines.append("<i>🔥 Ultra Flow · Liq ≥ $10k · Fee ≥ $1.00/h</i>")
+        lines.append("⚡ <b>5M MOMENTUM</b>")
         lines.append("")
         for m in m5_list[:6]:
             sym = html.escape(str(m.get("symbol") or "?"))
             sym_link = f'<a href="{m["url"]}"><b>{sym}</b></a>'
             fee_h = m.get("fee_hour", 0.0)
-            fee_5m = m.get("fee_5m", fee_h / 12.0)
             mc_str = _usd(m.get("mcap", 0.0))
             vol5_str = _usd(m.get("vol_5m", 0.0))
             p5 = m.get("p5", 0.0)
@@ -1251,11 +1243,8 @@ def generate_report(
             if buys > 0 or sells > 0:
                 tx_str += f" ({buys}/{sells})"
 
-            lines.append(f"• {badge} {sym_link} ➔ <b>${fee_h:.2f}/h</b> (<i>+${fee_5m:.2f}/5m</i>) │ MC {mc_str}")
-            lines.append(f"  ⚡ 5m <b>{p5_str}</b> │ 🌊 Vol5m <b>{vol5_str}</b> │ {tx_str}")
-            if m_ca:
-                lines.append(f"  📋 {m_ca}")
-            lines.append(f'  🔗 <a href="{m["url"]}">Buka GMGN Chart ↗</a>')
+            lines.append(f"• {badge} {sym_link} {m_ca} ➔ <b>${fee_h:.2f}/h</b> | MC {mc_str}")
+            lines.append(f"  5m {p5_str} | V5 {vol5_str} | {tx_str}")
             lines.append("")
 
     # 3. Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
@@ -1263,8 +1252,7 @@ def generate_report(
     if bath_list:
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("🚀 <b>BREAK ATH LP</b> (15m+ Confirmed)")
-        lines.append(f"<i>⚡ Momentum LP · Range ±20% · Fee ≥ ${min_fee_break_ath:.2f}/h · ATH > $500k</i>")
+        lines.append("🚀 <b>BREAK ATH LP</b>")
         lines.append("")
         for b in bath_list[:6]:
             sym = html.escape(str(b.get("symbol") or "?"))
@@ -1272,25 +1260,21 @@ def generate_report(
             fee_str  = f"${b['fee_hour']:.2f}/h"
             mc_str   = _usd(b['mcap'])
             ath_str  = _usd(b['ath_mcap'])
-            dur_str  = f"{b['duration_mins']}m ({b['break_scans']} scan)"
+            dur_str  = f"{b['duration_mins']}m"
             badge    = b.get("chain_badge", "🔹")
             pct_sign = "+" if b["breakout_pct"] >= 0 else ""
             b_ca     = f"<code>{b.get('address', '')}</code>" if b.get('address') else ""
             vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
-            lines.append(f"• {badge} {sym_link} ➔ <b>{fee_str}</b> │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}% vs ATH {ath_str})")
-            lines.append(f"  ⏱️ {dur_str} │ 📊 {vl_str} │ 🟢 {b_ratio}% Buy")
-            if b_ca:
-                lines.append(f"  📋 {b_ca}")
-            lines.append(f'  🔗 <a href="{b["url"]}">Buka GMGN Chart ↗</a>')
+            lines.append(f"• {badge} {sym_link} {b_ca} ➔ <b>{fee_str}</b> | MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
+            lines.append(f"  ⏱️ {dur_str} | 📊 {vl_str} | 🟢 {b_ratio}% Buy")
             lines.append("")
 
     # 3. Kategori Absorption Radar
     lines.append("")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━")
     lines.append("📡 <b>ABSORPTION RADAR</b>")
-    lines.append(f"<i>🎯 Sinyal Akumulasi / Reakumulasi (MC ≥ {_usd(min_mcap)})</i>")
     lines.append("")
 
     if absorption:
@@ -1303,10 +1287,7 @@ def generate_report(
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
             t_ca = f"<code>{t.get('address', '')}</code>" if t.get('address') else ""
 
-            lines.append(f"• {badge} {sym_link} ➔ <b>{fee_str}</b> │ {mc_str} │ {status}")
-            if t_ca:
-                lines.append(f"  📋 {t_ca}")
-            lines.append(f'  🔗 <a href="{t["url"]}">Buka GMGN Chart ↗</a>')
+            lines.append(f"• {badge} {sym_link} {t_ca} ➔ <b>{fee_str}</b> | {mc_str} | {status}")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
     else:
