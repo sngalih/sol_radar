@@ -155,4 +155,4 @@ git push -u origin main
 | `MAX_1H` | `80.0` | Batas maksimal volatilitas harga 1 jam ($\le 80\%$). |
 | `MAX_ER` | `20.0` | Batas maksimal Efficiency Ratio ($\le 20.0$, ideal $\le 5.0$). |
 | `MIN_MCAP` | `500000` | Batas minimal Market Cap token (\$500,000). |
-| `MIN_FEE_SIAP_LP` | `3.0` | Batas minimal estimasi fee/jam untuk kategori Siap LP (\$3.00/jam). |
+| `MIN_FEE_SIAP_LP` | `1.0` | Batas minimal estimasi fee/jam untuk kategori Siap LP (\$1.00/jam). |

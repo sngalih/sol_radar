@@ -67,7 +67,8 @@ def load_persistent_filters() -> dict[str, Any]:
     # Ensure mobile-specific defaults match bot
     defaults = {
         "position_usd": 100.0,
-        "min_fee_siap_lp": 3.0,
+        "min_fee_siap_lp": 1.0,
+        "min_fee_break_ath": 1.0,
         "min_liq": 20000.0,
         "min_mcap": 500000.0,
         "max_mcap": 500000000.0,
@@ -94,6 +95,10 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["interval_sec"] = saved["interval"]
                 if "min_absorb_mcap" in saved and ("min_mcap" not in saved or saved.get("min_mcap") == 0):
                     saved["min_mcap"] = saved["min_absorb_mcap"]
+                if saved.get("min_fee_siap_lp") == 3.0:
+                    saved["min_fee_siap_lp"] = 1.0
+                if saved.get("min_fee_break_ath") == 3.0:
+                    saved["min_fee_break_ath"] = 1.0
 
                 for k, v in saved.items():
                     if k in conf and v is not None:
@@ -130,7 +135,7 @@ def perform_scan() -> None:
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
     min_mcap = float(conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 3.0))
+    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_vl = float(conf.get("min_vl", 2.0))
     max_5m = float(conf.get("max_5m", 15.0))
@@ -1756,8 +1761,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <!-- Quick Tuning Presets -->
       <div class="preset-strip">
         <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif ($5/h)</button>
-        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($3/h)</button>
-        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($1.5/h)</button>
+        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($1/h)</button>
+        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($0.5/h)</button>
       </div>
 
       <div class="form-section-title">📊 Kriteria Chop Sideways LP</div>
@@ -1767,7 +1772,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <span>Min Fee Siap LP ($/jam)</span>
             <span style="color:var(--green-light)">Posisi $100</span>
           </div>
-          <input type="number" step="0.5" id="f_min_fee" class="form-input" value="3.0">
+          <input type="number" step="0.1" id="f_min_fee" class="form-input" value="1.0">
         </div>
 
         <div class="form-group">
@@ -2053,7 +2058,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         resetDefaultFilters();
         showToast("Preset Standar dipilih", "⚖️");
       } else if (p === 'agresif') {
-        document.getElementById("f_min_fee").value  = 1.5;
+        document.getElementById("f_min_fee").value  = 0.5;
         document.getElementById("f_min_mcap").value = 500000;
         document.getElementById("f_min_liq").value  = 15000;
         document.getElementById("f_min_vl").value   = 1.5;
@@ -2065,7 +2070,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     function resetDefaultFilters() {
-      document.getElementById("f_min_fee").value  = 3.0;
+      document.getElementById("f_min_fee").value  = 1.0;
       document.getElementById("f_min_mcap").value = 500000;
       document.getElementById("f_min_liq").value  = 20000;
       document.getElementById("f_min_vl").value   = 2.0;
@@ -2078,7 +2083,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     async function saveFilters() {
       const payload = {
-        min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value)  || 3.0,
+        min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
         min_mcap:        parseFloat(document.getElementById("f_min_mcap").value) || 500000,
         min_liq:         parseFloat(document.getElementById("f_min_liq").value)  || 20000,
         min_vl:          parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
@@ -2205,9 +2210,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:       "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).",
+          siap:       "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h & MC ≥ $500k).",
           absorption: "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
-          break_ath:  "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, ATH > $500k).",
+          break_ath:  "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $1/h, ATH > $500k).",
           gaps:       "Tidak ada token radar yang berada di luar kriteria.",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);

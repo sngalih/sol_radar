@@ -6,7 +6,7 @@ Data Source: GMGN Solana Open API (https://openapi.gmgn.ai) + Automatic Fallback
 Matches Dashboard V5 logic 100%: ER, Symmetric Volatility 5m/1h, On-Chain Safety & Microstate Machine.
 
 Report Format:
-🟢 SIAP LP (Fee >= $3/h & MC >= $500k)
+🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
 • TOKEN ➔ $X.XX/h │ MC $X.XX │ ER X.X
 
 📡 ABSORPTION RADAR (MC >= $500k)
@@ -111,9 +111,9 @@ DEFAULT_CONFIG = {
     "min_liq": 20000,           # TVL pool min $20k
     "min_mcap": 500000.0,       # Market cap minimal $500k
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
-    "min_fee_siap_lp": 3.0,     # Hanya tampilkan Siap LP jika fee/hour >= $3.00
+    "min_fee_siap_lp": 1.0,     # Hanya tampilkan Siap LP jika fee/hour >= $1.00
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
-    "min_fee_break_ath": 3.0,   # Hanya tampilkan Break ATH LP jika fee/hour >= $3.00
+    "min_fee_break_ath": 1.0,   # Hanya tampilkan Break ATH LP jika fee/hour >= $1.00
     "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
     "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
     "break_ath_min_mcap": 500000.0,  # Min Mcap $500k (sama dengan LP biasa)
@@ -168,9 +168,12 @@ def get_config() -> dict[str, Any]:
                         conf["telegram_bot_token"] = str(data["telegram_token"]).strip()
                     if data.get("telegram_chat_id"):
                         conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
-                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position"]:
+                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath"]:
                         if k in data:
-                            conf[k if k != "position" else "position_usd"] = float(data[k])
+                            val = float(data[k])
+                            if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
+                                val = 1.0
+                            conf[k if k != "position" else "position_usd"] = val
                     break
             except Exception:
                 pass
@@ -463,14 +466,14 @@ def score_break_ath_candidates(
 
     Kriteria lolos:
     1. break_scans >= min_scans (default: 3 scan berturut-turut = 15 menit)
-    2. fee_hour >= min_fee (default: $3.00/jam)
+    2. fee_hour >= min_fee (default: $1.00/jam)
     3. liq >= min_liq (default: $20,000)
     4. buy_ratio >= min_buy (default: 50%)
     5. Bukan tokenized stock
     6. Lolos on-chain safety: top10 <= 60%, insider <= 25%, not honeypot
     """
     min_scans = int(conf.get("break_ath_min_scans", 3))
-    min_fee = float(conf.get("min_fee_break_ath", 3.0))
+    min_fee = float(conf.get("min_fee_break_ath", 1.0))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
     min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 500000.0))
@@ -921,20 +924,21 @@ def generate_report(
     break_ath_candidates: list[dict] | None = None,
 ) -> str:
     """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
-    🟢 SIAP LP (Fee >= $3/h & MC >= $500k)
+    🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ ER
 
     📡 ABSORPTION RADAR (MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ Status
 
-    🚀 BREAK ATH LP (15m+ Confirmed, Fee >= $3/h)
+    🚀 BREAK ATH LP (15m+ Confirmed, Fee >= $1/h)
     • TOKEN ➔ Fee/h │ MC │ Durasi
 
     """
     min_mcap = float(conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 3.0))
+    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
     min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
+    min_fee_break_ath = float(conf.get("min_fee_break_ath", 1.0))
     do_filter_stocks = bool(conf.get("filter_stocks", True))
 
     # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
@@ -1062,7 +1066,7 @@ def generate_report(
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("🚀 <b>BREAK ATH LP</b> (15m+ Confirmed)")
-        lines.append("<i>⚡ Momentum LP · Range ±20% · Fee ≥ $3.00/h · ATH > $500k</i>")
+        lines.append(f"<i>⚡ Momentum LP · Range ±20% · Fee ≥ ${min_fee_break_ath:.2f}/h · ATH > $500k</i>")
         lines.append("")
         for b in bath_list[:6]:
             sym = html.escape(str(b.get("symbol") or "?"))
@@ -1222,7 +1226,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
 
     elapsed = time.time() - t0
     min_mcap = float(conf.get("min_mcap", 500000.0))
-    min_fee = float(conf.get("min_fee_siap_lp", 3.0))
+    min_fee = float(conf.get("min_fee_siap_lp", 1.0))
     chop_count = sum(1 for p in scored_tokens if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee and p.get("mcap", 0.0) >= min_mcap)
     absorb_count = sum(1 for p in scored_tokens if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)) and p.get("mcap", 0.0) >= min_mcap)
     print(

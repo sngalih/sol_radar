@@ -62,7 +62,7 @@ DEFAULT_FILTERS = {
     "sw_min_liq": 10000,
     "sw_max_age": 24,
     "sw_min_buy": 52,
-    "break_ath_min_fee": 3.0,
+    "break_ath_min_fee": 1.0,
     "break_ath_min_scans": 3,
     "break_ath_min_buy": 50,
     "break_ath_min_mcap": 500000,
@@ -764,7 +764,7 @@ def update_ath_cache_v6(rows: list[dict]) -> None:
 def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
     """Filter dan score kandidat Break ATH LP untuk dashboard v6."""
     min_scans = int(f.get("break_ath_min_scans") or 3)
-    min_fee = float(f.get("break_ath_min_fee") or 3.0)
+    min_fee = float(f.get("break_ath_min_fee") or 1.0)
     min_liq = float(f.get("min_liq") or 20000)
     min_buy = float(f.get("break_ath_min_buy") or 50.0)
     min_mcap = float(f.get("break_ath_min_mcap") or f.get("min_mcap") or 500000)
@@ -1822,7 +1822,7 @@ th.sortable:hover {
       </div>
       <div class="f-input-group">
         <label>Min Fee $/h</label>
-        <input id="f-bath-fee" style="width:50px" value="3.0"/>
+        <input id="f-bath-fee" style="width:50px" value="1.0"/>
       </div>
       <div class="f-input-group">
         <label>Min Scans</label>
