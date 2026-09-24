@@ -66,6 +66,7 @@ DEFAULT_FILTERS = {
     "break_ath_min_scans": 3,
     "break_ath_min_buy": 50,
     "break_ath_min_mcap": 500000,
+    "break_ath_min_ath": 500000,
 }
 
 lock = threading.Lock()
@@ -768,6 +769,7 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
     min_buy = float(f.get("break_ath_min_buy") or 50.0)
     min_mcap = float(f.get("break_ath_min_mcap") or f.get("min_mcap") or 500000)
     max_mcap = float(f.get("max_mcap") or 500000000)
+    min_ath = float(f.get("break_ath_min_ath") or 500000)
 
     now = int(time.time())
     candidates: list[dict] = []
@@ -787,6 +789,10 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
         if not (min_mcap <= mcap <= max_mcap):
             continue
 
+        ath_old = float(cached.get("ath_mcap") or 0.0)
+        if ath_old < min_ath:
+            continue
+
         fee_h = float(t.get("fee_hour") or 0.0)
         if fee_h < min_fee:
             continue
@@ -799,7 +805,6 @@ def score_break_ath(rows: list[dict], f: dict) -> list[dict]:
         if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0:
             continue
 
-        ath_old = float(cached.get("ath_mcap") or 0.0)
         breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
         first_ts = int(cached.get("first_break_ts") or now)
         duration_mins = max(15, int((now - first_ts) // 60))

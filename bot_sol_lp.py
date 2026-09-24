@@ -116,6 +116,7 @@ DEFAULT_CONFIG = {
     "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
     "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
     "break_ath_min_mcap": 500000.0,  # Min Mcap $500k (sama dengan LP biasa)
+    "break_ath_min_ath": 500000.0,   # Min ATH yang ditembus > $500k
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
@@ -473,6 +474,7 @@ def score_break_ath_candidates(
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
     min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
+    min_ath = float(conf.get("break_ath_min_ath") or 500000.0)
 
     candidates: list[dict] = []
     now = int(time.time())
@@ -498,6 +500,10 @@ def score_break_ath_candidates(
         if not (min_mcap <= mcap <= max_mcap):
             continue
 
+        ath_old = float(cached.get("ath_mcap") or 0.0)
+        if ath_old < min_ath:
+            continue
+
         fee_h = float(t.get("fee_hour") or 0.0)
         if fee_h < min_fee:
             continue
@@ -514,7 +520,6 @@ def score_break_ath_candidates(
         if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0 or float(t.get("insider_rate") or 0) > 25.0:
             continue
 
-        ath_old = float(cached.get("ath_mcap") or 0.0)
         breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
 
         first_ts = int(cached.get("first_break_ts") or now)

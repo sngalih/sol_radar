@@ -1472,7 +1472,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const msgs = {
           siap:      "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).",
           absorption:"Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
-          break_ath: "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, MC ≥ $500k).",
+          break_ath: "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, ATH > $500k).",
           gaps:      "Tidak ada token radar yang berada di luar kriteria.",
         };
         container.innerHTML = `
