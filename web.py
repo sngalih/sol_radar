@@ -409,7 +409,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       --cyan-glow: rgba(6, 182, 212, 0.25);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
-      --container-max: 1140px;
+      --container-max: 1560px;
       --radius-card: 16px;
       --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
       --font-mono: "JetBrains Mono", "SF Mono", "Roboto Mono", ui-monospace, Menlo, monospace;
