@@ -336,12 +336,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#090d16">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>⚡ Chop LP Radar Mobile</title>
+  <title>⚡ Chop LP Radar</title>
   <style>
+    /* ===== DESIGN TOKENS ===== */
     :root {
       --bg: #090d16;
       --card-bg: #111827;
@@ -362,15 +363,23 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       --red-bg: rgba(239, 68, 68, 0.12);
       --yellow: #f59e0b;
       --yellow-bg: rgba(245, 158, 11, 0.12);
+      --cyan: #38bdf8;
+      --cyan-bg: rgba(56, 189, 248, 0.12);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --container-max: 1100px;
+      --radius-card: 14px;
     }
-    * {
+
+    html { scroll-behavior: smooth; }
+
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       -webkit-tap-highlight-color: transparent;
     }
+
     body {
       background-color: var(--bg);
       color: var(--text-main);
@@ -378,33 +387,40 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       font-size: 14px;
       line-height: 1.45;
       padding-top: var(--safe-top);
-      padding-bottom: calc(var(--safe-bottom) + 30px);
-      user-select: none;
+      padding-bottom: calc(var(--safe-bottom) + 32px);
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Sticky App Header */
+    /* ===== HEADER ===== */
     .app-header {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(9, 13, 22, 0.94);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(9, 13, 22, 0.95);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       border-bottom: 1px solid var(--card-border);
-      padding: 12px 16px 10px;
+      padding: 11px 16px 9px;
     }
+
+    .header-inner {
+      max-width: var(--container-max);
+      margin: 0 auto;
+    }
+
     .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 10px;
+      margin-bottom: 9px;
     }
+
     .brand {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+
     .brand-title {
       font-weight: 800;
       font-size: 17px;
@@ -412,17 +428,21 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
+
     .brand-badge {
       font-size: 10px;
       font-weight: 700;
       padding: 2px 6px;
       border-radius: 6px;
-      background: var(--blue-bg);
-      color: var(--blue);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
+
     .status-pulse {
       display: inline-flex;
       align-items: center;
@@ -435,30 +455,35 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-radius: 20px;
       border: 1px solid rgba(16, 185, 129, 0.25);
     }
+
     .pulse-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: var(--green);
       animation: pulse 1.8s infinite;
+      flex-shrink: 0;
     }
+
     .status-pulse.scanning {
       color: var(--yellow);
       background: var(--yellow-bg);
       border-color: rgba(245, 158, 11, 0.3);
     }
-    .status-pulse.scanning .pulse-dot {
-      background: var(--yellow);
-    }
+    .status-pulse.scanning .pulse-dot { background: var(--yellow); }
+
     @keyframes pulse {
       0% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.35; transform: scale(1.2); }
       100% { opacity: 1; transform: scale(1); }
     }
+
     .header-actions {
       display: flex;
       gap: 8px;
+      align-items: center;
     }
+
     .btn-icon {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -471,32 +496,33 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       align-items: center;
       gap: 5px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
     }
-    .btn-icon:active {
-      transform: scale(0.95);
-      background: var(--card-hover);
-    }
+    .btn-icon:hover { background: var(--card-hover); border-color: rgba(255,255,255,0.12); }
+    .btn-icon:active { transform: scale(0.95); }
+
     .btn-scan {
       background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       border: none;
       box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
     }
+    .btn-scan:hover { box-shadow: 0 4px 14px rgba(16, 185, 129, 0.45); background: linear-gradient(135deg, #10b981, #059669); }
 
-    /* Chain Segmented Switcher */
+    /* ===== CHAIN SWITCHER ===== */
     .chain-segmented {
       display: flex;
-      background: #0d1322;
+      background: rgba(13, 19, 34, 0.8);
       padding: 3px;
       border-radius: 12px;
       border: 1px solid var(--card-border);
-      gap: 4px;
+      gap: 3px;
     }
+
     .chain-tab {
       flex: 1;
       text-align: center;
-      padding: 7px 0;
+      padding: 7px 4px;
       font-size: 12px;
       font-weight: 700;
       color: var(--text-sub);
@@ -507,51 +533,57 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       align-items: center;
       justify-content: center;
       gap: 4px;
+      user-select: none;
+      white-space: nowrap;
     }
+    .chain-tab:hover { color: var(--text-main); }
+
     .chain-tab.active {
       background: var(--card-bg);
       color: var(--text-main);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       border: 1px solid var(--card-border);
     }
-    .chain-tab.active[data-chain="sol"] {
-      color: var(--sol);
-      border-color: rgba(255, 152, 0, 0.35);
-    }
-    .chain-tab.active[data-chain="rh"] {
-      color: var(--rh);
-      border-color: rgba(59, 130, 246, 0.35);
-    }
+    .chain-tab.active[data-chain="sol"] { color: var(--sol); border-color: rgba(255,152,0,0.35); }
+    .chain-tab.active[data-chain="rh"]  { color: var(--rh);  border-color: rgba(59,130,246,0.35); }
 
-    /* Main Container */
+    /* ===== MAIN CONTAINER ===== */
     .container {
-      padding: 12px 16px;
-      max-width: 640px;
+      padding: 14px 16px;
+      max-width: var(--container-max);
       margin: 0 auto;
     }
 
-    /* KPI Summary Row */
+    /* ===== KPI GRID — 5 items ===== */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 8px;
       margin-bottom: 14px;
     }
+
     .kpi-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 12px;
       padding: 9px 8px;
       text-align: center;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
+    .kpi-card:hover {
+      border-color: rgba(255,255,255,0.12);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+
     .kpi-label {
       font-size: 10px;
       font-weight: 600;
       color: var(--text-sub);
       text-transform: uppercase;
       letter-spacing: 0.3px;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
     }
+
     .kpi-val {
       font-size: 15px;
       font-weight: 800;
@@ -559,113 +591,100 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
     .kpi-val.green { color: var(--green); }
     .kpi-val.yellow { color: var(--yellow); }
+    .kpi-val.cyan { color: var(--cyan); }
 
-    /* Category Navigation Tabs */
+    /* ===== CATEGORY TABS ===== */
     .cat-tabs {
       display: flex;
       gap: 6px;
       margin-bottom: 14px;
       overflow-x: auto;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
     .cat-tabs::-webkit-scrollbar { display: none; }
+
     .cat-tab {
       flex: 1;
-      min-width: 100px;
-      padding: 9px 10px;
+      min-width: 78px;
+      padding: 8px 8px;
       border-radius: 12px;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       color: var(--text-sub);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-align: center;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 2px;
+      gap: 3px;
       transition: all 0.2s ease;
+      user-select: none;
+      white-space: nowrap;
     }
+    .cat-tab:hover { background: var(--card-hover); color: var(--text-main); }
+
     .cat-tab .badge-count {
       font-size: 10px;
       padding: 1px 6px;
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255,255,255,0.08);
       color: var(--text-main);
-      margin-left: 3px;
-    }
-    .cat-tab.active {
-      background: #172033;
-      border-color: var(--green);
-      color: var(--green);
-    }
-    .cat-tab.active[data-cat="absorption"] {
-      border-color: var(--blue);
-      color: var(--blue);
-    }
-    .cat-tab.active[data-cat="break_ath"] {
-      border-color: #38bdf8;
-      color: #38bdf8;
-    }
-    .cat-tab.active[data-cat="gaps"] {
-      border-color: var(--yellow);
-      color: var(--yellow);
-    }
-    .cat-tab.active .badge-count {
-      background: rgba(16, 185, 129, 0.2);
-      color: var(--green);
-    }
-    .cat-tab.active[data-cat="absorption"] .badge-count {
-      background: rgba(59, 130, 246, 0.2);
-      color: var(--blue);
-    }
-    .cat-tab.active[data-cat="break_ath"] .badge-count {
-      background: rgba(56, 189, 248, 0.2);
-      color: #38bdf8;
-    }
-    .cat-tab.active[data-cat="gaps"] .badge-count {
-      background: rgba(245, 158, 11, 0.2);
-      color: var(--yellow);
+      font-weight: 700;
     }
 
-    /* Token Cards List */
+    .cat-tab.active { background: #172033; border-color: var(--green); color: var(--green); }
+    .cat-tab.active[data-cat="absorption"] { border-color: var(--blue); color: var(--blue); }
+    .cat-tab.active[data-cat="break_ath"]  { border-color: var(--cyan); color: var(--cyan); }
+    .cat-tab.active[data-cat="gaps"]       { border-color: var(--yellow); color: var(--yellow); }
+
+    .cat-tab.active .badge-count                          { background: rgba(16,185,129,0.2); color: var(--green); }
+    .cat-tab.active[data-cat="absorption"] .badge-count  { background: rgba(59,130,246,0.2); color: var(--blue); }
+    .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(56,189,248,0.2); color: var(--cyan); }
+    .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.2); color: var(--yellow); }
+
+    /* ===== CARD LIST (responsive grid) ===== */
     .card-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: 1fr;
       gap: 10px;
     }
+
+    /* ===== TOKEN CARD ===== */
     .token-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
+      border-radius: var(--radius-card);
       padding: 14px 15px;
       position: relative;
-      transition: transform 0.15s ease, border-color 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
     }
-    .token-card:active {
-      transform: scale(0.985);
-      border-color: rgba(255, 255, 255, 0.15);
+    .token-card:hover {
+      border-color: rgba(255,255,255,0.13);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.3);
     }
-    .token-card.sol-card {
-      border-left: 3px solid var(--sol);
-    }
-    .token-card.rh-card {
-      border-left: 3px solid var(--rh);
-    }
+    .token-card:active { transform: scale(0.985); }
+    .token-card.sol-card { border-left: 3px solid var(--sol); }
+    .token-card.rh-card  { border-left: 3px solid var(--rh); }
 
-    /* Card Row 1: Symbol, Chain, Fee */
+    /* Card: top row */
     .card-row-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 10px;
+      gap: 8px;
     }
+
     .token-info-left {
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
     }
+
     .chain-pill {
       font-size: 11px;
       font-weight: 800;
@@ -673,73 +692,57 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-radius: 7px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
+      flex-shrink: 0;
     }
-    .chain-pill.sol {
-      background: var(--sol-bg);
-      color: var(--sol);
-      border: 1px solid rgba(255, 152, 0, 0.3);
-    }
-    .chain-pill.rh {
-      background: var(--rh-bg);
-      color: var(--rh);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-    }
+    .chain-pill.sol { background: var(--sol-bg); color: var(--sol); border: 1px solid rgba(255,152,0,0.3); }
+    .chain-pill.rh  { background: var(--rh-bg);  color: var(--rh);  border: 1px solid rgba(59,130,246,0.3); }
+
+    .token-name-block { min-width: 0; }
     .token-symbol {
       font-size: 17px;
       font-weight: 800;
       letter-spacing: -0.2px;
       color: #ffffff;
+      display: block;
     }
     .token-name {
       font-size: 11px;
       color: var(--text-sub);
-      max-width: 90px;
+      max-width: 180px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    .token-fee-right {
-      text-align: right;
-    }
-    .fee-hour {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--green-light);
-      letter-spacing: -0.3px;
-    }
-    .fee-day {
-      font-size: 10px;
-      color: var(--text-sub);
-      font-weight: 600;
+      display: block;
     }
 
-    /* Card Row 2: Metrics Grid */
+    .token-fee-right { text-align: right; flex-shrink: 0; }
+    .fee-hour { font-size: 18px; font-weight: 800; color: var(--green-light); letter-spacing: -0.3px; }
+    .fee-day  { font-size: 10px; color: var(--text-sub); font-weight: 600; }
+
+    /* Card: metrics grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      background: #0d1322;
+      background: rgba(13,19,34,0.7);
       border-radius: 10px;
       padding: 8px 6px;
       margin-bottom: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255,255,255,0.04);
       gap: 4px;
     }
-    .metric-cell {
-      text-align: center;
-    }
+
+    .metric-cell { text-align: center; }
     .m-label {
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 600;
       color: var(--text-sub);
       text-transform: uppercase;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
+      letter-spacing: 0.2px;
     }
-    .m-val {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
+    .m-val { font-size: 12px; font-weight: 700; color: var(--text-main); }
+
     .er-badge {
       display: inline-block;
       padding: 1px 5px;
@@ -747,39 +750,57 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       font-weight: 800;
       font-size: 11px;
     }
-    .er-prime { background: rgba(16, 185, 129, 0.25); color: #34d399; }
-    .er-good { background: rgba(59, 130, 246, 0.25); color: #60a5fa; }
-    .er-mid { background: rgba(245, 158, 11, 0.25); color: #fbbf24; }
-    .er-high { background: rgba(239, 68, 68, 0.25); color: #f87171; }
+    .er-prime { background: rgba(16,185,129,0.25); color: #34d399; }
+    .er-good  { background: rgba(59,130,246,0.25); color: #60a5fa; }
+    .er-mid   { background: rgba(245,158,11,0.25); color: #fbbf24; }
+    .er-high  { background: rgba(239,68,68,0.25);  color: #f87171; }
 
-    /* Card Row 3: Volatility & Flow */
+    /* Card: vol row */
     .card-row-vol {
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-size: 11px;
       font-weight: 600;
-      padding: 0 4px;
+      padding: 0 2px;
       margin-bottom: 10px;
       color: var(--text-sub);
     }
-    .vol-tag {
+    .vol-tag { display: inline-flex; align-items: center; gap: 3px; }
+    .vol-pos { color: var(--green); }
+    .vol-neg { color: var(--red); }
+
+    /* Card: Break ATH extra info */
+    .ath-info-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding: 7px 10px;
+      background: rgba(56,189,248,0.07);
+      border-radius: 9px;
+      border: 1px solid rgba(56,189,248,0.18);
+    }
+    .ath-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
       display: inline-flex;
       align-items: center;
       gap: 3px;
     }
-    .vol-pos { color: var(--green); }
-    .vol-neg { color: var(--red); }
+    .ath-tag .ath-label { color: var(--text-sub); font-weight: 500; }
 
-    /* Card Row 4: Status Machine & Action */
+    /* Card: bottom row */
     .card-row-bottom {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      border-top: 1px dashed var(--card-border);
+      border-top: 1px dashed rgba(31,41,61,0.8);
       padding-top: 10px;
     }
+
     .state-pill {
       font-size: 11px;
       font-weight: 700;
@@ -791,13 +812,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 65%;
+      max-width: 62%;
     }
-    .state-absorption { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59, 130, 246, 0.3); }
-    .state-chop { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .state-reaccum { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245, 158, 11, 0.3); }
-    .state-neutral { background: rgba(255, 255, 255, 0.06); color: var(--text-sub); border: 1px solid rgba(255, 255, 255, 0.1); }
-    .state-distrib { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .state-absorption { background: var(--blue-bg);  color: var(--blue);   border: 1px solid rgba(59,130,246,0.3); }
+    .state-chop       { background: var(--green-bg); color: var(--green);  border: 1px solid rgba(16,185,129,0.3); }
+    .state-reaccum    { background: var(--yellow-bg);color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .state-neutral    { background: rgba(255,255,255,0.06); color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
+    .state-distrib    { background: var(--red-bg);   color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+    .state-ath        { background: var(--cyan-bg);  color: var(--cyan);   border: 1px solid rgba(56,189,248,0.3); }
 
     .btn-gmgn {
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -805,75 +827,70 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       text-decoration: none;
       font-size: 11px;
       font-weight: 700;
-      padding: 6px 12px;
+      padding: 6px 13px;
       border-radius: 8px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
       border: none;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 2px 6px rgba(37,99,235,0.3);
       flex-shrink: 0;
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.1s;
     }
-    .btn-gmgn:active {
-      transform: scale(0.95);
-    }
+    .btn-gmgn:hover { box-shadow: 0 4px 14px rgba(37,99,235,0.5); }
+    .btn-gmgn:active { transform: scale(0.95); }
 
-    /* Gaps Reasons Pills */
-    .gap-reasons-box {
-      margin-top: 8px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-    }
+    /* Gap reasons */
+    .gap-reasons-box { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
     .gap-pill {
       font-size: 10px;
       font-weight: 600;
       padding: 2px 7px;
       border-radius: 6px;
-      background: rgba(239, 68, 68, 0.12);
+      background: rgba(239,68,68,0.12);
       color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.25);
+      border: 1px solid rgba(239,68,68,0.25);
     }
 
-    /* Empty States */
+    /* ===== EMPTY STATE ===== */
     .empty-box {
       background: var(--card-bg);
       border: 1px dashed var(--card-border);
       border-radius: 16px;
-      padding: 28px 20px;
+      padding: 40px 24px;
       text-align: center;
       color: var(--text-sub);
+      grid-column: 1 / -1;
     }
-    .empty-icon {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
-    .empty-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 4px;
-    }
-    .empty-desc {
-      font-size: 12px;
-      line-height: 1.5;
+    .empty-icon  { font-size: 36px; margin-bottom: 10px; }
+    .empty-title { font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+    .empty-desc  { font-size: 13px; line-height: 1.6; }
+
+    /* ===== FOOTER INFO ===== */
+    .footer-info {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-sub);
+      opacity: 0.7;
     }
 
-    /* Modal Drawer Settings */
+    /* ===== MODAL ===== */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 200;
       align-items: flex-end;
       justify-content: center;
     }
-    .modal-overlay.show {
-      display: flex;
-    }
+    .modal-overlay.show { display: flex; }
+
+    /* Mobile: drawer from bottom */
     .modal-sheet {
       background: #111827;
       border-top-left-radius: 20px;
@@ -881,16 +898,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border: 1px solid var(--card-border);
       border-bottom: none;
       width: 100%;
-      max-width: 540px;
-      max-height: 85vh;
+      max-width: 580px;
+      max-height: 88vh;
       overflow-y: auto;
       padding: 20px 18px calc(var(--safe-bottom) + 20px);
       animation: slideUp 0.25s ease-out;
     }
+
     @keyframes slideUp {
       from { transform: translateY(100%); }
-      to { transform: translateY(0); }
+      to   { transform: translateY(0); }
     }
+    @keyframes fadeScaleIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
     .modal-header {
       display: flex;
       align-items: center;
@@ -899,6 +922,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       padding-bottom: 12px;
       border-bottom: 1px solid var(--card-border);
     }
+
     .modal-title {
       font-size: 16px;
       font-weight: 800;
@@ -907,22 +931,37 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       align-items: center;
       gap: 6px;
     }
+
     .modal-close {
       background: #1f293d;
       border: none;
       color: var(--text-sub);
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       border-radius: 50%;
       font-size: 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: background 0.15s;
     }
-    .form-group {
-      margin-bottom: 14px;
+    .modal-close:hover { background: #2d3f5c; color: var(--text-main); }
+
+    .form-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-sub);
+      margin: 18px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--card-border);
     }
+    .form-section-title:first-of-type { margin-top: 0; }
+
+    .form-group { margin-bottom: 13px; }
+
     .form-label {
       display: flex;
       justify-content: space-between;
@@ -931,9 +970,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--text-sub);
       margin-bottom: 5px;
     }
+
     .form-input {
       width: 100%;
-      background: #0d1322;
+      background: rgba(13,19,34,0.9);
       border: 1px solid var(--card-border);
       border-radius: 10px;
       padding: 10px 12px;
@@ -941,15 +981,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       font-weight: 600;
       color: #ffffff;
       outline: none;
+      transition: border-color 0.15s;
     }
-    .form-input:focus {
-      border-color: var(--green);
-    }
-    .modal-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 18px;
-    }
+    .form-input:focus { border-color: var(--green); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
     .btn-submit {
       flex: 1;
       background: linear-gradient(135deg, #10b981, #059669);
@@ -960,85 +997,139 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       font-size: 14px;
       font-weight: 700;
       cursor: pointer;
+      transition: box-shadow 0.15s;
     }
+    .btn-submit:hover { box-shadow: 0 4px 14px rgba(16,185,129,0.4); }
+
     .btn-reset {
       background: #1f293d;
       color: var(--text-sub);
       border: none;
-      padding: 12px 14px;
+      padding: 12px 16px;
       border-radius: 12px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s;
     }
+    .btn-reset:hover { background: #2d3f5c; color: var(--text-main); }
 
-    /* Toast Notification */
+    /* ===== TOAST ===== */
     .toast {
       position: fixed;
-      top: 75px;
+      top: 20px;
       left: 50%;
-      transform: translateX(-50%) translateY(-20px);
-      background: rgba(17, 24, 39, 0.95);
+      transform: translateX(-50%) translateY(-16px);
+      background: rgba(17,24,39,0.97);
       border: 1px solid var(--green);
       color: #ffffff;
-      padding: 8px 16px;
+      padding: 8px 20px;
       border-radius: 20px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       z-index: 300;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
       opacity: 0;
       pointer-events: none;
       transition: all 0.25s ease;
+      white-space: nowrap;
     }
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ===== RESPONSIVE BREAKPOINTS ===== */
+
+    /* Mobile small: KPI 3+2 wrap */
+    @media (max-width: 479px) {
+      .kpi-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .kpi-grid .kpi-card:nth-child(4),
+      .kpi-grid .kpi-card:nth-child(5) {
+        /* 2 remaining cards span within 3-col, auto place */
+      }
+    }
+
+    /* Tablet: 2-column cards, bigger fonts, center modal */
+    @media (min-width: 769px) {
+      .brand-title { font-size: 19px; }
+      .container { padding: 18px 24px; }
+
+      .kpi-label { font-size: 11px; }
+      .kpi-val   { font-size: 16px; }
+      .kpi-card  { padding: 11px 10px; }
+
+      .cat-tab { font-size: 12px; padding: 9px 12px; min-width: 90px; }
+
+      .card-list { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+      .m-label { font-size: 10px; }
+      .m-val   { font-size: 13px; }
+      .token-name { max-width: 200px; }
+
+      /* Modal becomes center dialog on tablet/desktop */
+      .modal-overlay { align-items: center; }
+      .modal-sheet {
+        border-radius: 18px;
+        border: 1px solid var(--card-border);
+        width: 520px;
+        max-width: 90vw;
+        max-height: 82vh;
+        animation: fadeScaleIn 0.2s ease-out;
+      }
+    }
+
+    /* Desktop: 3-column cards */
+    @media (min-width: 1100px) {
+      .card-list { grid-template-columns: repeat(3, 1fr); }
+      .brand-title { font-size: 20px; }
+      .cat-tab { font-size: 13px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Sticky Mobile Header -->
+  <!-- ===== HEADER ===== -->
   <header class="app-header">
-    <div class="header-top">
-      <div class="brand">
-        <span class="brand-title">⚡ CHOP RADAR</span>
-        <span class="brand-badge">HP</span>
+    <div class="header-inner">
+      <div class="header-top">
+        <div class="brand">
+          <span class="brand-title">⚡ CHOP RADAR</span>
+          <span class="brand-badge">LIVE</span>
+        </div>
+        <div id="statusPulse" class="status-pulse">
+          <span class="pulse-dot"></span>
+          <span id="statusText">LIVE</span>
+        </div>
+        <div class="header-actions">
+          <button id="btnScan" class="btn-icon btn-scan" onclick="triggerScan()">
+            <span>⚡</span>
+            <span id="scanCountdown">SCAN</span>
+          </button>
+          <button class="btn-icon" onclick="openModal()" title="Pengaturan Filter">
+            <span>⚙️</span>
+          </button>
+        </div>
       </div>
-      <div id="statusPulse" class="status-pulse">
-        <span class="pulse-dot"></span>
-        <span id="statusText">LIVE</span>
-      </div>
-      <div class="header-actions">
-        <button id="btnScan" class="btn-icon btn-scan" onclick="triggerScan()">
-          <span>⚡</span>
-          <span id="scanCountdown">SCAN</span>
-        </button>
-        <button class="btn-icon" onclick="openModal()" title="Pengaturan Filter">
-          <span>⚙️</span>
-        </button>
-      </div>
-    </div>
 
-    <!-- Segmented Chain Switcher (ALL, SOL 🔸, RH 🔹) -->
-    <div class="chain-segmented">
-      <div class="chain-tab active" data-chain="all" onclick="setChainFilter('all')">
-        <span>🌐</span> ALL (<span id="cntChainAll">0</span>)
-      </div>
-      <div class="chain-tab" data-chain="sol" onclick="setChainFilter('sol')">
-        <span>🔸</span> SOL (<span id="cntChainSol">0</span>)
-      </div>
-      <div class="chain-tab" data-chain="rh" onclick="setChainFilter('rh')">
-        <span>🔹</span> RH (<span id="cntChainRh">0</span>)
+      <!-- Chain Switcher -->
+      <div class="chain-segmented">
+        <div class="chain-tab active" data-chain="all" onclick="setChainFilter('all')">
+          🌐 ALL (<span id="cntChainAll">0</span>)
+        </div>
+        <div class="chain-tab" data-chain="sol" onclick="setChainFilter('sol')">
+          🔸 SOL (<span id="cntChainSol">0</span>)
+        </div>
+        <div class="chain-tab" data-chain="rh" onclick="setChainFilter('rh')">
+          🔹 RH (<span id="cntChainRh">0</span>)
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
+  <!-- ===== MAIN ===== -->
   <main class="container">
 
-    <!-- KPI Summary Grid (4 items) -->
+    <!-- KPI Grid (5 items) -->
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Siap LP</div>
@@ -1053,47 +1144,54 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div id="kpiAbsorb" class="kpi-val">0</div>
       </div>
       <div class="kpi-card">
+        <div class="kpi-label">🚀 ATH</div>
+        <div id="kpiBath" class="kpi-val cyan">0</div>
+      </div>
+      <div class="kpi-card">
         <div class="kpi-label">Update</div>
         <div id="kpiTime" class="kpi-val yellow">--:--</div>
       </div>
     </div>
 
-    <!-- Category Switcher Tabs -->
+    <!-- Category Tabs -->
     <div class="cat-tabs">
       <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')">
         <span>🟢 SIAP LP</span>
         <span id="badgeSiap" class="badge-count">0</span>
       </div>
       <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')">
-        <span>📡 ABSORPTION</span>
+        <span>📡 ABSORB</span>
         <span id="badgeAbsorb" class="badge-count">0</span>
       </div>
       <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')">
-        <span>🚀 BREAK ATH</span>
+        <span>🚀 ATH</span>
         <span id="badgeBath" class="badge-count">0</span>
       </div>
       <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')">
-        <span>⚠️ GAPS / RADAR</span>
+        <span>⚠️ GAPS</span>
         <span id="badgeGaps" class="badge-count">0</span>
       </div>
     </div>
 
     <!-- Token Cards Feed -->
-    <div id="tokenCardsList" class="card-list">
-      <!-- Generated Dynamically by JS -->
+    <div id="tokenCardsList" class="card-list"></div>
+
+    <!-- Footer Info -->
+    <div class="footer-info" id="footerInfo" style="display:none">
+      <span id="footerText"></span>
     </div>
 
   </main>
 
-  <!-- Filter Settings Sheet (Drawer Modal) -->
+  <!-- ===== FILTER MODAL ===== -->
   <div id="filterModal" class="modal-overlay" onclick="closeModalOnBg(event)">
     <div class="modal-sheet">
       <div class="modal-header">
-        <div class="modal-title">
-          <span>⚙️</span> Parameter Filter LP (HP)
-        </div>
+        <div class="modal-title">⚙️ Parameter Filter LP</div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
+
+      <div class="form-section-title">📊 Siap LP / Chop Filter</div>
 
       <div class="form-group">
         <div class="form-label">
@@ -1146,10 +1244,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <div class="form-group">
         <div class="form-label">
           <span>Max Efficiency Ratio (ER)</span>
-          <span>Sweet spot <= 20</span>
+          <span>Sweet spot ≤ 20</span>
         </div>
         <input type="number" step="1" id="f_max_er" class="form-input" value="20.0">
       </div>
+
+      <div class="form-section-title">⚙️ Pengaturan Umum</div>
 
       <div class="form-group">
         <div class="form-label">
@@ -1168,70 +1268,72 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       </div>
 
       <div class="modal-actions">
-        <button class="btn-submit" onclick="saveFilters()">💾 Simpan & Terapkan</button>
+        <button class="btn-submit" onclick="saveFilters()">💾 Simpan &amp; Terapkan</button>
         <button class="btn-reset" onclick="resetDefaultFilters()">Reset</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast Element -->
+  <!-- Toast -->
   <div id="toast" class="toast">Notifikasi</div>
 
   <script>
     let globalState = null;
-    let activeChain = 'all';     // 'all' | 'sol' | 'rh'
-    let activeCategory = 'siap';  // 'siap' | 'absorption' | 'gaps'
+    let activeChain = 'all';
+    let activeCategory = 'siap';
     let countdownInterval = null;
 
-    // Format USD ke K/M
+    /* ---- Helpers ---- */
     function formatUsd(val) {
       if (!val || val <= 0) return "$0";
       if (val >= 1e6) {
-        let m = val / 1e6;
+        const m = val / 1e6;
         return "$" + (m < 10 ? m.toFixed(2) : m.toFixed(1)) + "M";
       }
       if (val >= 1e3) {
-        let k = val / 1e3;
+        const k = val / 1e3;
         return "$" + (k >= 100 || k === Math.floor(k) ? Math.floor(k) : k.toFixed(1)) + "k";
       }
       return "$" + Math.round(val);
     }
 
     function showToast(msg) {
-      const toast = document.getElementById("toast");
-      toast.innerText = msg;
-      toast.classList.add("show");
-      setTimeout(() => toast.classList.remove("show"), 2500);
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2600);
     }
 
+    /* ---- Chain & Category Filters ---- */
     function setChainFilter(chain) {
       activeChain = chain;
-      document.querySelectorAll(".chain-tab").forEach(tab => {
-        tab.classList.toggle("active", tab.getAttribute("data-chain") === chain);
-      });
+      document.querySelectorAll(".chain-tab").forEach(tab =>
+        tab.classList.toggle("active", tab.getAttribute("data-chain") === chain)
+      );
       renderCards();
     }
 
     function setCategoryTab(cat) {
       activeCategory = cat;
-      document.querySelectorAll(".cat-tab").forEach(tab => {
-        tab.classList.toggle("active", tab.getAttribute("data-cat") === cat);
-      });
+      document.querySelectorAll(".cat-tab").forEach(tab =>
+        tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
+      );
       renderCards();
     }
 
+    /* ---- Modal ---- */
     function openModal() {
       if (globalState && globalState.filters) {
         const f = globalState.filters;
         if (f.min_fee_siap_lp !== undefined) document.getElementById("f_min_fee").value = f.min_fee_siap_lp;
-        if (f.min_mcap !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
-        if (f.min_liq !== undefined) document.getElementById("f_min_liq").value = f.min_liq;
-        if (f.min_vl !== undefined) document.getElementById("f_min_vl").value = f.min_vl;
-        if (f.max_5m !== undefined) document.getElementById("f_max_5m").value = f.max_5m;
-        if (f.max_1h !== undefined) document.getElementById("f_max_1h").value = f.max_1h;
-        if (f.max_er !== undefined) document.getElementById("f_max_er").value = f.max_er;
-        if (f.position_usd !== undefined) document.getElementById("f_position").value = f.position_usd;
-        if (f.interval_sec !== undefined) document.getElementById("f_interval").value = f.interval_sec;
+        if (f.min_mcap       !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
+        if (f.min_liq        !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
+        if (f.min_vl         !== undefined) document.getElementById("f_min_vl").value   = f.min_vl;
+        if (f.max_5m         !== undefined) document.getElementById("f_max_5m").value   = f.max_5m;
+        if (f.max_1h         !== undefined) document.getElementById("f_max_1h").value   = f.max_1h;
+        if (f.max_er         !== undefined) document.getElementById("f_max_er").value   = f.max_er;
+        if (f.position_usd   !== undefined) document.getElementById("f_position").value = f.position_usd;
+        if (f.interval_sec   !== undefined) document.getElementById("f_interval").value = f.interval_sec;
       }
       document.getElementById("filterModal").classList.add("show");
     }
@@ -1244,16 +1346,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (e.target.id === "filterModal") closeModal();
     }
 
+    /* ---- Scan ---- */
     async function triggerScan() {
       const btn = document.getElementById("btnScan");
       btn.style.opacity = "0.6";
       showToast("⏳ Memulai pemindaian data GMGN...");
       try {
-        const res = await fetch("/api/scan", { method: "POST" });
+        const res  = await fetch("/api/scan", { method: "POST" });
         const data = await res.json();
-        if (data.ok) {
-          fetchState();
-        }
+        if (data.ok) fetchState();
       } catch (err) {
         console.error("Scan error:", err);
       } finally {
@@ -1261,21 +1362,21 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
+    /* ---- Filters ---- */
     async function saveFilters() {
       const payload = {
-        min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value) || 3.0,
-        min_mcap: parseFloat(document.getElementById("f_min_mcap").value) || 500000,
-        min_liq: parseFloat(document.getElementById("f_min_liq").value) || 20000,
-        min_vl: parseFloat(document.getElementById("f_min_vl").value) || 2.0,
-        max_5m: parseFloat(document.getElementById("f_max_5m").value) || 15.0,
-        max_1h: parseFloat(document.getElementById("f_max_1h").value) || 80.0,
-        max_er: parseFloat(document.getElementById("f_max_er").value) || 20.0,
-        position_usd: parseFloat(document.getElementById("f_position").value) || 100.0,
-        interval_sec: parseInt(document.getElementById("f_interval").value) || 300,
+        min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value)  || 3.0,
+        min_mcap:        parseFloat(document.getElementById("f_min_mcap").value) || 500000,
+        min_liq:         parseFloat(document.getElementById("f_min_liq").value)  || 20000,
+        min_vl:          parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
+        max_5m:          parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
+        max_1h:          parseFloat(document.getElementById("f_max_1h").value)   || 80.0,
+        max_er:          parseFloat(document.getElementById("f_max_er").value)   || 20.0,
+        position_usd:    parseFloat(document.getElementById("f_position").value) || 100.0,
+        interval_sec:    parseInt(document.getElementById("f_interval").value)   || 300,
       };
-
       try {
-        const res = await fetch("/api/filters", {
+        const res  = await fetch("/api/filters", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -1292,26 +1393,27 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     function resetDefaultFilters() {
-      document.getElementById("f_min_fee").value = 3.0;
+      document.getElementById("f_min_fee").value  = 3.0;
       document.getElementById("f_min_mcap").value = 500000;
-      document.getElementById("f_min_liq").value = 20000;
-      document.getElementById("f_min_vl").value = 2.0;
-      document.getElementById("f_max_5m").value = 15.0;
-      document.getElementById("f_max_1h").value = 80.0;
-      document.getElementById("f_max_er").value = 20.0;
+      document.getElementById("f_min_liq").value  = 20000;
+      document.getElementById("f_min_vl").value   = 2.0;
+      document.getElementById("f_max_5m").value   = 15.0;
+      document.getElementById("f_max_1h").value   = 80.0;
+      document.getElementById("f_max_er").value   = 20.0;
       document.getElementById("f_position").value = 100.0;
       document.getElementById("f_interval").value = 300;
     }
 
+    /* ---- Countdown ---- */
     function updateCountdown() {
       if (!globalState) return;
-      const pulse = document.getElementById("statusPulse");
-      const statusText = document.getElementById("statusText");
+      const pulse       = document.getElementById("statusPulse");
+      const statusText  = document.getElementById("statusText");
       const scanBtnText = document.getElementById("scanCountdown");
 
       if (globalState.scanning) {
         pulse.classList.add("scanning");
-        statusText.innerText = "SCANNING";
+        statusText.innerText  = "SCANNING";
         scanBtnText.innerText = "SCANNING";
         return;
       }
@@ -1319,19 +1421,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       pulse.classList.remove("scanning");
       statusText.innerText = "LIVE";
 
-      const now = Math.floor(Date.now() / 1000);
+      const now  = Math.floor(Date.now() / 1000);
       const next = globalState.next_scan_timestamp || 0;
       const diff = Math.max(0, next - now);
 
       if (diff > 0) {
-        const m = Math.floor(diff / 60).toString().padStart(2, '0');
-        const s = (diff % 60).toString().padStart(2, '0');
+        const m = Math.floor(diff / 60).toString().padStart(2, "0");
+        const s = (diff % 60).toString().padStart(2, "0");
         scanBtnText.innerText = `${m}:${s}`;
       } else {
         scanBtnText.innerText = "SCAN";
       }
     }
 
+    /* ---- Render Cards ---- */
     function renderCards() {
       const container = document.getElementById("tokenCardsList");
       if (!globalState) {
@@ -1339,99 +1442,104 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         return;
       }
 
-      // Ambil kumpulan token berdasarkan kategori aktif
+      // Select data source
       let rawList = [];
-      if (activeCategory === "siap") {
-        rawList = globalState.siap_lp || [];
-      } else if (activeCategory === "absorption") {
-        rawList = globalState.absorption || [];
-      } else if (activeCategory === "break_ath") {
-        rawList = globalState.break_ath || [];
-      } else {
-        rawList = globalState.gaps || [];
-      }
+      if      (activeCategory === "siap")      rawList = globalState.siap_lp    || [];
+      else if (activeCategory === "absorption") rawList = globalState.absorption || [];
+      else if (activeCategory === "break_ath")  rawList = globalState.break_ath  || [];
+      else                                      rawList = globalState.gaps        || [];
 
-      // Hitung counter chain untuk badge switcher
+      // Chain count badges (header switcher)
       let solCount = 0, rhCount = 0;
       rawList.forEach(t => {
-        const c = (t.chain || "SOL").toUpperCase();
-        if (c === "RH") rhCount++;
-        else solCount++;
+        if ((t.chain || "SOL").toUpperCase() === "RH") rhCount++; else solCount++;
       });
       document.getElementById("cntChainAll").innerText = rawList.length;
       document.getElementById("cntChainSol").innerText = solCount;
-      document.getElementById("cntChainRh").innerText = rhCount;
+      document.getElementById("cntChainRh").innerText  = rhCount;
 
-      // Filter berdasarkan tab chain aktif
+      // Apply chain filter
       let filtered = rawList;
-      if (activeChain === "sol") {
-        filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() !== "RH");
-      } else if (activeChain === "rh") {
-        filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() === "RH");
-      }
+      if      (activeChain === "sol") filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() !== "RH");
+      else if (activeChain === "rh")  filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() === "RH");
 
-      if (!filtered || filtered.length === 0) {
-        let emptyMsg = "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).";
-        if (activeCategory === "absorption") {
-          emptyMsg = "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.";
-        } else if (activeCategory === "break_ath") {
-          emptyMsg = "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, MC ≥ $500k).";
-        } else if (activeCategory === "gaps") {
-          emptyMsg = "Tidak ada token radar yang berada di luar kriteria.";
-        }
+      // Empty state
+      if (!filtered.length) {
+        const msgs = {
+          siap:      "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).",
+          absorption:"Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
+          break_ath: "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, MC ≥ $500k).",
+          gaps:      "Tidak ada token radar yang berada di luar kriteria.",
+        };
         container.innerHTML = `
           <div class="empty-box">
             <div class="empty-icon">🔍</div>
             <div class="empty-title">Tidak Ada Token</div>
-            <div class="empty-desc">${emptyMsg}<br>Coba ubah tab Chain atau sesuaikan filter di menu ⚙️.</div>
-          </div>
-        `;
+            <div class="empty-desc">${msgs[activeCategory] || msgs.siap}<br>Coba ubah tab Chain atau sesuaikan filter di menu ⚙️.</div>
+          </div>`;
+        updateFooter(0, globalState.total_scanned || 0);
         return;
       }
 
+      // Build card HTML
       let html = "";
       filtered.forEach(t => {
-        const isRh = (t.chain || "SOL").toUpperCase() === "RH";
-        const chainBadge = isRh 
-          ? `<span class="chain-pill rh">🔹 RH</span>` 
+        const isRh     = (t.chain || "SOL").toUpperCase() === "RH";
+        const chainBadge      = isRh
+          ? `<span class="chain-pill rh">🔹 RH</span>`
           : `<span class="chain-pill sol">🔸 SOL</span>`;
         const cardBorderClass = isRh ? "rh-card" : "sol-card";
 
         const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
-        const feeDay = t.fee_24h ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
-        const mcapStr = formatUsd(t.mcap || 0);
-        const liqStr = formatUsd(t.liq || 0);
-        const vlStr = (t.vl || 0).toFixed(1) + "x";
+        const feeDay  = t.fee_24h  ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
 
-        // ER styling badge
+        const mcapStr = formatUsd(t.mcap || 0);
+        const liqStr  = formatUsd(t.liq  || 0);
+        const vlStr   = (t.vl || 0).toFixed(1) + "x";
+
+        // ER badge
         const erVal = t.er !== undefined ? t.er : 999;
         let erClass = "er-high";
-        if (erVal <= 3.0) erClass = "er-prime";
-        else if (erVal <= 6.0) erClass = "er-good";
-        else if (erVal <= 15.0) erClass = "er-mid";
+        if      (erVal <= 3)  erClass = "er-prime";
+        else if (erVal <= 6)  erClass = "er-good";
+        else if (erVal <= 15) erClass = "er-mid";
         const erBadge = `<span class="er-badge ${erClass}">ER ${erVal.toFixed(1)}</span>`;
 
-        // Volatilitas 5m & 1h
-        const p5 = t.p5 || 0;
-        const p1 = t.p1 || 0;
-        const p5Class = p5 >= 0 ? "vol-pos" : "vol-neg";
-        const p1Class = p1 >= 0 ? "vol-pos" : "vol-neg";
+        // Volatility
+        const p5 = t.p5 || 0, p1 = t.p1 || 0;
         const p5Str = (p5 >= 0 ? "+" : "") + p5.toFixed(1) + "%";
         const p1Str = (p1 >= 0 ? "+" : "") + p1.toFixed(1) + "%";
 
-        // State machine badge
+        // State pill
         const mState = t.micro_state || "NEUTRAL";
-        let stateBadgeClass = "state-neutral";
-        if (mState === "ABSORPTION") stateBadgeClass = "state-absorption";
-        else if (mState === "REACCUMULATION") stateBadgeClass = "state-reaccum";
-        else if (mState === "DISTRIBUTION") stateBadgeClass = "state-distrib";
-        else if (t.is_chop) stateBadgeClass = "state-chop";
+        let spClass = "state-neutral", spIcon = "🎯";
+        if (activeCategory === "break_ath") { spClass = "state-ath"; spIcon = "🚀"; }
+        else if (mState === "ABSORPTION")   { spClass = "state-absorption"; spIcon = "📡"; }
+        else if (mState === "REACCUMULATION"){ spClass = "state-reaccum"; spIcon = "🔄"; }
+        else if (mState === "DISTRIBUTION") { spClass = "state-distrib"; spIcon = "⚠️"; }
+        else if (t.is_chop)                 { spClass = "state-chop"; spIcon = "🟢"; }
 
-        const stateLabel = t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring");
+        const spLabel = activeCategory === "break_ath"
+          ? "Break ATH ✓"
+          : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"));
 
-        // Gaps reasons list if in gaps tab
+        // Break ATH extra info row
+        let athHtml = "";
+        if (activeCategory === "break_ath") {
+          const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
+          const dur = t.duration_mins !== undefined ? `${t.duration_mins}m` : "—";
+          const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
+          athHtml = `
+            <div class="ath-info-row">
+              <div class="ath-tag">🔼 <span class="ath-label">Breakout:</span> ${bp}</div>
+              <div class="ath-tag">⏱ <span class="ath-label">Durasi:</span> ${dur}</div>
+              <div class="ath-tag">📊 <span class="ath-label">ATH Lama:</span> ${athOld}</div>
+            </div>`;
+        }
+
+        // Gaps reasons
         let gapsHtml = "";
-        if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length > 0) {
+        if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length) {
           gapsHtml = `<div class="gap-reasons-box">` +
             t.gap_reasons.map(r => `<span class="gap-pill">✕ ${r}</span>`).join("") +
             `</div>`;
@@ -1442,7 +1550,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <div class="card-row-top">
               <div class="token-info-left">
                 ${chainBadge}
-                <div>
+                <div class="token-name-block">
                   <span class="token-symbol">${t.symbol || "?"}</span>
                   <span class="token-name">${t.name || ""}</span>
                 </div>
@@ -1454,77 +1562,71 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>
 
             <div class="metrics-grid">
-              <div class="metric-cell">
-                <div class="m-label">MCAP</div>
-                <div class="m-val">${mcapStr}</div>
-              </div>
-              <div class="metric-cell">
-                <div class="m-label">LIQ TVL</div>
-                <div class="m-val">${liqStr}</div>
-              </div>
-              <div class="metric-cell">
-                <div class="m-label">V/L 24H</div>
-                <div class="m-val">${vlStr}</div>
-              </div>
-              <div class="metric-cell">
-                <div class="m-label">SWEET SPOT</div>
-                <div class="m-val">${erBadge}</div>
-              </div>
+              <div class="metric-cell"><div class="m-label">MCAP</div><div class="m-val">${mcapStr}</div></div>
+              <div class="metric-cell"><div class="m-label">LIQ TVL</div><div class="m-val">${liqStr}</div></div>
+              <div class="metric-cell"><div class="m-label">V/L 24H</div><div class="m-val">${vlStr}</div></div>
+              <div class="metric-cell"><div class="m-label">ER SCORE</div><div class="m-val">${erBadge}</div></div>
             </div>
 
+            ${athHtml}
+
             <div class="card-row-vol">
-              <div class="vol-tag">
-                <span>5m:</span> <span class="${p5Class}">${p5Str}</span>
-              </div>
-              <div class="vol-tag">
-                <span>1h:</span> <span class="${p1Class}">${p1Str}</span>
-              </div>
-              <div class="vol-tag">
-                <span>Buy:</span> <span>${t.buy_ratio || 50}%</span>
-              </div>
-              <div class="vol-tag">
-                <span>Score:</span> <span style="color:var(--text-main);font-weight:700">${t.score || 0}</span>
-              </div>
+              <div class="vol-tag"><span>5m:</span>&nbsp;<span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span></div>
+              <div class="vol-tag"><span>1h:</span>&nbsp;<span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span></div>
+              <div class="vol-tag"><span>Buy:</span>&nbsp;<span>${t.buy_ratio || 50}%</span></div>
+              <div class="vol-tag"><span>Score:</span>&nbsp;<span style="color:var(--text-main);font-weight:700">${t.score || 0}</span></div>
             </div>
 
             <div class="card-row-bottom">
-              <div class="state-pill ${stateBadgeClass}" title="${stateLabel}">
-                <span>🎯</span> <span>${stateLabel}</span>
+              <div class="state-pill ${spClass}" title="${spLabel}">
+                <span>${spIcon}</span><span>${spLabel}</span>
               </div>
               <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-gmgn">
-                <span>GMGN</span> <span>↗</span>
+                GMGN ↗
               </a>
             </div>
 
             ${gapsHtml}
-          </div>
-        `;
+          </div>`;
       });
 
       container.innerHTML = html;
+      updateFooter(filtered.length, globalState.total_scanned || 0);
     }
 
+    function updateFooter(shown, total) {
+      const el  = document.getElementById("footerInfo");
+      const txt = document.getElementById("footerText");
+      if (total > 0) {
+        txt.innerText  = `Menampilkan ${shown} token · Total dimonitor: ${total}`;
+        el.style.display = "block";
+      } else {
+        el.style.display = "none";
+      }
+    }
+
+    /* ---- Fetch State ---- */
     async function fetchState() {
       try {
-        const res = await fetch("/api/state?t=" + Date.now());
+        const res  = await fetch("/api/state?t=" + Date.now());
         const data = await res.json();
         if (!data || !data.ok) return;
 
         globalState = data;
 
-        // Update Top KPI
-        document.getElementById("kpiSiap").innerText = data.counts.siap || 0;
-        document.getElementById("kpiAbsorb").innerText = data.counts.absorption || 0;
+        // KPI
+        document.getElementById("kpiSiap").innerText     = data.counts.siap || 0;
+        document.getElementById("kpiAbsorb").innerText   = data.counts.absorption || 0;
         document.getElementById("kpiTopYield").innerText = data.top_yield ? `$${data.top_yield.toFixed(2)}/h` : "$0.00";
-        document.getElementById("kpiTime").innerText = data.scanned_at || "--:--";
+        document.getElementById("kpiTime").innerText     = data.scanned_at || "--:--";
+        const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
+        document.getElementById("kpiBath").innerText     = bathCount;
 
-        // Update Category Badges
-        document.getElementById("badgeSiap").innerText = data.counts.siap || 0;
+        // Category badges
+        document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
-        if (document.getElementById("badgeBath")) {
-          document.getElementById("badgeBath").innerText = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
-        }
-        document.getElementById("badgeGaps").innerText = data.counts.gaps || 0;
+        document.getElementById("badgeBath").innerText   = bathCount;
+        document.getElementById("badgeGaps").innerText   = data.counts.gaps || 0;
 
         renderCards();
         updateCountdown();
@@ -1534,18 +1636,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
-    // Auto Polling State tiap 4 detik
+    // Poll every 4s + countdown every 1s
     fetchState();
     setInterval(fetchState, 4000);
-
-    // Timer Countdown tiap 1 detik
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(updateCountdown, 1000);
-
   </script>
 </body>
 </html>
 """
+
+
 
 
 # ================= HTTP SERVER HANDLER =================
