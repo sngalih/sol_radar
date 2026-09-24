@@ -337,38 +337,49 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#080c14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>⚡ Chop LP Radar</title>
   <style>
-    /* ===== DESIGN TOKENS ===== */
+    /* ===== MODERN DESIGN TOKENS ===== */
     :root {
-      --bg: #090d16;
-      --card-bg: #111827;
-      --card-border: #1f293d;
-      --card-hover: #162035;
+      --bg: #080c14;
+      --card-bg: #0f172a;
+      --card-inner: #0b1120;
+      --card-border: #1e293b;
+      --card-hover: #162238;
       --text-main: #f8fafc;
       --text-sub: #94a3b8;
+      --text-dim: #64748b;
       --green: #10b981;
       --green-light: #34d399;
       --green-bg: rgba(16, 185, 129, 0.12);
-      --sol: #ff9800;
-      --sol-bg: rgba(255, 152, 0, 0.12);
+      --green-glow: rgba(16, 185, 129, 0.25);
+      --sol: #f59e0b;
+      --sol-light: #fbbf24;
+      --sol-bg: rgba(245, 158, 11, 0.12);
+      --sol-glow: rgba(245, 158, 11, 0.25);
       --rh: #3b82f6;
+      --rh-light: #60a5fa;
       --rh-bg: rgba(59, 130, 246, 0.12);
+      --rh-glow: rgba(59, 130, 246, 0.25);
       --blue: #3b82f6;
       --blue-bg: rgba(59, 130, 246, 0.12);
-      --red: #ef4444;
-      --red-bg: rgba(239, 68, 68, 0.12);
+      --red: #f43f5e;
+      --red-bg: rgba(244, 63, 94, 0.12);
       --yellow: #f59e0b;
       --yellow-bg: rgba(245, 158, 11, 0.12);
-      --cyan: #38bdf8;
-      --cyan-bg: rgba(56, 189, 248, 0.12);
+      --cyan: #06b6d4;
+      --cyan-light: #38bdf8;
+      --cyan-bg: rgba(6, 182, 212, 0.12);
+      --cyan-glow: rgba(6, 182, 212, 0.25);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
-      --container-max: 1100px;
-      --radius-card: 14px;
+      --container-max: 1140px;
+      --radius-card: 16px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", "Roboto Mono", ui-monospace, Menlo, monospace;
     }
 
     html { scroll-behavior: smooth; }
@@ -383,36 +394,39 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     body {
       background-color: var(--bg);
       color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--font-sans);
       font-size: 14px;
       line-height: 1.45;
       padding-top: var(--safe-top);
       padding-bottom: calc(var(--safe-bottom) + 32px);
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ===== HEADER ===== */
+    /* ===== STICKY HEADER ===== */
     .app-header {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(9, 13, 22, 0.95);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      background: rgba(8, 12, 20, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--card-border);
-      padding: 11px 16px 9px;
+      padding: 10px 16px;
     }
 
     .header-inner {
       max-width: var(--container-max);
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 9px;
     }
 
     .brand {
@@ -424,8 +438,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .brand-title {
       font-weight: 800;
       font-size: 17px;
-      letter-spacing: -0.3px;
-      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      letter-spacing: -0.4px;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -434,13 +448,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .brand-badge {
       font-size: 10px;
       font-weight: 700;
-      padding: 2px 6px;
+      padding: 2px 7px;
       border-radius: 6px;
       background: var(--green-bg);
-      color: var(--green);
+      color: var(--green-light);
       border: 1px solid rgba(16, 185, 129, 0.3);
       text-transform: uppercase;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
+      font-family: var(--font-mono);
     }
 
     .status-pulse {
@@ -449,11 +464,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       gap: 6px;
       font-size: 11px;
       font-weight: 600;
-      color: var(--green);
+      color: var(--green-light);
       background: var(--green-bg);
       padding: 4px 10px;
       border-radius: 20px;
       border: 1px solid rgba(16, 185, 129, 0.25);
+      font-family: var(--font-mono);
     }
 
     .pulse-dot {
@@ -489,32 +505,34 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border: 1px solid var(--card-border);
       color: var(--text-main);
       border-radius: 10px;
-      padding: 6px 10px;
-      font-size: 13px;
-      font-weight: 600;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 700;
       display: inline-flex;
       align-items: center;
       gap: 5px;
       cursor: pointer;
-      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
     }
-    .btn-icon:hover { background: var(--card-hover); border-color: rgba(255,255,255,0.12); }
+    .btn-icon:hover { background: var(--card-hover); border-color: rgba(255,255,255,0.15); }
     .btn-icon:active { transform: scale(0.95); }
 
     .btn-scan {
       background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       border: none;
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+      font-family: var(--font-mono);
+      font-weight: 700;
     }
-    .btn-scan:hover { box-shadow: 0 4px 14px rgba(16, 185, 129, 0.45); background: linear-gradient(135deg, #10b981, #059669); }
+    .btn-scan:hover { box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5); }
 
-    /* ===== CHAIN SWITCHER ===== */
+    /* ===== CHAIN SEGMENTED SWITCHER ===== */
     .chain-segmented {
       display: flex;
-      background: rgba(13, 19, 34, 0.8);
+      background: rgba(11, 17, 32, 0.9);
       padding: 3px;
-      border-radius: 12px;
+      border-radius: 11px;
       border: 1px solid var(--card-border);
       gap: 3px;
     }
@@ -522,30 +540,31 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .chain-tab {
       flex: 1;
       text-align: center;
-      padding: 7px 4px;
-      font-size: 12px;
+      padding: 6px 6px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--text-sub);
-      border-radius: 9px;
+      border-radius: 8px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 4px;
       user-select: none;
       white-space: nowrap;
+      font-family: var(--font-mono);
     }
     .chain-tab:hover { color: var(--text-main); }
 
     .chain-tab.active {
       background: var(--card-bg);
       color: var(--text-main);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      border: 1px solid var(--card-border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
     }
-    .chain-tab.active[data-chain="sol"] { color: var(--sol); border-color: rgba(255,152,0,0.35); }
-    .chain-tab.active[data-chain="rh"]  { color: var(--rh);  border-color: rgba(59,130,246,0.35); }
+    .chain-tab.active[data-chain="sol"] { color: var(--sol-light); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.1); }
+    .chain-tab.active[data-chain="rh"]  { color: var(--rh-light);  border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.1); }
 
     /* ===== MAIN CONTAINER ===== */
     .container {
@@ -554,60 +573,83 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       margin: 0 auto;
     }
 
-    /* ===== KPI GRID — 5 items ===== */
+    /* ===== KPI GRID ===== */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 8px;
       margin-bottom: 14px;
+    }
+
+    .kpi-row-bottom {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
     }
 
     .kpi-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 12px;
-      padding: 9px 8px;
+      padding: 10px 10px;
       text-align: center;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+      position: relative;
+      overflow: hidden;
     }
     .kpi-card:hover {
-      border-color: rgba(255,255,255,0.12);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transform: translateY(-1px);
     }
 
     .kpi-label {
       font-size: 10px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text-sub);
       text-transform: uppercase;
-      letter-spacing: 0.3px;
-      margin-bottom: 3px;
+      letter-spacing: 0.4px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
     }
 
     .kpi-val {
-      font-size: 15px;
+      font-size: 17px;
       font-weight: 800;
       color: var(--text-main);
+      font-family: var(--font-mono);
+      letter-spacing: -0.3px;
     }
-    .kpi-val.green { color: var(--green); }
+    .kpi-val.green { color: var(--green-light); }
     .kpi-val.yellow { color: var(--yellow); }
-    .kpi-val.cyan { color: var(--cyan); }
+    .kpi-val.cyan { color: var(--cyan-light); }
 
-    /* ===== CATEGORY TABS ===== */
+    /* ===== CATEGORY TABS & SEARCH BAR ===== */
+    .controls-strip {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
     .cat-tabs {
       display: flex;
       gap: 6px;
-      margin-bottom: 14px;
       overflow-x: auto;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
     }
     .cat-tabs::-webkit-scrollbar { display: none; }
 
     .cat-tab {
       flex: 1;
-      min-width: 78px;
-      padding: 8px 8px;
+      min-width: 82px;
+      padding: 9px 8px;
       border-radius: 12px;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -620,7 +662,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       flex-direction: column;
       align-items: center;
       gap: 3px;
-      transition: all 0.2s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       user-select: none;
       white-space: nowrap;
     }
@@ -633,23 +675,65 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: rgba(255,255,255,0.08);
       color: var(--text-main);
       font-weight: 700;
+      font-family: var(--font-mono);
     }
 
-    .cat-tab.active { background: #172033; border-color: var(--green); color: var(--green); }
-    .cat-tab.active[data-cat="absorption"] { border-color: var(--blue); color: var(--blue); }
-    .cat-tab.active[data-cat="break_ath"]  { border-color: var(--cyan); color: var(--cyan); }
-    .cat-tab.active[data-cat="gaps"]       { border-color: var(--yellow); color: var(--yellow); }
+    .cat-tab.active { background: #132238; border-color: var(--green); color: var(--green-light); box-shadow: 0 0 12px var(--green-glow); }
+    .cat-tab.active[data-cat="absorption"] { border-color: var(--blue); color: var(--rh-light); box-shadow: 0 0 12px var(--rh-glow); }
+    .cat-tab.active[data-cat="break_ath"]  { border-color: var(--cyan); color: var(--cyan-light); box-shadow: 0 0 12px var(--cyan-glow); }
+    .cat-tab.active[data-cat="gaps"]       { border-color: var(--yellow); color: var(--sol-light); box-shadow: 0 0 12px var(--sol-glow); }
 
-    .cat-tab.active .badge-count                          { background: rgba(16,185,129,0.2); color: var(--green); }
-    .cat-tab.active[data-cat="absorption"] .badge-count  { background: rgba(59,130,246,0.2); color: var(--blue); }
-    .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(56,189,248,0.2); color: var(--cyan); }
-    .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.2); color: var(--yellow); }
+    .cat-tab.active .badge-count                          { background: rgba(16,185,129,0.25); color: var(--green-light); }
+    .cat-tab.active[data-cat="absorption"] .badge-count  { background: rgba(59,130,246,0.25); color: var(--rh-light); }
+    .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(6,182,212,0.25); color: var(--cyan-light); }
+    .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.25); color: var(--sol-light); }
 
-    /* ===== CARD LIST (responsive grid) ===== */
+    /* Quick Search Input */
+    .search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      font-size: 13px;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 11px;
+      padding: 9px 34px 9px 34px;
+      font-size: 13px;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+    .search-clear {
+      position: absolute;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 6px;
+      display: none;
+    }
+    .search-clear.visible { display: block; }
+
+    /* ===== CARD LIST ===== */
     .card-list {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 10px;
+      gap: 12px;
     }
 
     /* ===== TOKEN CARD ===== */
@@ -659,198 +743,295 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-radius: var(--radius-card);
       padding: 14px 15px;
       position: relative;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+      overflow: hidden;
     }
     .token-card:hover {
-      border-color: rgba(255,255,255,0.13);
-      box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+      transform: translateY(-1px);
     }
-    .token-card:active { transform: scale(0.985); }
-    .token-card.sol-card { border-left: 3px solid var(--sol); }
-    .token-card.rh-card  { border-left: 3px solid var(--rh); }
+    .token-card.sol-card {
+      border-left: 3px solid var(--sol);
+      background: linear-gradient(180deg, rgba(245,158,11,0.03) 0%, var(--card-bg) 60px);
+    }
+    .token-card.rh-card  {
+      border-left: 3px solid var(--rh);
+      background: linear-gradient(180deg, rgba(59,130,246,0.03) 0%, var(--card-bg) 60px);
+    }
+    .token-card.ath-card {
+      border-left: 3px solid var(--cyan);
+      background: linear-gradient(180deg, rgba(6,182,212,0.04) 0%, var(--card-bg) 60px);
+    }
 
-    /* Card: top row */
+    /* Card Top Row */
     .card-row-top {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 10px;
+      margin-bottom: 11px;
       gap: 8px;
     }
 
     .token-info-left {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 9px;
       min-width: 0;
     }
 
     .chain-pill {
       font-size: 11px;
       font-weight: 800;
-      padding: 2px 7px;
+      padding: 3px 7px;
       border-radius: 7px;
       display: inline-flex;
       align-items: center;
       gap: 3px;
       flex-shrink: 0;
+      font-family: var(--font-mono);
     }
-    .chain-pill.sol { background: var(--sol-bg); color: var(--sol); border: 1px solid rgba(255,152,0,0.3); }
-    .chain-pill.rh  { background: var(--rh-bg);  color: var(--rh);  border: 1px solid rgba(59,130,246,0.3); }
+    .chain-pill.sol { background: var(--sol-bg); color: var(--sol-light); border: 1px solid rgba(245,158,11,0.35); }
+    .chain-pill.rh  { background: var(--rh-bg);  color: var(--rh-light);  border: 1px solid rgba(59,130,246,0.35); }
 
     .token-name-block { min-width: 0; }
+    .symbol-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .token-symbol {
       font-size: 17px;
       font-weight: 800;
       letter-spacing: -0.2px;
       color: #ffffff;
-      display: block;
+      line-height: 1.2;
     }
-    .token-name {
+
+    /* One-tap Copy CA button */
+    .btn-copy-ca {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-sub);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+    .btn-copy-ca:hover { background: rgba(255,255,255,0.14); color: #ffffff; }
+    .btn-copy-ca:active { transform: scale(0.92); }
+    .btn-copy-ca.copied { background: var(--green-bg); color: var(--green-light); border-color: rgba(16,185,129,0.4); }
+
+    .token-sub-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
       font-size: 11px;
       color: var(--text-sub);
-      max-width: 180px;
+    }
+    .token-price {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .token-name {
+      max-width: 130px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: block;
     }
 
     .token-fee-right { text-align: right; flex-shrink: 0; }
-    .fee-hour { font-size: 18px; font-weight: 800; color: var(--green-light); letter-spacing: -0.3px; }
-    .fee-day  { font-size: 10px; color: var(--text-sub); font-weight: 600; }
+    .fee-hour {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--green-light);
+      letter-spacing: -0.3px;
+      font-family: var(--font-mono);
+      line-height: 1.2;
+    }
+    .fee-day {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 600;
+      font-family: var(--font-mono);
+      margin-top: 1px;
+    }
 
-    /* Card: metrics grid */
+    /* Metrics Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      background: rgba(13,19,34,0.7);
+      background: var(--card-inner);
       border-radius: 10px;
       padding: 8px 6px;
       margin-bottom: 10px;
-      border: 1px solid rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
       gap: 4px;
     }
 
     .metric-cell { text-align: center; }
     .m-label {
       font-size: 10px;
-      font-weight: 600;
-      color: var(--text-sub);
+      font-weight: 700;
+      color: var(--text-dim);
       text-transform: uppercase;
       margin-bottom: 3px;
-      letter-spacing: 0.2px;
+      letter-spacing: 0.3px;
     }
-    .m-val { font-size: 12px; font-weight: 700; color: var(--text-main); }
+    .m-val {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+    }
 
     .er-badge {
       display: inline-block;
-      padding: 1px 5px;
+      padding: 1px 6px;
       border-radius: 5px;
       font-weight: 800;
       font-size: 11px;
+      font-family: var(--font-mono);
     }
-    .er-prime { background: rgba(16,185,129,0.25); color: #34d399; }
-    .er-good  { background: rgba(59,130,246,0.25); color: #60a5fa; }
-    .er-mid   { background: rgba(245,158,11,0.25); color: #fbbf24; }
-    .er-high  { background: rgba(239,68,68,0.25);  color: #f87171; }
+    .er-prime { background: rgba(16,185,129,0.25); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .er-good  { background: rgba(59,130,246,0.25); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .er-mid   { background: rgba(245,158,11,0.25); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .er-high  { background: rgba(244,63,94,0.25);  color: #fb7185; border: 1px solid rgba(244,63,94,0.3); }
 
-    /* Card: vol row */
+    /* Break ATH Info Row */
+    .ath-info-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      background: rgba(6, 182, 212, 0.08);
+      border-radius: 9px;
+      border: 1px solid rgba(6, 182, 212, 0.22);
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ath-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan-light);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+    }
+    .ath-tag .ath-label { color: var(--text-sub); font-weight: 500; }
+
+    /* Volatility Row */
     .card-row-vol {
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-size: 11px;
       font-weight: 600;
-      padding: 0 2px;
-      margin-bottom: 10px;
+      padding: 0 4px;
+      margin-bottom: 11px;
       color: var(--text-sub);
+      font-family: var(--font-mono);
     }
     .vol-tag { display: inline-flex; align-items: center; gap: 3px; }
-    .vol-pos { color: var(--green); }
-    .vol-neg { color: var(--red); }
+    .vol-pos { color: var(--green-light); font-weight: 700; }
+    .vol-neg { color: var(--red); font-weight: 700; }
 
-    /* Card: Break ATH extra info */
-    .ath-info-row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-      padding: 7px 10px;
-      background: rgba(56,189,248,0.07);
-      border-radius: 9px;
-      border: 1px solid rgba(56,189,248,0.18);
-    }
-    .ath-tag {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--cyan);
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-    }
-    .ath-tag .ath-label { color: var(--text-sub); font-weight: 500; }
-
-    /* Card: bottom row */
+    /* Card Bottom Row */
     .card-row-bottom {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      border-top: 1px dashed rgba(31,41,61,0.8);
+      border-top: 1px dashed rgba(255,255,255,0.07);
       padding-top: 10px;
     }
 
     .state-pill {
       font-size: 11px;
       font-weight: 700;
-      padding: 4px 9px;
+      padding: 4px 10px;
       border-radius: 8px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 62%;
+      max-width: 58%;
     }
-    .state-absorption { background: var(--blue-bg);  color: var(--blue);   border: 1px solid rgba(59,130,246,0.3); }
-    .state-chop       { background: var(--green-bg); color: var(--green);  border: 1px solid rgba(16,185,129,0.3); }
-    .state-reaccum    { background: var(--yellow-bg);color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
-    .state-neutral    { background: rgba(255,255,255,0.06); color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
-    .state-distrib    { background: var(--red-bg);   color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
-    .state-ath        { background: var(--cyan-bg);  color: var(--cyan);   border: 1px solid rgba(56,189,248,0.3); }
+    .state-absorption { background: var(--blue-bg);  color: var(--rh-light);   border: 1px solid rgba(59,130,246,0.3); }
+    .state-chop       { background: var(--green-bg); color: var(--green-light);border: 1px solid rgba(16,185,129,0.3); }
+    .state-reaccum    { background: var(--yellow-bg);color: var(--sol-light);  border: 1px solid rgba(245,158,11,0.3); }
+    .state-neutral    { background: rgba(255,255,255,0.05); color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
+    .state-distrib    { background: var(--red-bg);   color: #fb7185;           border: 1px solid rgba(244,63,94,0.3); }
+    .state-ath        { background: var(--cyan-bg);  color: var(--cyan-light); border: 1px solid rgba(6,182,212,0.35); }
 
-    .btn-gmgn {
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn-chart {
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
       color: #ffffff;
       text-decoration: none;
       font-size: 11px;
       font-weight: 700;
-      padding: 6px 13px;
+      padding: 6px 11px;
       border-radius: 8px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
       border: none;
-      box-shadow: 0 2px 6px rgba(37,99,235,0.3);
-      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(37,99,235,0.35);
       cursor: pointer;
-      transition: box-shadow 0.15s, transform 0.1s;
+      transition: all 0.15s;
     }
-    .btn-gmgn:hover { box-shadow: 0 4px 14px rgba(37,99,235,0.5); }
-    .btn-gmgn:active { transform: scale(0.95); }
+    .btn-chart:hover { box-shadow: 0 4px 14px rgba(37,99,235,0.55); transform: translateY(-1px); }
+    .btn-chart:active { transform: scale(0.95); }
 
-    /* Gap reasons */
-    .gap-reasons-box { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .btn-chart-secondary {
+      background: rgba(255,255,255,0.07);
+      color: var(--text-main);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: none;
+    }
+    .btn-chart-secondary:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.22); }
+
+    /* Gap reasons pills */
+    .gap-reasons-box {
+      margin-top: 9px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255,255,255,0.05);
+    }
     .gap-pill {
       font-size: 10px;
       font-weight: 600;
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 6px;
-      background: rgba(239,68,68,0.12);
-      color: #f87171;
-      border: 1px solid rgba(239,68,68,0.25);
+      background: rgba(244,63,94,0.12);
+      color: #fb7185;
+      border: 1px solid rgba(244,63,94,0.25);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
     }
 
     /* ===== EMPTY STATE ===== */
@@ -858,43 +1039,43 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: var(--card-bg);
       border: 1px dashed var(--card-border);
       border-radius: 16px;
-      padding: 40px 24px;
+      padding: 44px 20px;
       text-align: center;
       color: var(--text-sub);
       grid-column: 1 / -1;
     }
-    .empty-icon  { font-size: 36px; margin-bottom: 10px; }
+    .empty-icon  { font-size: 38px; margin-bottom: 12px; }
     .empty-title { font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
-    .empty-desc  { font-size: 13px; line-height: 1.6; }
+    .empty-desc  { font-size: 13px; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+    .empty-btn   { margin-top: 14px; }
 
     /* ===== FOOTER INFO ===== */
     .footer-info {
-      margin-top: 18px;
+      margin-top: 20px;
       text-align: center;
-      font-size: 11px;
-      color: var(--text-sub);
-      opacity: 0.7;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
     }
 
-    /* ===== MODAL ===== */
+    /* ===== MODAL SETTINGS ===== */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.72);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: rgba(0,0,0,0.76);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       z-index: 200;
       align-items: flex-end;
       justify-content: center;
     }
     .modal-overlay.show { display: flex; }
 
-    /* Mobile: drawer from bottom */
     .modal-sheet {
-      background: #111827;
-      border-top-left-radius: 20px;
-      border-top-right-radius: 20px;
+      background: #0f172a;
+      border-top-left-radius: 22px;
+      border-top-right-radius: 22px;
       border: 1px solid var(--card-border);
       border-bottom: none;
       width: 100%;
@@ -918,7 +1099,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--card-border);
     }
@@ -933,54 +1114,82 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .modal-close {
-      background: #1f293d;
+      background: #1e293b;
       border: none;
       color: var(--text-sub);
       width: 30px;
       height: 30px;
       border-radius: 50%;
-      font-size: 16px;
+      font-size: 15px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: background 0.15s;
     }
-    .modal-close:hover { background: #2d3f5c; color: var(--text-main); }
+    .modal-close:hover { background: #334155; color: #ffffff; }
+
+    /* Quick Tuning Presets */
+    .preset-strip {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .btn-preset {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-sub);
+      padding: 6px 4px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .btn-preset:hover { background: var(--card-hover); color: #ffffff; border-color: rgba(255,255,255,0.2); }
 
     .form-section-title {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.6px;
       color: var(--text-sub);
-      margin: 18px 0 10px;
+      margin: 16px 0 10px;
       padding-bottom: 6px;
       border-bottom: 1px solid var(--card-border);
     }
     .form-section-title:first-of-type { margin-top: 0; }
 
-    .form-group { margin-bottom: 13px; }
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .form-group { margin-bottom: 4px; }
 
     .form-label {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
       color: var(--text-sub);
-      margin-bottom: 5px;
+      margin-bottom: 4px;
     }
 
     .form-input {
       width: 100%;
-      background: rgba(13,19,34,0.9);
+      background: var(--card-inner);
       border: 1px solid var(--card-border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
+      border-radius: 9px;
+      padding: 9px 11px;
+      font-size: 13.5px;
       font-weight: 600;
       color: #ffffff;
       outline: none;
+      font-family: var(--font-mono);
       transition: border-color 0.15s;
     }
     .form-input:focus { border-color: var(--green); }
@@ -997,12 +1206,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       font-size: 14px;
       font-weight: 700;
       cursor: pointer;
+      box-shadow: 0 2px 8px rgba(16,185,129,0.3);
       transition: box-shadow 0.15s;
     }
-    .btn-submit:hover { box-shadow: 0 4px 14px rgba(16,185,129,0.4); }
+    .btn-submit:hover { box-shadow: 0 4px 16px rgba(16,185,129,0.5); }
 
     .btn-reset {
-      background: #1f293d;
+      background: #1e293b;
       color: var(--text-sub);
       border: none;
       padding: 12px 16px;
@@ -1012,106 +1222,121 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       cursor: pointer;
       transition: background 0.15s;
     }
-    .btn-reset:hover { background: #2d3f5c; color: var(--text-main); }
+    .btn-reset:hover { background: #334155; color: #ffffff; }
 
-    /* ===== TOAST ===== */
+    /* ===== TOAST NOTIFICATION ===== */
     .toast {
       position: fixed;
-      top: 20px;
+      top: 18px;
       left: 50%;
-      transform: translateX(-50%) translateY(-16px);
-      background: rgba(17,24,39,0.97);
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 23, 42, 0.96);
       border: 1px solid var(--green);
       color: #ffffff;
       padding: 8px 20px;
       border-radius: 20px;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
       z-index: 300;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
       opacity: 0;
       pointer-events: none;
-      transition: all 0.25s ease;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
     }
     .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
-    /* ===== RESPONSIVE BREAKPOINTS ===== */
+    /* ===== RESPONSIVE MEDIA QUERIES ===== */
 
-    /* Mobile small: KPI 3+2 wrap */
-    @media (max-width: 479px) {
-      .kpi-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
-      .kpi-grid .kpi-card:nth-child(4),
-      .kpi-grid .kpi-card:nth-child(5) {
-        /* 2 remaining cards span within 3-col, auto place */
-      }
-    }
-
-    /* Tablet: 2-column cards, bigger fonts, center modal */
-    @media (min-width: 769px) {
-      .brand-title { font-size: 19px; }
+    /* Tablet & Desktop Layouts */
+    @media (min-width: 768px) {
       .container { padding: 18px 24px; }
+      .brand-title { font-size: 19px; }
 
-      .kpi-label { font-size: 11px; }
-      .kpi-val   { font-size: 16px; }
-      .kpi-card  { padding: 11px 10px; }
+      /* Desktop Header: Single Horizontal Bar */
+      .header-inner {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .chain-segmented {
+        max-width: 320px;
+        flex: 1;
+        margin: 0 16px;
+      }
+      .chain-tab { padding: 6px 12px; font-size: 12px; }
 
-      .cat-tab { font-size: 12px; padding: 9px 12px; min-width: 90px; }
+      /* Desktop KPI: 5 columns in single row */
+      .kpi-grid {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+      }
+      .kpi-row-bottom {
+        display: contents;
+      }
+      .kpi-card { padding: 12px 10px; }
+      .kpi-val { font-size: 18px; }
 
-      .card-list { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      /* Desktop Controls: Tabs + Search in single row */
+      .controls-strip {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .cat-tabs { flex: 1; }
+      .search-wrap { width: 280px; }
 
-      .m-label { font-size: 10px; }
-      .m-val   { font-size: 13px; }
-      .token-name { max-width: 200px; }
+      /* Card Grid: 2 columns on tablet */
+      .card-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+      .token-name { max-width: 180px; }
 
-      /* Modal becomes center dialog on tablet/desktop */
+      /* Modal: Centered Dialog */
       .modal-overlay { align-items: center; }
       .modal-sheet {
         border-radius: 18px;
         border: 1px solid var(--card-border);
-        width: 520px;
+        width: 540px;
         max-width: 90vw;
         max-height: 82vh;
         animation: fadeScaleIn 0.2s ease-out;
       }
+      .form-grid-2 { grid-template-columns: repeat(2, 1fr); }
     }
 
-    /* Desktop: 3-column cards */
+    /* Wide Desktop */
     @media (min-width: 1100px) {
-      .card-list { grid-template-columns: repeat(3, 1fr); }
-      .brand-title { font-size: 20px; }
-      .cat-tab { font-size: 13px; }
+      .card-list {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .token-name { max-width: 150px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ===== HEADER ===== -->
+  <!-- ===== STICKY HEADER ===== -->
   <header class="app-header">
     <div class="header-inner">
       <div class="header-top">
         <div class="brand">
           <span class="brand-title">⚡ CHOP RADAR</span>
-          <span class="brand-badge">LIVE</span>
+          <span class="brand-badge">PRO</span>
         </div>
         <div id="statusPulse" class="status-pulse">
           <span class="pulse-dot"></span>
           <span id="statusText">LIVE</span>
         </div>
-        <div class="header-actions">
-          <button id="btnScan" class="btn-icon btn-scan" onclick="triggerScan()">
-            <span>⚡</span>
-            <span id="scanCountdown">SCAN</span>
-          </button>
-          <button class="btn-icon" onclick="openModal()" title="Pengaturan Filter">
-            <span>⚙️</span>
-          </button>
-        </div>
       </div>
 
-      <!-- Chain Switcher -->
+      <!-- Segmented Chain Switcher -->
       <div class="chain-segmented">
         <div class="chain-tab active" data-chain="all" onclick="setChainFilter('all')">
           🌐 ALL (<span id="cntChainAll">0</span>)
@@ -1123,148 +1348,179 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           🔹 RH (<span id="cntChainRh">0</span>)
         </div>
       </div>
+
+      <div class="header-actions">
+        <button id="btnScan" class="btn-icon btn-scan" onclick="triggerScan()" title="Pindai Ulang Data (Hotkey: S)">
+          <span>⚡</span>
+          <span id="scanCountdown">SCAN</span>
+        </button>
+        <button class="btn-icon" onclick="openModal()" title="Pengaturan Filter LP">
+          <span>⚙️</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- ===== MAIN ===== -->
+  <!-- ===== MAIN CONTENT ===== -->
   <main class="container">
 
-    <!-- KPI Grid (5 items) -->
+    <!-- KPI Summary Grid (5 metrics) -->
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-label">Siap LP</div>
+        <div class="kpi-label"><span>🟢</span> Siap LP</div>
         <div id="kpiSiap" class="kpi-val green">0</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Top $/h</div>
-        <div id="kpiTopYield" class="kpi-val green">$0.00</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Absorb</div>
-        <div id="kpiAbsorb" class="kpi-val">0</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">🚀 ATH</div>
+        <div class="kpi-label"><span>🚀</span> Break ATH</div>
         <div id="kpiBath" class="kpi-val cyan">0</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Update</div>
-        <div id="kpiTime" class="kpi-val yellow">--:--</div>
+
+      <div class="kpi-row-bottom">
+        <div class="kpi-card">
+          <div class="kpi-label"><span>📡</span> Absorb</div>
+          <div id="kpiAbsorb" class="kpi-val">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><span>💰</span> Top Yield</div>
+          <div id="kpiTopYield" class="kpi-val green">$0.00</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><span>🕒</span> Scan</div>
+          <div id="kpiTime" class="kpi-val yellow">--:--</div>
+        </div>
       </div>
     </div>
 
-    <!-- Category Tabs -->
-    <div class="cat-tabs">
-      <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')">
-        <span>🟢 SIAP LP</span>
-        <span id="badgeSiap" class="badge-count">0</span>
+    <!-- Controls Strip: Category Tabs + Quick Search -->
+    <div class="controls-strip">
+      <div class="cat-tabs">
+        <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
+          <span>🟢 SIAP LP</span>
+          <span id="badgeSiap" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')" title="Hotkey: 2">
+          <span>📡 ABSORB</span>
+          <span id="badgeAbsorb" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 3">
+          <span>🚀 ATH</span>
+          <span id="badgeBath" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 4">
+          <span>⚠️ GAPS</span>
+          <span id="badgeGaps" class="badge-count">0</span>
+        </div>
       </div>
-      <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')">
-        <span>📡 ABSORB</span>
-        <span id="badgeAbsorb" class="badge-count">0</span>
-      </div>
-      <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')">
-        <span>🚀 ATH</span>
-        <span id="badgeBath" class="badge-count">0</span>
-      </div>
-      <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')">
-        <span>⚠️ GAPS</span>
-        <span id="badgeGaps" class="badge-count">0</span>
+
+      <!-- Quick Search Bar -->
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="tokenSearch" class="search-input" placeholder="Cari simbol atau CA..." oninput="onSearchInput()">
+        <button id="searchClear" class="search-clear" onclick="clearSearch()">✕</button>
       </div>
     </div>
 
-    <!-- Token Cards Feed -->
+    <!-- Token Cards List Feed -->
     <div id="tokenCardsList" class="card-list"></div>
 
-    <!-- Footer Info -->
+    <!-- Footer Counter -->
     <div class="footer-info" id="footerInfo" style="display:none">
       <span id="footerText"></span>
     </div>
 
   </main>
 
-  <!-- ===== FILTER MODAL ===== -->
+  <!-- ===== FILTER MODAL SETTINGS ===== -->
   <div id="filterModal" class="modal-overlay" onclick="closeModalOnBg(event)">
     <div class="modal-sheet">
       <div class="modal-header">
         <div class="modal-title">⚙️ Parameter Filter LP</div>
-        <button class="modal-close" onclick="closeModal()">✕</button>
+        <button class="modal-close" onclick="closeModal()" title="Tutup (Esc)">✕</button>
       </div>
 
-      <div class="form-section-title">📊 Siap LP / Chop Filter</div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Min Fee Siap LP ($/jam)</span>
-          <span style="color:var(--green)">Modal $100</span>
-        </div>
-        <input type="number" step="0.5" id="f_min_fee" class="form-input" value="3.0">
+      <!-- Quick Tuning Presets -->
+      <div class="preset-strip">
+        <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif ($5/h)</button>
+        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($3/h)</button>
+        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($1.5/h)</button>
       </div>
 
-      <div class="form-group">
-        <div class="form-label">
-          <span>Min Market Cap ($)</span>
-          <span>Filter micap liar</span>
+      <div class="form-section-title">📊 Kriteria Chop Sideways LP</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Fee Siap LP ($/jam)</span>
+            <span style="color:var(--green-light)">Posisi $100</span>
+          </div>
+          <input type="number" step="0.5" id="f_min_fee" class="form-input" value="3.0">
         </div>
-        <input type="number" step="50000" id="f_min_mcap" class="form-input" value="500000">
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Market Cap ($)</span>
+            <span>Filter micap</span>
+          </div>
+          <input type="number" step="50000" id="f_min_mcap" class="form-input" value="500000">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Likuiditas ($)</span>
+            <span>Pool TVL</span>
+          </div>
+          <input type="number" step="5000" id="f_min_liq" class="form-input" value="20000">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min V/L 24h</span>
+            <span>Perputaran fee</span>
+          </div>
+          <input type="number" step="0.5" id="f_min_vl" class="form-input" value="2.0">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Max Volatilitas 5m (%)</span>
+            <span>Simetris pump/dump</span>
+          </div>
+          <input type="number" step="1" id="f_max_5m" class="form-input" value="15.0">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Max Volatilitas 1h (%)</span>
+            <span>Simetris pump/dump</span>
+          </div>
+          <input type="number" step="5" id="f_max_1h" class="form-input" value="80.0">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Max Efficiency Ratio (ER)</span>
+            <span>Ideal ≤ 20</span>
+          </div>
+          <input type="number" step="1" id="f_max_er" class="form-input" value="20.0">
+        </div>
       </div>
 
-      <div class="form-group">
-        <div class="form-label">
-          <span>Min Likuiditas / TVL ($)</span>
-          <span>Pool aman</span>
+      <div class="form-section-title">⚙️ Konfigurasi Pemindaian</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <div class="form-label">
+            <span>Modal Simulasi Posisi ($)</span>
+            <span>Dasar kalkulasi $/h</span>
+          </div>
+          <input type="number" step="10" id="f_position" class="form-input" value="100.0">
         </div>
-        <input type="number" step="5000" id="f_min_liq" class="form-input" value="20000">
-      </div>
 
-      <div class="form-group">
-        <div class="form-label">
-          <span>Min V/L 24h</span>
-          <span>Perputaran fee</span>
+        <div class="form-group">
+          <div class="form-label">
+            <span>Interval Scan (Detik)</span>
+            <span>300s = 5 menit</span>
+          </div>
+          <input type="number" step="30" id="f_interval" class="form-input" value="300">
         </div>
-        <input type="number" step="0.5" id="f_min_vl" class="form-input" value="2.0">
-      </div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Max Volatilitas 5m (%)</span>
-          <span>Simetris pump/dump</span>
-        </div>
-        <input type="number" step="1" id="f_max_5m" class="form-input" value="15.0">
-      </div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Max Volatilitas 1h (%)</span>
-          <span>Simetris pump/dump</span>
-        </div>
-        <input type="number" step="5" id="f_max_1h" class="form-input" value="80.0">
-      </div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Max Efficiency Ratio (ER)</span>
-          <span>Sweet spot ≤ 20</span>
-        </div>
-        <input type="number" step="1" id="f_max_er" class="form-input" value="20.0">
-      </div>
-
-      <div class="form-section-title">⚙️ Pengaturan Umum</div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Modal Simulasi Posisi ($)</span>
-          <span>Untuk hitung $/jam</span>
-        </div>
-        <input type="number" step="10" id="f_position" class="form-input" value="100.0">
-      </div>
-
-      <div class="form-group">
-        <div class="form-label">
-          <span>Interval Scan (Detik)</span>
-          <span>300s = 5 menit</span>
-        </div>
-        <input type="number" step="30" id="f_interval" class="form-input" value="300">
       </div>
 
       <div class="modal-actions">
@@ -1274,13 +1530,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Toast -->
-  <div id="toast" class="toast">Notifikasi</div>
+  <!-- Floating Toast -->
+  <div id="toast" class="toast"><span>🔔</span> <span id="toastMsg">Notifikasi</span></div>
 
   <script>
     let globalState = null;
     let activeChain = 'all';
     let activeCategory = 'siap';
+    let searchQuery = '';
     let countdownInterval = null;
 
     /* ---- Helpers ---- */
@@ -1297,14 +1554,66 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       return "$" + Math.round(val);
     }
 
-    function showToast(msg) {
-      const t = document.getElementById("toast");
-      t.innerText = msg;
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 2600);
+    function formatPrice(p) {
+      if (!p || p <= 0) return "$0.00";
+      if (p < 0.000001) return "$" + p.toExponential(2);
+      if (p < 0.001)    return "$" + p.toFixed(6);
+      if (p < 1)        return "$" + p.toFixed(4);
+      return "$" + p.toFixed(2);
     }
 
-    /* ---- Chain & Category Filters ---- */
+    function showToast(msg, icon = "🔔") {
+      const t = document.getElementById("toast");
+      const m = document.getElementById("toastMsg");
+      t.firstElementChild.innerText = icon;
+      m.innerText = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2400);
+    }
+
+    /* ---- Copy CA Clipboard ---- */
+    function copyCA(ca, btn) {
+      if (!ca) return;
+      navigator.clipboard.writeText(ca).then(() => {
+        if (btn) {
+          const orig = btn.innerHTML;
+          btn.innerHTML = `✓ Copied!`;
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove("copied");
+          }, 1600);
+        }
+        showToast(`CA disalin: ${ca.slice(0, 6)}...${ca.slice(-4)}`, "📋");
+      }).catch(() => {
+        // Fallback
+        const ta = document.createElement("textarea");
+        ta.value = ca;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast(`CA disalin!`, "📋");
+      });
+    }
+
+    /* ---- Quick Search Input ---- */
+    function onSearchInput() {
+      const inp = document.getElementById("tokenSearch");
+      const clr = document.getElementById("searchClear");
+      searchQuery = (inp.value || "").trim().toLowerCase();
+      clr.classList.toggle("visible", searchQuery.length > 0);
+      renderCards();
+    }
+
+    function clearSearch() {
+      const inp = document.getElementById("tokenSearch");
+      inp.value = "";
+      onSearchInput();
+      inp.focus();
+    }
+
+    /* ---- Chain & Category Filter Handlers ---- */
     function setChainFilter(chain) {
       activeChain = chain;
       document.querySelectorAll(".chain-tab").forEach(tab =>
@@ -1321,7 +1630,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       renderCards();
     }
 
-    /* ---- Modal ---- */
+    /* ---- Modal Settings ---- */
     function openModal() {
       if (globalState && globalState.filters) {
         const f = globalState.filters;
@@ -1346,23 +1655,43 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (e.target.id === "filterModal") closeModal();
     }
 
-    /* ---- Scan ---- */
-    async function triggerScan() {
-      const btn = document.getElementById("btnScan");
-      btn.style.opacity = "0.6";
-      showToast("⏳ Memulai pemindaian data GMGN...");
-      try {
-        const res  = await fetch("/api/scan", { method: "POST" });
-        const data = await res.json();
-        if (data.ok) fetchState();
-      } catch (err) {
-        console.error("Scan error:", err);
-      } finally {
-        setTimeout(() => { btn.style.opacity = "1"; }, 1500);
+    function applyPreset(p) {
+      if (p === 'konservatif') {
+        document.getElementById("f_min_fee").value  = 5.0;
+        document.getElementById("f_min_mcap").value = 500000;
+        document.getElementById("f_min_liq").value  = 30000;
+        document.getElementById("f_min_vl").value   = 3.0;
+        document.getElementById("f_max_5m").value   = 10.0;
+        document.getElementById("f_max_1h").value   = 60.0;
+        document.getElementById("f_max_er").value   = 15.0;
+        showToast("Preset Konservatif dipilih", "🛡️");
+      } else if (p === 'standar') {
+        resetDefaultFilters();
+        showToast("Preset Standar dipilih", "⚖️");
+      } else if (p === 'agresif') {
+        document.getElementById("f_min_fee").value  = 1.5;
+        document.getElementById("f_min_mcap").value = 500000;
+        document.getElementById("f_min_liq").value  = 15000;
+        document.getElementById("f_min_vl").value   = 1.5;
+        document.getElementById("f_max_5m").value   = 20.0;
+        document.getElementById("f_max_1h").value   = 100.0;
+        document.getElementById("f_max_er").value   = 25.0;
+        showToast("Preset Agresif dipilih", "🚀");
       }
     }
 
-    /* ---- Filters ---- */
+    function resetDefaultFilters() {
+      document.getElementById("f_min_fee").value  = 3.0;
+      document.getElementById("f_min_mcap").value = 500000;
+      document.getElementById("f_min_liq").value  = 20000;
+      document.getElementById("f_min_vl").value   = 2.0;
+      document.getElementById("f_max_5m").value   = 15.0;
+      document.getElementById("f_max_1h").value   = 80.0;
+      document.getElementById("f_max_er").value   = 20.0;
+      document.getElementById("f_position").value = 100.0;
+      document.getElementById("f_interval").value = 300;
+    }
+
     async function saveFilters() {
       const payload = {
         min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value)  || 3.0,
@@ -1384,7 +1713,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const data = await res.json();
         if (data.ok) {
           closeModal();
-          showToast("✅ Filter berhasil disimpan!");
+          showToast("Filter berhasil disimpan!", "✅");
           fetchState();
         }
       } catch (err) {
@@ -1392,19 +1721,23 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
-    function resetDefaultFilters() {
-      document.getElementById("f_min_fee").value  = 3.0;
-      document.getElementById("f_min_mcap").value = 500000;
-      document.getElementById("f_min_liq").value  = 20000;
-      document.getElementById("f_min_vl").value   = 2.0;
-      document.getElementById("f_max_5m").value   = 15.0;
-      document.getElementById("f_max_1h").value   = 80.0;
-      document.getElementById("f_max_er").value   = 20.0;
-      document.getElementById("f_position").value = 100.0;
-      document.getElementById("f_interval").value = 300;
+    /* ---- Scan Trigger ---- */
+    async function triggerScan() {
+      const btn = document.getElementById("btnScan");
+      btn.style.opacity = "0.6";
+      showToast("Memulai scan data GMGN...", "⏳");
+      try {
+        const res  = await fetch("/api/scan", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) fetchState();
+      } catch (err) {
+        console.error("Scan error:", err);
+      } finally {
+        setTimeout(() => { btn.style.opacity = "1"; }, 1500);
+      }
     }
 
-    /* ---- Countdown ---- */
+    /* ---- Countdown Timer ---- */
     function updateCountdown() {
       if (!globalState) return;
       const pulse       = document.getElementById("statusPulse");
@@ -1434,22 +1767,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
-    /* ---- Render Cards ---- */
+    /* ---- Render Token Cards ---- */
     function renderCards() {
       const container = document.getElementById("tokenCardsList");
       if (!globalState) {
-        container.innerHTML = `<div class="empty-box"><div class="empty-icon">⏳</div><div class="empty-title">Memuat data...</div></div>`;
+        container.innerHTML = `<div class="empty-box"><div class="empty-icon">⏳</div><div class="empty-title">Memuat data radar...</div></div>`;
         return;
       }
 
-      // Select data source
+      // Source per active category
       let rawList = [];
       if      (activeCategory === "siap")      rawList = globalState.siap_lp    || [];
       else if (activeCategory === "absorption") rawList = globalState.absorption || [];
       else if (activeCategory === "break_ath")  rawList = globalState.break_ath  || [];
       else                                      rawList = globalState.gaps        || [];
 
-      // Chain count badges (header switcher)
+      // Count badges in chain switcher
       let solCount = 0, rhCount = 0;
       rawList.forEach(t => {
         if ((t.chain || "SOL").toUpperCase() === "RH") rhCount++; else solCount++;
@@ -1463,71 +1796,83 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if      (activeChain === "sol") filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() !== "RH");
       else if (activeChain === "rh")  filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() === "RH");
 
+      // Apply quick search query if any
+      if (searchQuery) {
+        filtered = filtered.filter(t =>
+          (t.symbol || "").toLowerCase().includes(searchQuery) ||
+          (t.name || "").toLowerCase().includes(searchQuery) ||
+          (t.address || "").toLowerCase().includes(searchQuery)
+        );
+      }
+
+      // Pareto guarantee for gaps
       if (activeCategory === "gaps") {
         filtered = [...filtered].sort((a, b) => (b.fee_hour || 0) - (a.fee_hour || 0) || (b.vol || 0) - (a.vol || 0));
       }
 
-      // Empty state
+      // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:      "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).",
-          absorption:"Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
-          break_ath: "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, ATH > $500k).",
-          gaps:      "Tidak ada token radar yang berada di luar kriteria.",
+          siap:       "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $3/h & MC ≥ $500k).",
+          absorption: "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
+          break_ath:  "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $3/h, ATH > $500k).",
+          gaps:       "Tidak ada token radar yang berada di luar kriteria.",
         };
+        const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
           <div class="empty-box">
             <div class="empty-icon">🔍</div>
             <div class="empty-title">Tidak Ada Token</div>
-            <div class="empty-desc">${msgs[activeCategory] || msgs.siap}<br>Coba ubah tab Chain atau sesuaikan filter di menu ⚙️.</div>
+            <div class="empty-desc">${searchMsg}<br>Coba ubah filter Chain atau sesuaikan tuning di menu ⚙️.</div>
           </div>`;
         updateFooter(0, globalState.total_scanned || 0);
         return;
       }
 
-      // Build card HTML
+      // Build Cards HTML
       let html = "";
       filtered.forEach(t => {
-        const isRh     = (t.chain || "SOL").toUpperCase() === "RH";
-        const chainBadge      = isRh
+        const isRh = (t.chain || "SOL").toUpperCase() === "RH";
+        const chainBadge = isRh
           ? `<span class="chain-pill rh">🔹 RH</span>`
           : `<span class="chain-pill sol">🔸 SOL</span>`;
-        const cardBorderClass = isRh ? "rh-card" : "sol-card";
+        const cardClass = activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card");
 
         const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
         const feeDay  = t.fee_24h  ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
-
         const mcapStr = formatUsd(t.mcap || 0);
         const liqStr  = formatUsd(t.liq  || 0);
         const vlStr   = (t.vl || 0).toFixed(1) + "x";
+        const priceStr = formatPrice(t.price || 0);
+        const addrStr = t.address || "";
 
         // ER badge
         const erVal = t.er !== undefined ? t.er : 999;
-        let erClass = "er-high";
-        if      (erVal <= 3)  erClass = "er-prime";
-        else if (erVal <= 6)  erClass = "er-good";
-        else if (erVal <= 15) erClass = "er-mid";
-        const erBadge = `<span class="er-badge ${erClass}">ER ${erVal.toFixed(1)}</span>`;
+        let erClass = "er-high", erText = "High";
+        if      (erVal <= 3)  { erClass = "er-prime"; erText = "Prime"; }
+        else if (erVal <= 6)  { erClass = "er-good";  erText = "Good"; }
+        else if (erVal <= 15) { erClass = "er-mid";   erText = "Mid"; }
+        const erBadge = `<span class="er-badge ${erClass}">ER ${erVal.toFixed(1)} · ${erText}</span>`;
 
         // Volatility
         const p5 = t.p5 || 0, p1 = t.p1 || 0;
-        const p5Str = (p5 >= 0 ? "+" : "") + p5.toFixed(1) + "%";
-        const p1Str = (p1 >= 0 ? "+" : "") + p1.toFixed(1) + "%";
+        const p5Str = (p5 >= 0 ? "▲ +" : "▼ ") + p5.toFixed(1) + "%";
+        const p1Str = (p1 >= 0 ? "▲ +" : "▼ ") + p1.toFixed(1) + "%";
 
-        // State pill
+        // State Pill
         const mState = t.micro_state || "NEUTRAL";
         let spClass = "state-neutral", spIcon = "🎯";
-        if (activeCategory === "break_ath") { spClass = "state-ath"; spIcon = "🚀"; }
-        else if (mState === "ABSORPTION")   { spClass = "state-absorption"; spIcon = "📡"; }
-        else if (mState === "REACCUMULATION"){ spClass = "state-reaccum"; spIcon = "🔄"; }
-        else if (mState === "DISTRIBUTION") { spClass = "state-distrib"; spIcon = "⚠️"; }
-        else if (t.is_chop)                 { spClass = "state-chop"; spIcon = "🟢"; }
+        if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
+        else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
+        else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
+        else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
+        else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
 
         const spLabel = activeCategory === "break_ath"
           ? "Break ATH ✓"
           : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"));
 
-        // Break ATH extra info row
+        // Break ATH Extra Banner
         let athHtml = "";
         if (activeCategory === "break_ath") {
           const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
@@ -1535,28 +1880,51 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
           athHtml = `
             <div class="ath-info-row">
-              <div class="ath-tag">🔼 <span class="ath-label">Breakout:</span> ${bp}</div>
-              <div class="ath-tag">⏱ <span class="ath-label">Durasi:</span> ${dur}</div>
-              <div class="ath-tag">📊 <span class="ath-label">ATH Lama:</span> ${athOld}</div>
+              <div class="ath-tag"><span>🚀 Breakout:</span> ${bp}</div>
+              <div class="ath-tag"><span>⏱️ Durasi:</span> ${dur}</div>
+              <div class="ath-tag"><span>📊 Rekor:</span> ${athOld}</div>
             </div>`;
         }
 
-        // Gaps reasons
+        // Gaps Reason Pills
         let gapsHtml = "";
         if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length) {
           gapsHtml = `<div class="gap-reasons-box">` +
-            t.gap_reasons.map(r => `<span class="gap-pill">✕ ${r}</span>`).join("") +
+            t.gap_reasons.map(r => {
+              let icon = "✕";
+              if (r.includes("Liq")) icon = "💧";
+              else if (r.includes("V/L")) icon = "📊";
+              else if (r.includes("Fee")) icon = "💰";
+              else if (r.includes("5m") || r.includes("1h")) icon = "⚡";
+              else if (r.includes("ER")) icon = "📐";
+              return `<span class="gap-pill">${icon} ${r}</span>`;
+            }).join("") +
             `</div>`;
         }
 
+        // Secondary DEX Link
+        const dexsUrl = isRh
+          ? `https://fomo.family/token/${addrStr}`
+          : `https://dexscreener.com/solana/${addrStr}`;
+        const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
+
         html += `
-          <div class="token-card ${cardBorderClass}">
+          <div class="token-card ${cardClass}">
             <div class="card-row-top">
               <div class="token-info-left">
                 ${chainBadge}
                 <div class="token-name-block">
-                  <span class="token-symbol">${t.symbol || "?"}</span>
-                  <span class="token-name">${t.name || ""}</span>
+                  <div class="symbol-row">
+                    <span class="token-symbol">${t.symbol || "?"}</span>
+                    <button class="btn-copy-ca" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
+                      📋 Copy
+                    </button>
+                  </div>
+                  <div class="token-sub-row">
+                    <span class="token-price">${priceStr}</span>
+                    <span>·</span>
+                    <span class="token-name" title="${t.name || ''}">${t.name || ""}</span>
+                  </div>
                 </div>
               </div>
               <div class="token-fee-right">
@@ -1577,17 +1945,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <div class="card-row-vol">
               <div class="vol-tag"><span>5m:</span>&nbsp;<span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span></div>
               <div class="vol-tag"><span>1h:</span>&nbsp;<span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span></div>
-              <div class="vol-tag"><span>Buy:</span>&nbsp;<span>${t.buy_ratio || 50}%</span></div>
-              <div class="vol-tag"><span>Score:</span>&nbsp;<span style="color:var(--text-main);font-weight:700">${t.score || 0}</span></div>
+              <div class="vol-tag"><span>Buy:</span>&nbsp;<span style="color:#ffffff">${t.buy_ratio || 50}%</span></div>
+              <div class="vol-tag"><span>Score:</span>&nbsp;<span style="color:#ffffff;font-weight:700">${t.score || 0}</span></div>
             </div>
 
             <div class="card-row-bottom">
               <div class="state-pill ${spClass}" title="${spLabel}">
                 <span>${spIcon}</span><span>${spLabel}</span>
               </div>
-              <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-gmgn">
-                GMGN ↗
-              </a>
+              <div class="card-actions">
+                <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-chart btn-chart-secondary" title="Buka di DexScreener / FOMO">
+                  ${dexsLabel}
+                </a>
+                <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" title="Buka Chart GMGN">
+                  GMGN ↗
+                </a>
+              </div>
             </div>
 
             ${gapsHtml}
@@ -1602,14 +1975,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const el  = document.getElementById("footerInfo");
       const txt = document.getElementById("footerText");
       if (total > 0) {
-        txt.innerText  = `Menampilkan ${shown} token · Total dimonitor: ${total}`;
+        txt.innerText  = `Menampilkan ${shown} token · Total dipindai: ${total} token`;
         el.style.display = "block";
       } else {
         el.style.display = "none";
       }
     }
 
-    /* ---- Fetch State ---- */
+    /* ---- Fetch State API ---- */
     async function fetchState() {
       try {
         const res  = await fetch("/api/state?t=" + Date.now());
@@ -1626,7 +1999,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
         document.getElementById("kpiBath").innerText     = bathCount;
 
-        // Category badges
+        // Category Badges
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
         document.getElementById("badgeBath").innerText   = bathCount;
@@ -1640,7 +2013,29 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
     }
 
-    // Poll every 4s + countdown every 1s
+    /* ---- Keyboard Shortcuts ---- */
+    window.addEventListener("keydown", (e) => {
+      if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+        if (e.key === "Escape") {
+          document.activeElement.blur();
+          closeModal();
+        }
+        return;
+      }
+      if (e.key === "Escape") closeModal();
+      else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
+      else if (e.key === "1") setCategoryTab("siap");
+      else if (e.key === "2") setCategoryTab("absorption");
+      else if (e.key === "3") setCategoryTab("break_ath");
+      else if (e.key === "4") setCategoryTab("gaps");
+      else if (e.key === "/") {
+        e.preventDefault();
+        const inp = document.getElementById("tokenSearch");
+        if (inp) inp.focus();
+      }
+    });
+
+    // Polling interval
     fetchState();
     setInterval(fetchState, 4000);
     if (countdownInterval) clearInterval(countdownInterval);
@@ -1649,7 +2044,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 </body>
 </html>
 """
-
 
 
 
