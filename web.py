@@ -2354,97 +2354,53 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
-          // Sub-details if Momentum, ATH, or Gaps
+          // Sub-details if Momentum, ATH
           let subRowHtml = "";
           if (activeCategory === "momentum_5m") {
-            const v5m = formatUsd(t.vol_5m || t.vol || 0);
-            subRowHtml = `
-              <div style="font-size:10.5px;color:#fde047;font-family:var(--font-mono);margin-top:3px;display:flex;gap:8px">
-                <span>⚡ 5m Vol: <b>${v5m}</b></span>
-                <span>📈 Pump: <b>${p5Str}</b></span>
-              </div>`;
+            subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:8px">⚡ V5: ${formatUsd(t.vol_5m || t.vol || 0)}</span>`;
           } else if (activeCategory === "break_ath") {
-            const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
-            const dur = t.duration_mins !== undefined ? `${t.duration_mins}m` : "—";
-            const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
-            subRowHtml = `
-              <div style="font-size:10.5px;color:var(--cyan-light);font-family:var(--font-mono);margin-top:3px;display:flex;gap:8px">
-                <span>🚀 Breakout: <b>${bp}</b></span>
-                <span>⏱️ Durasi: <b>${dur}</b></span>
-                <span>📊 Rekor: <b>${athOld}</b></span>
-              </div>`;
+            subRowHtml = `<span style="color:var(--cyan-light);font-size:10px;margin-left:8px">🚀 +${t.breakout_pct || 0}%</span>`;
           } else if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length) {
-            subRowHtml = `
-              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
-                ${t.gap_reasons.slice(0, 3).map(r => `<span class="gap-pill" style="font-size:9px;padding:1px 5px">${r}</span>`).join("")}
-              </div>`;
+            subRowHtml = `<span style="color:var(--red);font-size:10px;margin-left:8px">❌ ${t.gap_reasons[0]}</span>`;
           }
 
           tRows += `
             <tr class="arc-tr ${rankClass}">
               <td class="arc-td" style="width:36px;text-align:center">${rankBadge}</td>
-              <td class="arc-td">
-                <div class="arc-tok-cell">
+              <td class="arc-td" style="white-space:nowrap">
+                <div style="display:flex;align-items:center;gap:6px">
                   ${avatarHtml}
-                  <div>
-                    <div style="display:flex;align-items:center;gap:5px">
-                      <span style="font-weight:800;font-size:13.5px;color:#fff">${t.symbol || "?"}</span>
-                      ${chainBadge}
-                      <span style="color:var(--text-dim);font-size:11px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name || ""}</span>
-                    </div>
-                    <div class="arc-tok-meta">
-                      ${ageHtml ? ageHtml + " · " : ""}
-                      <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Copy CA: ${addrStr}">
-                        <span>${caShort}</span> <span>⧉</span>
-                      </button>
-                      <span class="venue-pill">${venueTag}</span>
-                      ${t.holders ? `<span title="Holders">👥${formatTx(t.holders)}</span>` : ""}
-                    </div>
-                    ${subRowHtml}
-                  </div>
+                  <span style="font-weight:800;font-size:13.5px;color:#fff">${t.symbol || "?"}</span>
+                  ${chainBadge}
+                  ${subRowHtml}
                 </div>
               </td>
-              <td class="arc-td mono">
-                <div style="font-weight:700;color:#fff">${mcapStr}</div>
-                <div style="font-size:10.5px;color:var(--text-dim)">${priceStr} <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">(${p1Str})</span></div>
+              <td class="arc-td mono" style="white-space:nowrap">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Copy CA" style="background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;border:1px solid var(--card-border);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:4px;margin:0">
+                    <span style="font-size:11px">${caShort}</span> <span style="font-size:10px">⧉</span>
+                  </button>
+                  <span style="color:var(--text-sub);font-size:10px">• ${venueTag} • ${ageHtml}</span>
+                </div>
               </td>
-              <td class="arc-td mono">
-                <div style="color:#cbd5e1;font-weight:600">${liqStr}</div>
-                <div style="font-size:10.5px;color:var(--text-dim)">V/L ${vlStr}</div>
-              </td>
+              <td class="arc-td mono" style="font-weight:700;color:#fff">${mcapStr}</td>
+              <td class="arc-td mono" style="color:#cbd5e1">${liqStr}</td>
+              <td class="arc-td mono" style="color:#a5b4fc">${vlStr}</td>
               <td class="arc-td mono">${erBadge}</td>
-              <td class="arc-td mono">
-                <div style="font-size:10.5px"><span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">5m ${p5Str}</span></div>
-                <div style="font-size:10.5px"><span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">1h ${p1Str}</span></div>
+              <td class="arc-td mono" style="font-size:11px">
+                <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span> / <span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span>
               </td>
-              <td class="arc-td mono" style="min-width:115px">
-                <div style="font-size:11px;font-weight:700;display:flex;align-items:center">
-                  <span class="arc-of-bar-mini"><span style="width:${buyRatio}%;background:#10b981;height:100%;display:block"></span></span>
-                  <span style="color:var(--green-light)">${buyRatio}%</span>
-                </div>
-                <div style="font-size:10px;color:var(--text-dim);margin-top:2px">
-                  <span style="color:var(--green-light)">${formatTx(buys)}</span> / <span style="color:var(--red)">${formatTx(sells)}</span>
-                </div>
-              </td>
+              <td class="arc-td mono" style="color:var(--green-light)">${buyRatio}%</td>
               <td class="arc-td">
-                <div class="safety-block">
-                  <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100">${sGrade} ${sScore}</span>
-                </div>
-                <div style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono);margin-top:2px">
-                  t10 ${t.top10_rate || 0}% · dev ${t.dev_team_hold || 0}%
-                </div>
+                <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100" style="padding:2px 5px;font-size:10px">${sGrade} ${sScore}</span>
               </td>
               <td class="arc-td mono" style="text-align:right">
-                <div class="fee-hour">${feeHour}</div>
-                <div class="fee-day">${feeDay}</div>
+                <span class="fee-hour" style="font-size:14px">${feeHour}</span>
               </td>
               <td class="arc-td" style="text-align:right">
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-                  <span class="state-pill ${spClass}" style="max-width:120px;font-size:9.5px;padding:3px 6px">${spIcon} ${spLabel}</span>
-                  <div class="card-actions">
-                    <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-chart btn-chart-secondary" style="padding:4px 7px;font-size:10px">${dexsLabel}</a>
-                    <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:4px 7px;font-size:10px">GMGN ↗</a>
-                  </div>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                  <span class="state-pill ${spClass}" style="padding:3px 6px;font-size:10px;white-space:nowrap" title="${spLabel}">${spIcon}</span>
+                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:3px 8px;font-size:10px;margin:0">GMGN</a>
                 </div>
               </td>
             </tr>`;
@@ -2457,13 +2413,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <tr>
                   <th style="width:36px;text-align:center">#</th>
                   <th>TOKEN</th>
-                  <th>MCAP / PRICE</th>
-                  <th>LIQ / V/L</th>
-                  <th>ER SCORE</th>
-                  <th>VOLATILITAS</th>
-                  <th>ORDER FLOW</th>
-                  <th>SAFETY</th>
-                  <th style="text-align:right">EST. FEE/H</th>
+                  <th>CA / VENUE</th>
+                  <th>MCAP</th>
+                  <th>LIQ</th>
+                  <th>V/L</th>
+                  <th>ER</th>
+                  <th>1H / 5M</th>
+                  <th>BUY %</th>
+                  <th>SAFE</th>
+                  <th style="text-align:right">FEE/H</th>
                   <th style="text-align:right">AKSI</th>
                 </tr>
               </thead>
