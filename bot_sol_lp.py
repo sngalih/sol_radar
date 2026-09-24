@@ -1183,7 +1183,7 @@ def generate_report(
     lines = [
         f"{mode_icon} {mode_label}",
         "",
-        "SIAP LP (Chop Sideways)"
+        "<b>SIAP LP (Chop Sideways)</b>"
     ]
 
     if siap_lp:
@@ -1214,7 +1214,7 @@ def generate_report(
 
     # 2. 5M MOMENTUM
     lines.append("")
-    lines.append("5M MOMENTUM")
+    lines.append("<b>5M MOMENTUM</b>")
     m5_list = momentum_5m_candidates or []
     if m5_list:
         for m in m5_list[:6]:
@@ -1246,7 +1246,7 @@ def generate_report(
     bath_list = break_ath_candidates or []
     if bath_list:
         lines.append("")
-        lines.append("BREAK ATH LP")
+        lines.append("<b>BREAK ATH LP</b>")
         for b in bath_list[:6]:
             sym = html.escape(str(b.get("symbol") or "?"))
             sym_link = f'<a href="{b["url"]}">{sym}</a>'
@@ -1267,7 +1267,7 @@ def generate_report(
 
     # 4. ABSORPTION RADAR
     lines.append("")
-    lines.append("ABSORPTION RADAR")
+    lines.append("<b>ABSORPTION RADAR</b>")
     if absorption:
         for t in absorption[:top_limit]:
             sym = html.escape(str(t.get("symbol") or "?"))
@@ -1290,7 +1290,7 @@ def generate_report(
     # 5. GAPS RADAR
     if gaps:
         lines.append("")
-        lines.append("GAPS RADAR")
+        lines.append("<b>GAPS RADAR</b>")
         for g in gaps[:5]:
             sym = html.escape(str(g.get("symbol") or "?"))
             url = g.get("url") or f"https://gmgn.ai/sol/token/{g.get('address','')}"
