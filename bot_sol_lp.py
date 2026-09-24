@@ -1154,17 +1154,17 @@ def generate_report(
         fee = p.get("fee_hour", 0.0)
 
         if liq < min_liq:
-            reasons.append(f"Liq < {_usd(min_liq)}")
+            reasons.append(f"Liq &lt; {_usd(min_liq)}")
         if vl < min_vl:
-            reasons.append(f"V/L < {min_vl:.1f}x")
+            reasons.append(f"V/L &lt; {min_vl:.1f}x")
         if abs(p5) > max_5m:
-            reasons.append(f"5m > {max_5m:.0f}%")
+            reasons.append(f"5m &gt; {max_5m:.0f}%")
         if abs(p1) > max_1h:
-            reasons.append(f"1h > {max_1h:.0f}%")
+            reasons.append(f"1h &gt; {max_1h:.0f}%")
         if er > max_er:
-            reasons.append(f"ER > {max_er:.1f}")
+            reasons.append(f"ER &gt; {max_er:.1f}")
         if fee < min_fee_siap_lp:
-            reasons.append(f"Fee < ${_usd(min_fee_siap_lp)}/h")
+            reasons.append(f"Fee &lt; ${_usd(min_fee_siap_lp)}/h")
 
         if reasons:
             p_copy = dict(p)
