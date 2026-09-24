@@ -16,6 +16,7 @@ Report Format:
 from __future__ import annotations
 
 import argparse
+import html
 import http.cookiejar
 import json
 import os
@@ -1129,103 +1130,186 @@ def generate_report(
     siap_lp = deduplicate_best_tokens(siap_candidates)
     siap_lp.sort(key=lambda x: -x["fee_hour"])
 
-    # 2. Kategori Absorption Radar: micro_state ABSORPTION / REACCUMULATION atau score tinggi
-    # Opsi B: Tambah batas minimum fee agar koin "mati yield" tidak mengganggu radar
+    siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
     absorb_candidates = [
         p for p in filtered
-        if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
+        if p.get("address") not in siap_addrs
+        and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
         and p.get("fee_hour", 0.0) >= min_fee_absorb
     ]
     absorption = deduplicate_best_tokens(absorb_candidates)
     absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-    top_limit = conf.get("top_n_display", 12)
-
+    top_limit = conf.get("top_n_display", 10)
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
 
-    lines = [
-        "━━━━━━━━━━━━━━━━━━",
-        "✨ <b>CHOP RADAR</b> ✨",
-    ]
-    if chain_mode == "BOTH":
-        lines.append("🔸 Solana │ 🔹 Robinhood")
-    elif chain_mode == "RH":
-        lines.append("🔹 Robinhood")
-    else:
-        lines.append("🔸 Solana")
+    top_yield = siap_lp[0]["fee_hour"] if siap_lp else (absorption[0]["fee_hour"] if absorption else 0.0)
+    top_yield_str = f"${top_yield:.2f}/h" if top_yield > 0 else "$0.00/h"
 
-    lines.append("")
-    lines.append("<b>SIAP LP</b>")
+    mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
+    mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
+
+    lines = [
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        "⚡ <b>CHOP LP RADAR — MULTI-CHAIN</b> ⚡",
+        f"🕒 <code>{now_str}</code> │ {mode_icon} <b>{mode_label}</b>",
+        f"📊 Dipindai: <b>{len(tokens)} Token</b> │ 💰 Top Yield: <b>{top_yield_str}</b>",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "🟢 <b>SIAP LP (Chop Sideways)</b>",
+        f"<i>Fee ≥ ${min_fee_siap_lp:.2f}/h │ MC ≥ {_usd(min_mcap)}</i>",
+        "",
+    ]
 
     if siap_lp:
-        for t in siap_lp[:top_limit]:
-            sym_link = f'<a href="{t["url"]}"><b>{t["symbol"]}</b></a>'
-            fee_str = f"${t['fee_hour']:.2f}/h"
-            mcap_str = f"MC {_usd(t['mcap'])}"
-            er_str = f"ER {t['er']:.1f}"
-            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
-            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {er_str}")
+        for idx, t in enumerate(siap_lp[:top_limit]):
+            sym = html.escape(str(t.get("symbol") or "?"))
+            sym_link = f'<a href="{t["url"]}"><b>{sym}</b></a>'
+            fee_h = t.get("fee_hour", 0.0)
+            fee_24 = t.get("fee_24h", fee_h * 24)
+            fee_str = f"💵 <b>${fee_h:.2f}/h</b> (<i>+${fee_24:.1f}/24h</i>)"
+            mc_str = f"MC {_usd(t['mcap'])}"
+            er_val = t.get("er", 999.0)
+            er_rating = "Prime" if er_val <= 3 else ("Good" if er_val <= 6 else ("Mid" if er_val <= 15 else "High"))
+            er_str = f"📐 <b>ER {er_val:.1f}</b> ({er_rating})"
+            vl_str = f"V/L {t.get('vl', 0.0):.1f}x"
+            p5 = t.get("p5", 0.0)
+            p1 = t.get("p1", 0.0)
+            p5_str = ("+" if p5 >= 0 else "") + f"{p5:.1f}%"
+            p1_str = ("+" if p1 >= 0 else "") + f"{p1:.1f}%"
+            vol_str = f"⚡ 5m {p5_str} │ 1h {p1_str}"
+
+            buys = int(t.get("buys") or 0)
+            sells = int(t.get("sells") or 0)
+            buy_ratio = round(t.get("buy_ratio", 50.0))
+            tx_str = f"🟢 <b>{buy_ratio}% Buy</b>"
+            if buys > 0 or sells > 0:
+                b_fmt = f"{buys/1000:.1f}k" if buys >= 1000 else str(buys)
+                s_fmt = f"{sells/1000:.1f}k" if sells >= 1000 else str(sells)
+                tx_str += f" ({b_fmt}/{s_fmt})"
+
+            score = round(t.get("score") or 0.0)
+            grade = "A" if score >= 80 else ("B" if score >= 65 else ("C" if score >= 50 else "D"))
+            t10 = t.get("top10_rate", 0.0)
+            dev = t.get("dev_team_hold", 0.0)
+            safety_str = f"🛡️ Audit <b>{grade} {score}</b> (t10 {t10:.0f}% · dev {dev:.0f}%)"
+
+            age_h = t.get("age_hours", 9999.0)
+            age_str = f"{max(1, round(age_h * 60))}m" if age_h < 1 else (f"{age_h:.0f}h" if age_h < 24 else (f"{round(age_h/24)}d" if age_h < 9000 else ""))
+
+            chain = str(t.get("chain", "SOL")).upper()
+            chain_badge = "🔹 RH" if chain == "RH" else "🔸 SOL"
+            venue = "UniswapV4" if chain == "RH" else ("Meteora" if "meteora" in t.get("url", "") else "Raydium")
+            meta_tag = f"({chain_badge}) · <i>{venue}</i>" + (f" · 🕒 {age_str}" if age_str else "")
+
+            addr = t.get("address", "")
+            ca_code = f"<code>{addr}</code>" if addr else ""
+
+            if idx < 3:
+                # Top 1-3 Podium Cards
+                medal = "🥇" if idx == 0 else ("🥈" if idx == 1 else "🥉")
+                lines.append(f"{medal} {sym_link} {meta_tag}")
+                lines.append(f"   {fee_str} │ {mc_str} │ {er_str}")
+                lines.append(f"   📊 {vl_str} │ {vol_str} │ {tx_str}")
+                lines.append(f"   {safety_str}")
+                if ca_code:
+                    lines.append(f"   📋 {ca_code}")
+                lines.append(f'   🔗 <a href="{t["url"]}">Buka GMGN Chart ↗</a>')
+                lines.append("")
+            else:
+                # Rank 4+ Compact Rows with Single-Tap Copyable CA
+                rank_num = f"#{idx + 1}"
+                badge_icon = "🔹" if chain == "RH" else "🔸"
+                lines.append(f"• {rank_num} {badge_icon} {sym_link} ➔ <b>${fee_h:.2f}/h</b> │ {mc_str} │ ER {er_val:.1f}")
+                if ca_code:
+                    lines.append(f"  📋 {ca_code}")
+                lines.append(f'  🔗 <a href="{t["url"]}">GMGN Chart ↗</a>')
+
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
     else:
-        lines.append("<i>(Belum ada pool memenuhi syarat)</i>")
+        lines.append("<i>(Belum ada pool memenuhi syarat Siap LP)</i>")
 
-    lines.append("")
-    lines.append("<b>ABSORPTION RADAR</b>")
-
-    if absorption:
-        for t in absorption[:top_limit]:
-            sym_link = f'<a href="{t["url"]}"><b>{t["symbol"]}</b></a>'
-            fee_str = f"${t['fee_hour']:.2f}/h"
-            mcap_str = f"MC {_usd(t['mcap'])}"
-            status = str(t.get("status_label", "")).strip()
-            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
-            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mcap_str} │ {status}")
-        if len(absorption) > top_limit:
-            lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
-    else:
-        lines.append("<i>(Belum ada sinyal absorption baru)</i>")
-
-    # 2.5 Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
+    # 2. Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
     bath_list = break_ath_candidates or []
     if bath_list:
         lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("🚀 <b>BREAK ATH LP</b> (15m+ Confirmed)")
-        lines.append("<i>⚡ Momentum LP · Range ±20% · Fee ≥ $3.00/h</i>")
-        for b in bath_list[:8]:
-            sym_link = f'<a href="{b["url"]}"><b>{b["symbol"]}</b></a>'
+        lines.append("<i>⚡ Momentum LP · Range ±20% · Fee ≥ $3.00/h · ATH > $500k</i>")
+        lines.append("")
+        for b in bath_list[:6]:
+            sym = html.escape(str(b.get("symbol") or "?"))
+            sym_link = f'<a href="{b["url"]}"><b>{sym}</b></a>'
             fee_str  = f"${b['fee_hour']:.2f}/h"
             mc_str   = _usd(b['mcap'])
             ath_str  = _usd(b['ath_mcap'])
             dur_str  = f"{b['duration_mins']}m ({b['break_scans']} scan)"
             badge    = b.get("chain_badge", "🔹")
             pct_sign = "+" if b["breakout_pct"] >= 0 else ""
-            lines.append(
-                f"• {badge} {sym_link} ➔ {fee_str} │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}% vs ATH {ath_str}) │ {dur_str} │ Range ±20%"
-            )
+            b_ca     = f"<code>{b.get('address', '')}</code>" if b.get('address') else ""
+            vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
+            b_ratio  = round(b.get("buy_ratio", 50.0))
 
-    # 3. Second Wave Hunter — hanya tampil jika ada kandidat
+            lines.append(f"• {badge} {sym_link} ➔ <b>{fee_str}</b> │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}% vs ATH {ath_str})")
+            lines.append(f"  ⏱️ {dur_str} │ 📊 {vl_str} │ 🟢 {b_ratio}% Buy")
+            if b_ca:
+                lines.append(f"  📋 {b_ca}")
+            lines.append(f'  🔗 <a href="{b["url"]}">Buka GMGN Chart ↗</a>')
+            lines.append("")
+
+    # 3. Kategori Absorption Radar
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("📡 <b>ABSORPTION RADAR</b>")
+    lines.append(f"<i>🎯 Sinyal Akumulasi / Reakumulasi (MC ≥ {_usd(min_mcap)})</i>")
+    lines.append("")
+
+    if absorption:
+        for t in absorption[:top_limit]:
+            sym = html.escape(str(t.get("symbol") or "?"))
+            sym_link = f'<a href="{t["url"]}"><b>{sym}</b></a>'
+            fee_str = f"${t['fee_hour']:.2f}/h"
+            mc_str = f"MC {_usd(t['mcap'])}"
+            status = html.escape(str(t.get("status_label", "")).strip())
+            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
+            t_ca = f"<code>{t.get('address', '')}</code>" if t.get('address') else ""
+
+            lines.append(f"• {badge} {sym_link} ➔ <b>{fee_str}</b> │ {mc_str} │ {status}")
+            if t_ca:
+                lines.append(f"  📋 {t_ca}")
+            lines.append(f'  🔗 <a href="{t["url"]}">Buka GMGN Chart ↗</a>')
+        if len(absorption) > top_limit:
+            lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
+    else:
+        lines.append("<i>(Belum ada sinyal absorption baru)</i>")
+
+    # 4. Second Wave Hunter — hanya tampil jika ada kandidat
     sw_list = sw_candidates or []
     if sw_list:
         lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("🎯 <b>SECOND WAVE RADAR</b>")
         lines.append("<i>⚠️ Bukan LP · Spot Trading · DYOR</i>")
-        for sw in sw_list[:8]:  # maks 8 sinyal
-            sym_link = f'<a href="{sw["url"]}"><b>{sw["symbol"]}</b></a>'
+        lines.append("")
+        for sw in sw_list[:6]:
+            sym = html.escape(str(sw.get("symbol") or "?"))
+            sym_link = f'<a href="{sw["url"]}"><b>{sym}</b></a>'
             mc_str   = _usd(sw["mcap"])
             ath_str  = _usd(sw["ath_mcap"])
-            liq_str  = _usd(sw["liq"])
             vol_str  = _usd(sw["vol"])
             buy_str  = f"{sw['buy_ratio']:.0f}%"
-            age_str  = f"{sw['age_hours']:.1f}j"
             pullback = round((1 - sw["mcap"] / sw["ath_mcap"]) * 100, 0) if sw["ath_mcap"] > 0 else 0
             badge    = sw.get("chain_badge", "🔸")
-            lines.append(
-                f"• {badge} {sym_link} ➔ MC {mc_str} │ ATH {ath_str} (-{pullback:.0f}%) │ Liq {liq_str} │ Vol {vol_str} │ Buy {buy_str} │ {age_str}"
-            )
+            sw_ca    = f"<code>{sw.get('address', '')}</code>" if sw.get('address') else ""
 
-    lines.append("━━━━━━━━━━━━━━━━━━")
+            lines.append(f"• {badge} {sym_link} ➔ MC {mc_str} │ ATH {ath_str} (-{pullback:.0f}%) │ Vol {vol_str} │ Buy {buy_str}")
+            if sw_ca:
+                lines.append(f"  📋 {sw_ca}")
+            lines.append(f'  🔗 <a href="{sw["url"]}">Buka GMGN Chart ↗</a>')
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
 
     report_body = "\n".join(lines)
     # 1 space / baris kosong sebelum dan sesudah isi chat agar tampilan Telegram tidak bertumpuk terlalu rapat
@@ -1286,7 +1370,8 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
                             "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
                             "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
                         }, conf)
-                        t_score["url"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                        t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                        t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
                         scored_tokens.append(t_score)
                 except Exception as e:
                     print(f"[Meteora Fallback Error]: {e}", file=sys.stderr)
@@ -1330,7 +1415,8 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
                 "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
                 "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
             }, conf)
-            t_score["url"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+            t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+            t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
             scored_tokens.append(t_score)
 
     elapsed = time.time() - t0
@@ -1394,6 +1480,8 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
     else:
         # Lampirkan quick inline toggle buttons di bawah laporan
         active_mode = scan_conf.get("chain_mode", "RH").upper()
+        vps_ip = os.getenv("VPS_IP", "43.173.10.245")
+        dashboard_url = f"http://{vps_ip}:8771"
         report_buttons = {
             "inline_keyboard": [
                 [
@@ -1403,7 +1491,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
                 ],
                 [
                     {"text": "⚡ Scan Sekarang", "callback_data": "action_scan"},
-                    {"text": "⚙️ Menu Toggle", "callback_data": "action_menu"},
+                    {"text": "🌐 Dashboard HP", "url": dashboard_url},
                 ],
             ]
         }
