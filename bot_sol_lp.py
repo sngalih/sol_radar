@@ -96,7 +96,7 @@ def is_tokenized_stock(token: dict) -> bool:
     return False
 
 
-# ================= ATH CACHE (Second Wave Hunter) =================
+# ================= ATH CACHE (Break ATH LP) =================
 # Menyimpan All-Time-High MC per token. Diupdate tiap scan, persist ke sol-hp-cache.json.
 ATH_CACHE: dict[str, dict] = {}  # { addr: { "symbol": str, "ath_mcap": float, "last_seen": int } }
 
@@ -351,7 +351,7 @@ def fetch_dexscreener_batch(token_addrs: list[str]) -> dict[str, dict]:
     return out
 
 
-# ================= ATH CACHE FUNCTIONS (Second Wave Hunter) =================
+# ================= ATH CACHE FUNCTIONS (Break ATH LP) =================
 
 def load_ath_cache() -> None:
     """Muat ATH cache dari sol-hp-cache.json["ath_cache"] saat bot startup."""
@@ -559,179 +559,6 @@ def score_break_ath_candidates(
     candidates.sort(key=lambda x: -x["fee_hour"])
     return candidates
 
-
-
-# ================= GECKOTERMINAL NEW POOLS (Second Wave Data Source) =================
-
-def fetch_geckoterminal_new_pools(chain: str = "solana", pages: int = 2) -> list[dict]:
-    """Ambil new pools dari GeckoTerminal API — GRATIS, tanpa API key.
-    Mengembalikan list dict ternormalisasi untuk diproses oleh score_second_wave_candidates().
-
-    Fields yang diambil:
-      symbol, token_address, pool_address, age_hours, fdv_usd,
-      reserve_usd, vol_h6, vol_h1, buys_h1, sells_h1, buy_ratio, chain_badge, url
-    """
-    results: list[dict] = []
-    gt_chain = "solana" if chain.lower() in ("sol", "solana") else chain.lower()
-    base_url = f"https://api.geckoterminal.com/api/v2/networks/{gt_chain}/new_pools"
-    headers = {
-        "Accept": "application/json;version=20230203",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    }
-    now_ts = time.time()
-    for page in range(1, pages + 1):
-        url = f"{base_url}?page={page}&include=base_token"
-        req = urllib.request.Request(url, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=12) as res:
-                data = json.loads(res.read().decode())
-                pools = data.get("data") or []
-                if not pools:
-                    break
-                for pool in pools:
-                    attr = pool.get("attributes") or {}
-                    rels = pool.get("relationships") or {}
-
-                    # Usia pool
-                    created_str = attr.get("pool_created_at") or ""
-                    age_hours = 9999.0
-                    if created_str:
-                        try:
-                            import email.utils
-                            # Parse ISO 8601
-                            ts = datetime.fromisoformat(created_str.replace("Z", "+00:00")).timestamp()
-                            age_hours = (now_ts - ts) / 3600.0
-                        except Exception:
-                            age_hours = 9999.0
-
-                    # MC (pakai fdv_usd karena GeckoTerminal sering kosongkan market_cap_usd untuk token baru)
-                    fdv = float(attr.get("fdv_usd") or 0.0)
-
-                    # Likuiditas
-                    reserve = float(attr.get("reserve_in_usd") or 0.0)
-
-                    # Volume
-                    vol_map = attr.get("volume_usd") or {}
-                    vol_h6 = float(vol_map.get("h6") or 0.0)
-                    vol_h1 = float(vol_map.get("h1") or 0.0)
-
-                    # Transaksi
-                    txn_map = attr.get("transactions") or {}
-                    txn_h1 = txn_map.get("h1") or {}
-                    buys_h1 = int(txn_h1.get("buys") or 0)
-                    sells_h1 = int(txn_h1.get("sells") or 0)
-                    total_tx = buys_h1 + sells_h1
-                    buy_ratio = round((buys_h1 / total_tx * 100), 1) if total_tx > 0 else 50.0
-
-                    # Token address (base token)
-                    base_token_rel = rels.get("base_token") or {}
-                    base_token_id = (base_token_rel.get("data") or {}).get("id") or ""
-                    # id format: "solana_<address>"
-                    token_addr = base_token_id.split("_", 1)[-1] if "_" in base_token_id else base_token_id
-
-                    # Pool address
-                    pool_addr = attr.get("address") or pool.get("id", "").split("_", 1)[-1]
-
-                    # Symbol (dari nama pool: "TOKEN / SOL" → "TOKEN")
-                    pool_name = attr.get("name") or ""
-                    symbol = pool_name.split("/")[0].strip() if "/" in pool_name else pool_name.strip()
-
-                    # URL (GMGN chart)
-                    url_token = f"https://gmgn.ai/sol/token/{token_addr}" if token_addr else "#"
-
-                    if token_addr and token_addr not in QUOTE_MINTS:
-                        results.append({
-                            "symbol": symbol,
-                            "token_address": token_addr,
-                            "pool_address": pool_addr,
-                            "age_hours": round(age_hours, 2),
-                            "fdv_usd": fdv,
-                            "reserve_usd": reserve,
-                            "vol_h6": vol_h6,
-                            "vol_h1": vol_h1,
-                            "buys_h1": buys_h1,
-                            "sells_h1": sells_h1,
-                            "buy_ratio": buy_ratio,
-                            "chain_badge": "🔸",
-                            "chain": "SOL",
-                            "url": url_token,
-                        })
-        except Exception as e:
-            print(f"[GeckoTerminal] Halaman {page} error: {e}", file=sys.stderr)
-            break
-        time.sleep(0.5)  # jeda antar page untuk avoid rate limit
-    return results
-
-
-# ================= SECOND WAVE HUNTER SCORER =================
-
-def score_second_wave_candidates(
-    scored_tokens: list[dict],
-    conf: dict,
-) -> list[dict]:
-    """Filter dan score kandidat Second Wave Hunter dari GMGN scored tokens.
-
-    Menggunakan data langsung dari GMGN:
-      - ath_mcap  → history_highest_market_cap (ATH MC historis dari GMGN)
-      - age_hours → dihitung dari open_timestamp
-      - mcap      → MC saat ini
-      - liq       → Likuiditas pool
-      - vol       → Volume 24h (proxy untuk volume 6h: vol/4)
-      - buy_ratio → Rasio pembeli
-
-    Kriteria wajib (3 tahap):
-    1. Usia ≤ 24j, MC $10k–$60k, Liq ≥ $10k, Vol 24h ≥ $10k
-    2. ATH GMGN ≥ $200k DAN current MC ≤ 35% ATH (pullback ≥ 65%)
-    3. buy_ratio ≥ 52% ATAU vol/24 ≥ $1500 (buying activity naik lagi)
-    """
-    candidates: list[dict] = []
-    for t in scored_tokens:
-        # Tahap 1: filter dasar — pakai field GMGN scored token
-        age_h   = float(t.get("age_hours") or 9999.0)
-        mcap    = float(t.get("mcap") or 0.0)
-        liq     = float(t.get("liq") or 0.0)
-        vol     = float(t.get("vol") or 0.0)
-
-        if age_h > 24.0:
-            continue
-        if not (10_000 <= mcap <= 60_000):
-            continue
-        if liq < 10_000:
-            continue
-        if vol < 10_000:    # vol 24h > $10k sudah cukup (ada trading real)
-            continue
-
-        # Tahap 2: ATH GMGN — pernah hit ≥ $200k dan sekarang pullback ≥ 65%
-        ath_mcap = float(t.get("ath_mcap") or 0.0)
-        if ath_mcap < 200_000:
-            continue
-        if mcap > ath_mcap * 0.35:
-            continue  # belum cukup pullback (< 65% drop dari ATH)
-
-        # Tahap 3: sinyal "volume naik lagi / pembeli masuk"
-        buy_ratio  = float(t.get("buy_ratio") or 50.0)
-        vol_h1_est = vol / 24.0   # estimasi vol per jam
-        if buy_ratio < 52.0 and vol_h1_est < 1_500.0:
-            continue
-
-        chain = str(t.get("chain") or "SOL").upper()
-        badge = "🔹" if chain == "RH" else "🔸"
-        candidates.append({
-            "symbol":     t.get("symbol") or "?",
-            "url":        t.get("url") or "#",
-            "chain_badge": badge,
-            "chain":      chain,
-            "mcap":       mcap,
-            "ath_mcap":   ath_mcap,
-            "liq":        liq,
-            "vol":        vol,
-            "buy_ratio":  buy_ratio,
-            "age_hours":  age_h,
-        })
-
-    # Urutkan: ATH tertinggi dulu (token yang pernah paling jauh dari MC sekarang = paling menarik)
-    candidates.sort(key=lambda x: -x["ath_mcap"])
-    return candidates
 
 
 # ================= METRICS & SCORING =================
@@ -1103,8 +930,6 @@ def generate_report(
     🚀 BREAK ATH LP (15m+ Confirmed, Fee >= $3/h)
     • TOKEN ➔ Fee/h │ MC │ Durasi
 
-    🎯 SECOND WAVE RADAR (opsional, hanya jika ada kandidat)
-    • TOKEN ➔ MC $38k │ ATH $215k │ Vol6h $12k │ Buy 68%
     """
     min_mcap = float(conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
@@ -1285,30 +1110,6 @@ def generate_report(
     else:
         lines.append("<i>(Belum ada sinyal absorption baru)</i>")
 
-    # 4. Second Wave Hunter — hanya tampil jika ada kandidat
-    sw_list = sw_candidates or []
-    if sw_list:
-        lines.append("")
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("🎯 <b>SECOND WAVE RADAR</b>")
-        lines.append("<i>⚠️ Bukan LP · Spot Trading · DYOR</i>")
-        lines.append("")
-        for sw in sw_list[:6]:
-            sym = html.escape(str(sw.get("symbol") or "?"))
-            sym_link = f'<a href="{sw["url"]}"><b>{sym}</b></a>'
-            mc_str   = _usd(sw["mcap"])
-            ath_str  = _usd(sw["ath_mcap"])
-            vol_str  = _usd(sw["vol"])
-            buy_str  = f"{sw['buy_ratio']:.0f}%"
-            pullback = round((1 - sw["mcap"] / sw["ath_mcap"]) * 100, 0) if sw["ath_mcap"] > 0 else 0
-            badge    = sw.get("chain_badge", "🔸")
-            sw_ca    = f"<code>{sw.get('address', '')}</code>" if sw.get('address') else ""
-
-            lines.append(f"• {badge} {sym_link} ➔ MC {mc_str} │ ATH {ath_str} (-{pullback:.0f}%) │ Vol {vol_str} │ Buy {buy_str}")
-            if sw_ca:
-                lines.append(f"  📋 {sw_ca}")
-            lines.append(f'  🔗 <a href="{sw["url"]}">Buka GMGN Chart ↗</a>')
-
     lines.append("━━━━━━━━━━━━━━━━━━━━━━")
 
     report_body = "\n".join(lines)
@@ -1445,24 +1246,11 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] Error: {bath_err}", file=sys.stderr)
         break_ath_candidates = []
 
-    # ── Second Wave Hunter ──────────────────────────────────────────────────
-    # Langsung gunakan scored_tokens dari GMGN yang sudah punya ath_mcap + age_hours
-    # Tidak perlu GeckoTerminal, tidak perlu ATH cache — semua data ada di response GMGN
-    sw_candidates: list[dict] = []
-    try:
-        sw_candidates = score_second_wave_candidates(scored_tokens, conf)
-        if sw_candidates:
-            print(f"[{time.strftime('%H:%M:%S')}] [SW] {len(sw_candidates)} kandidat Second Wave (GMGN ATH native)")
-    except Exception as sw_err:
-        print(f"[{time.strftime('%H:%M:%S')}] [SW] Error (diabaikan, LP tetap jalan): {sw_err}", file=sys.stderr)
-        sw_candidates = []
-    # ── End Second Wave Hunter ──────────────────────────────────────────────
 
     report_text = generate_report(
         scored_tokens,
         scan_conf,
         source_name=source,
-        sw_candidates=sw_candidates,
         break_ath_candidates=break_ath_candidates,
     )
 
@@ -1692,7 +1480,6 @@ def main() -> None:
     print(f"🛡️ Target Min TVL: ${conf['min_liq']:,.0f}")
     print(f"📊 Filter Mcap   : ≥ {_usd(conf['min_mcap'])}")
     print(f"💵 Filter Siap LP: Fee ≥ ${conf['min_fee_siap_lp']:.2f}/jam")
-    print(f"🎯 Second Wave   : ATH ≥ $200k → Pullback ≥ 65% → Volume naik (GeckoTerminal + ATH Cache)")
     has_token = bool(conf.get("telegram_bot_token") and conf.get("telegram_chat_id"))
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")
     print("=" * 65 + "\n")
