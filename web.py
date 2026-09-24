@@ -52,10 +52,11 @@ app_state: dict[str, Any] = {
     "next_scan_timestamp": 0,
     "total_scanned": 0,
     "siap_lp": [],
+    "momentum_5m": [],
     "absorption": [],
     "break_ath": [],
     "gaps": [],
-    "counts": {"siap": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "total": 0},
+    "counts": {"siap": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "total": 0},
     "top_yield": 0.0,
     "filters": {},
 }
@@ -69,6 +70,9 @@ def load_persistent_filters() -> dict[str, Any]:
         "position_usd": 100.0,
         "min_fee_siap_lp": 1.0,
         "min_fee_break_ath": 1.0,
+        "momentum_5m_min_vol": 100000.0,
+        "momentum_5m_min_liq": 10000.0,
+        "momentum_5m_min_fee": 1.0,
         "min_liq": 20000.0,
         "min_mcap": 500000.0,
         "max_mcap": 500000000.0,
@@ -266,7 +270,29 @@ def perform_scan() -> None:
         gaps = bot_sol_lp.deduplicate_best_tokens(gaps_candidates)
         gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
 
-        top_yield = siap_lp[0]["fee_hour"] if siap_lp else (absorption[0]["fee_hour"] if absorption else 0.0)
+        # 5. Kategori ⚡ 5M Momentum (Vol 5m > $100k, Pump Up, Liq >= $10k)
+        momentum_5m = []
+        try:
+            raw_5m_list = []
+            if chain_mode in ("BOTH", "SOL"):
+                r_sol = bot_sol_lp.fetch_gmgn_trending_5m("sol", limit=100)
+                if r_sol:
+                    raw_5m_list.extend(r_sol)
+            if chain_mode in ("BOTH", "RH"):
+                if chain_mode == "BOTH":
+                    time.sleep(0.5)
+                r_rh = bot_sol_lp.fetch_gmgn_trending_5m("robinhood", limit=100)
+                if r_rh:
+                    raw_5m_list.extend(r_rh)
+
+            if raw_5m_list:
+                momentum_5m = bot_sol_lp.score_5m_momentum_candidates(raw_5m_list, conf)
+        except Exception as e_5m:
+            print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
+            momentum_5m = []
+
+        all_active_for_yield = siap_lp + momentum_5m + absorption
+        top_yield = max([p.get("fee_hour", 0.0) for p in all_active_for_yield], default=0.0)
 
         now = datetime.now()
         now_str = now.strftime("%H:%M:%S")
@@ -279,11 +305,13 @@ def perform_scan() -> None:
             app_state["next_scan_timestamp"] = int(time.time()) + interval
             app_state["total_scanned"] = len(scored_tokens)
             app_state["siap_lp"] = siap_lp
+            app_state["momentum_5m"] = momentum_5m
             app_state["absorption"] = absorption
             app_state["break_ath"] = break_ath
             app_state["gaps"] = gaps[:40]  # Limit agar tidak membebani browser HP
             app_state["counts"] = {
                 "siap": len(siap_lp),
+                "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
                 "gaps": len(gaps),
@@ -684,11 +712,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .cat-tab.active { background: #132238; border-color: var(--green); color: var(--green-light); box-shadow: 0 0 12px var(--green-glow); }
+    .cat-tab.active[data-cat="momentum_5m"] { border-color: #eab308; color: #fde047; box-shadow: 0 0 12px rgba(234, 179, 8, 0.35); }
     .cat-tab.active[data-cat="absorption"] { border-color: var(--blue); color: var(--rh-light); box-shadow: 0 0 12px var(--rh-glow); }
     .cat-tab.active[data-cat="break_ath"]  { border-color: var(--cyan); color: var(--cyan-light); box-shadow: 0 0 12px var(--cyan-glow); }
     .cat-tab.active[data-cat="gaps"]       { border-color: var(--yellow); color: var(--sol-light); box-shadow: 0 0 12px var(--sol-glow); }
 
     .cat-tab.active .badge-count                          { background: rgba(16,185,129,0.25); color: var(--green-light); }
+    .cat-tab.active[data-cat="momentum_5m"] .badge-count  { background: rgba(234, 179, 8, 0.25); color: #fde047; }
     .cat-tab.active[data-cat="absorption"] .badge-count  { background: rgba(59,130,246,0.25); color: var(--rh-light); }
     .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(6,182,212,0.25); color: var(--cyan-light); }
     .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.25); color: var(--sol-light); }
@@ -1003,6 +1033,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-left: 3px solid var(--cyan);
       background: linear-gradient(180deg, rgba(6,182,212,0.04) 0%, var(--card-bg) 60px);
     }
+    .token-card.momentum-card {
+      border-left: 3px solid #eab308;
+      background: linear-gradient(180deg, rgba(234,179,8,0.04) 0%, var(--card-bg) 60px);
+    }
     .token-card.rank-1 { box-shadow: 0 0 0 1px rgba(245, 196, 81, 0.22); }
 
     /* Card Top Row */
@@ -1201,6 +1235,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .state-neutral    { background: rgba(255,255,255,0.05); color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
     .state-distrib    { background: var(--red-bg);   color: #fb7185;           border: 1px solid rgba(244,63,94,0.3); }
     .state-ath        { background: var(--cyan-bg);  color: var(--cyan-light); border: 1px solid rgba(6,182,212,0.35); }
+    .state-momentum   { background: rgba(234, 179, 8, 0.18); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.4); }
 
     .card-actions {
       display: flex;
@@ -1707,15 +1742,19 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span>🟢 SIAP LP</span>
           <span id="badgeSiap" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')" title="Hotkey: 2">
+        <div class="cat-tab" data-cat="momentum_5m" onclick="setCategoryTab('momentum_5m')" title="Hotkey: 2">
+          <span>⚡ 5M MOMENTUM</span>
+          <span id="badgeM5" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')" title="Hotkey: 3">
           <span>📡 ABSORB</span>
           <span id="badgeAbsorb" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 3">
+        <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 4">
           <span>🚀 ATH</span>
           <span id="badgeBath" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 4">
+        <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 5">
           <span>⚠️ GAPS</span>
           <span id="badgeGaps" class="badge-count">0</span>
         </div>
@@ -1821,6 +1860,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <span>Ideal ≤ 20</span>
           </div>
           <input type="number" step="1" id="f_max_er" class="form-input" value="20.0">
+        </div>
+      </div>
+
+      <div class="form-section-title">⚡ Kriteria 5M Momentum</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min 5m Volume ($)</span>
+            <span style="color:#fde047">Default $100k</span>
+          </div>
+          <input type="number" step="10000" id="f_m5_vol" class="form-input" value="100000">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Likuiditas 5m ($)</span>
+            <span>Default $10k</span>
+          </div>
+          <input type="number" step="1000" id="f_m5_liq" class="form-input" value="10000">
         </div>
       </div>
 
@@ -2023,15 +2081,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function openModal() {
       if (globalState && globalState.filters) {
         const f = globalState.filters;
-        if (f.min_fee_siap_lp !== undefined) document.getElementById("f_min_fee").value = f.min_fee_siap_lp;
-        if (f.min_mcap       !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
-        if (f.min_liq        !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
-        if (f.min_vl         !== undefined) document.getElementById("f_min_vl").value   = f.min_vl;
-        if (f.max_5m         !== undefined) document.getElementById("f_max_5m").value   = f.max_5m;
-        if (f.max_1h         !== undefined) document.getElementById("f_max_1h").value   = f.max_1h;
-        if (f.max_er         !== undefined) document.getElementById("f_max_er").value   = f.max_er;
-        if (f.position_usd   !== undefined) document.getElementById("f_position").value = f.position_usd;
-        if (f.interval_sec   !== undefined) document.getElementById("f_interval").value = f.interval_sec;
+        if (f.min_fee_siap_lp     !== undefined) document.getElementById("f_min_fee").value  = f.min_fee_siap_lp;
+        if (f.min_mcap           !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
+        if (f.min_liq            !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
+        if (f.min_vl             !== undefined) document.getElementById("f_min_vl").value   = f.min_vl;
+        if (f.max_5m             !== undefined) document.getElementById("f_max_5m").value   = f.max_5m;
+        if (f.max_1h             !== undefined) document.getElementById("f_max_1h").value   = f.max_1h;
+        if (f.max_er             !== undefined) document.getElementById("f_max_er").value   = f.max_er;
+        if (f.momentum_5m_min_vol !== undefined) document.getElementById("f_m5_vol").value   = f.momentum_5m_min_vol;
+        if (f.momentum_5m_min_liq !== undefined) document.getElementById("f_m5_liq").value   = f.momentum_5m_min_liq;
+        if (f.position_usd       !== undefined) document.getElementById("f_position").value = f.position_usd;
+        if (f.interval_sec       !== undefined) document.getElementById("f_interval").value = f.interval_sec;
       }
       document.getElementById("filterModal").classList.add("show");
     }
@@ -2053,6 +2113,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("f_max_5m").value   = 10.0;
         document.getElementById("f_max_1h").value   = 60.0;
         document.getElementById("f_max_er").value   = 15.0;
+        document.getElementById("f_m5_vol").value   = 150000;
+        document.getElementById("f_m5_liq").value   = 20000;
         showToast("Preset Konservatif dipilih", "🛡️");
       } else if (p === 'standar') {
         resetDefaultFilters();
@@ -2065,6 +2127,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("f_max_5m").value   = 20.0;
         document.getElementById("f_max_1h").value   = 100.0;
         document.getElementById("f_max_er").value   = 25.0;
+        document.getElementById("f_m5_vol").value   = 80000;
+        document.getElementById("f_m5_liq").value   = 10000;
         showToast("Preset Agresif dipilih", "🚀");
       }
     }
@@ -2077,21 +2141,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       document.getElementById("f_max_5m").value   = 15.0;
       document.getElementById("f_max_1h").value   = 80.0;
       document.getElementById("f_max_er").value   = 20.0;
+      document.getElementById("f_m5_vol").value   = 100000;
+      document.getElementById("f_m5_liq").value   = 10000;
       document.getElementById("f_position").value = 100.0;
       document.getElementById("f_interval").value = 300;
     }
 
     async function saveFilters() {
       const payload = {
-        min_fee_siap_lp: parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
-        min_mcap:        parseFloat(document.getElementById("f_min_mcap").value) || 500000,
-        min_liq:         parseFloat(document.getElementById("f_min_liq").value)  || 20000,
-        min_vl:          parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
-        max_5m:          parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
-        max_1h:          parseFloat(document.getElementById("f_max_1h").value)   || 80.0,
-        max_er:          parseFloat(document.getElementById("f_max_er").value)   || 20.0,
-        position_usd:    parseFloat(document.getElementById("f_position").value) || 100.0,
-        interval_sec:    parseInt(document.getElementById("f_interval").value)   || 300,
+        min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
+        min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 500000,
+        min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
+        min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
+        max_5m:              parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
+        max_1h:              parseFloat(document.getElementById("f_max_1h").value)   || 80.0,
+        max_er:              parseFloat(document.getElementById("f_max_er").value)   || 20.0,
+        momentum_5m_min_vol: parseFloat(document.getElementById("f_m5_vol").value)  || 100000.0,
+        momentum_5m_min_liq: parseFloat(document.getElementById("f_m5_liq").value)  || 10000.0,
+        position_usd:        parseFloat(document.getElementById("f_position").value) || 100.0,
+        interval_sec:        parseInt(document.getElementById("f_interval").value)   || 300,
       };
       try {
         const res  = await fetch("/api/filters", {
@@ -2174,10 +2242,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       // Source per active category
       let rawList = [];
-      if      (activeCategory === "siap")      rawList = globalState.siap_lp    || [];
-      else if (activeCategory === "absorption") rawList = globalState.absorption || [];
-      else if (activeCategory === "break_ath")  rawList = globalState.break_ath  || [];
-      else                                      rawList = globalState.gaps        || [];
+      if      (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
+      else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
+      else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
+      else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
+      else                                       rawList = globalState.gaps        || [];
 
       // Count badges in chain switcher
       let solCount = 0, rhCount = 0;
@@ -2210,10 +2279,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:       "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h & MC ≥ $500k).",
-          absorption: "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
-          break_ath:  "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $1/h, ATH > $500k).",
-          gaps:       "Tidak ada token radar yang berada di luar kriteria.",
+          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h & MC ≥ $500k).",
+          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, Pump Up, Liq ≥ $10k).",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $1/h, ATH > $500k).",
+          gaps:        "Tidak ada token radar yang berada di luar kriteria.",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
@@ -2273,19 +2343,27 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           // State Pill
           const mState = t.micro_state || "NEUTRAL";
           let spClass = "state-neutral", spIcon = "🎯";
-          if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
+          if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+          else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
           else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
           else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
           else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
           else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
-          const spLabel = activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring"));
+          const spLabel = activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring")));
 
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
-          // Sub-details if ATH or Gaps
+          // Sub-details if Momentum, ATH, or Gaps
           let subRowHtml = "";
-          if (activeCategory === "break_ath") {
+          if (activeCategory === "momentum_5m") {
+            const v5m = formatUsd(t.vol_5m || t.vol || 0);
+            subRowHtml = `
+              <div style="font-size:10.5px;color:#fde047;font-family:var(--font-mono);margin-top:3px;display:flex;gap:8px">
+                <span>⚡ 5m Vol: <b>${v5m}</b></span>
+                <span>📈 Pump: <b>${p5Str}</b></span>
+              </div>`;
+          } else if (activeCategory === "break_ath") {
             const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
             const dur = t.duration_mins !== undefined ? `${t.duration_mins}m` : "—";
             const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
@@ -2403,7 +2481,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const chainBadge = isRh
           ? `<span class="chain-pill rh">RH</span>`
           : `<span class="chain-pill sol">SOL</span>`;
-        const cardClass = activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card");
+        const cardClass = activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card"));
         const rankBadge = getRankBadge(idx);
         const rankClass = idx === 0 ? "rank-1" : "";
 
@@ -2443,19 +2521,30 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // State Pill
         const mState = t.micro_state || "NEUTRAL";
         let spClass = "state-neutral", spIcon = "🎯";
-        if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
+        if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+        else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
         else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
         else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
         else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
         else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
 
-        const spLabel = activeCategory === "break_ath"
-          ? "Break ATH ✓"
-          : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"));
+        const spLabel = activeCategory === "momentum_5m"
+          ? "5M Momentum ⚡"
+          : (activeCategory === "break_ath"
+            ? "Break ATH ✓"
+            : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring")));
 
-        // Break ATH Extra Banner
+        // 5M Momentum / Break ATH Extra Banner
         let athHtml = "";
-        if (activeCategory === "break_ath") {
+        if (activeCategory === "momentum_5m") {
+          const v5m = formatUsd(t.vol_5m || t.vol || 0);
+          athHtml = `
+            <div class="ath-info-row" style="border-left: 2px solid #eab308; background: rgba(234, 179, 8, 0.08);">
+              <div class="ath-tag" style="color:#fde047"><span>⚡ Vol 5m:</span> ${v5m}</div>
+              <div class="ath-tag" style="color:var(--green-light)"><span>📈 Pump 5m:</span> ${p5Str}</div>
+              <div class="ath-tag"><span>💧 Liq:</span> ${liqStr}</div>
+            </div>`;
+        } else if (activeCategory === "break_ath") {
           const bp  = t.breakout_pct !== undefined ? `+${t.breakout_pct}%` : "—";
           const dur = t.duration_mins !== undefined ? `${t.duration_mins}m` : "—";
           const athOld = t.ath_old ? formatUsd(t.ath_old) : "—";
@@ -2601,6 +2690,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
         // Category Badges
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
+        const bM5 = document.getElementById("badgeM5");
+        if (bM5) bM5.innerText = (data.counts && data.counts.momentum_5m) || (data.momentum_5m ? data.momentum_5m.length : 0);
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
         document.getElementById("badgeBath").innerText   = bathCount;
         document.getElementById("badgeGaps").innerText   = data.counts.gaps || 0;
@@ -2625,9 +2716,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (e.key === "Escape") closeModal();
       else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
       else if (e.key === "1") setCategoryTab("siap");
-      else if (e.key === "2") setCategoryTab("absorption");
-      else if (e.key === "3") setCategoryTab("break_ath");
-      else if (e.key === "4") setCategoryTab("gaps");
+      else if (e.key === "2") setCategoryTab("momentum_5m");
+      else if (e.key === "3") setCategoryTab("absorption");
+      else if (e.key === "4") setCategoryTab("break_ath");
+      else if (e.key === "5") setCategoryTab("gaps");
       else if (e.key === "/") {
         e.preventDefault();
         const inp = document.getElementById("tokenSearch");
@@ -2700,6 +2792,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "top_yield": app_state["top_yield"],
                     "filters": app_state["filters"],
                     "siap_lp": app_state["siap_lp"],
+                    "momentum_5m": app_state.get("momentum_5m", []),
                     "absorption": app_state["absorption"],
                     "break_ath": app_state.get("break_ath", []),
                     "gaps": app_state["gaps"],

@@ -124,6 +124,9 @@ DEFAULT_CONFIG = {
     "max_1h": 80.0,             # volatilitas 1h max 80%
     "max_er": 20.0,             # Efficiency Ratio max 20
     "min_absorb_score": 65.0,
+    "momentum_5m_min_vol": 100000.0,  # Min Volume 5m > $100k
+    "momentum_5m_min_liq": 10000.0,   # Min Liquidity >= $10k
+    "momentum_5m_min_fee": 1.0,       # Min Fee run-rate >= $1.00/jam
     "top_n_display": 12,        # batas tampilan list token per kategori
 }
 
@@ -168,7 +171,7 @@ def get_config() -> dict[str, Any]:
                         conf["telegram_bot_token"] = str(data["telegram_token"]).strip()
                     if data.get("telegram_chat_id"):
                         conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
-                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath"]:
+                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee"]:
                         if k in data:
                             val = float(data[k])
                             if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
@@ -306,6 +309,48 @@ def fetch_gmgn_sol_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
 def fetch_gmgn_rh_tokens(api_key: str = "", limit: int = 50) -> list[dict]:
     """Alias helper untuk pemindaian khusus Robinhood."""
     return fetch_gmgn_tokens(chain="robinhood", api_key=api_key, limit=limit)
+
+
+def fetch_gmgn_trending_5m(chain: str = "sol", limit: int = 100) -> list[dict]:
+    """Mengambil trending tokens 5 menit dari GMGN quotation rank (chain: 'sol' atau 'robinhood')."""
+    api_chain = "robinhood" if chain.lower() in ("rh", "robinhood") else "sol"
+    chain_tag = "RH" if api_chain == "robinhood" else "SOL"
+    url = f"https://gmgn.ai/defi/quotation/v1/rank/{api_chain}/swaps/5m?orderby=volume&direction=desc"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Referer": "https://gmgn.ai/",
+            "Origin": "https://gmgn.ai",
+        },
+    )
+    for attempt in range(3):
+        try:
+            with OPENER.open(req, timeout=22) as res:
+                data = json.loads(res.read().decode())
+                d1 = data.get("data") or data
+                rows = []
+                if isinstance(d1, dict):
+                    rows = d1.get("rank") or []
+                elif isinstance(d1, list):
+                    rows = d1
+                if rows:
+                    for r in rows:
+                        r["chain"] = chain_tag
+                    return rows[:limit]
+            return []
+        except urllib.error.HTTPError as err:
+            if err.code == 429 and attempt < 2:
+                backoff = 3.0 * (attempt + 1)
+                time.sleep(backoff)
+                continue
+            print(f"[GMGN 5m] HTTP Error {err.code} ({chain_tag}): {err.reason}", file=sys.stderr)
+            break
+        except Exception as e:
+            print(f"[GMGN 5m] Fetch Error ({chain_tag}): {e}", file=sys.stderr)
+            break
+    return []
 
 
 def fetch_meteora_dlmm_pools(limit: int = 50, min_tvl: int = 15000) -> list[dict]:
@@ -560,6 +605,128 @@ def score_break_ath_candidates(
 
     # Urutkan: yield fee tertinggi dulu
     candidates.sort(key=lambda x: -x["fee_hour"])
+    return candidates
+
+
+# ================= 5M MOMENTUM SCORER =================
+
+def score_5m_momentum_candidates(
+    tokens_5m: list[dict],
+    conf: dict[str, Any],
+) -> list[dict]:
+    """Filter kandidat strategi ⚡ 5M MOMENTUM:
+    1. vol_5m >= min_vol (default: $100,000)
+    2. p5 > 0.0% (pump up / momentum naik)
+    3. liq >= min_liq (default: $10,000)
+    4. fee_hour >= min_fee (default: $1.00/jam)
+    5. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, no wash, no honeypot
+    6. Bukan tokenized stock & bukan native quote mint
+    """
+    min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
+    min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
+    min_fee = float(conf.get("momentum_5m_min_fee") or conf.get("min_fee_siap_lp", 1.0))
+    pos = float(conf.get("position_usd", 100.0))
+
+    candidates: list[dict] = []
+    seen_addrs = set()
+
+    for r in tokens_5m:
+        addr = str(r.get("address") or "").strip()
+        if not addr or addr in seen_addrs or addr in QUOTE_MINTS:
+            continue
+
+        symbol = str(r.get("symbol") or "?").strip()
+        if symbol.upper() in ("SOL", "WSOL", "USDC", "USDT"):
+            continue
+
+        if is_tokenized_stock(r):
+            continue
+
+        vol_5m = num(r, "volume")
+        if vol_5m < min_vol:
+            continue
+
+        p5 = num(r, "price_change_percent5m")
+        if p5 <= 0.0:  # Harus 'pump up' (momentum positif)
+            continue
+
+        liq = num(r, "liquidity")
+        if liq < min_liq:
+            continue
+
+        # On-Chain Security
+        top10_rate = round(num(r, "top_10_holder_rate") * 100, 1)
+        dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
+        insider_rate = round(num(r, "rat_trader_amount_rate") * 100, 1)
+        is_wash = bool(r.get("is_wash_trading"))
+        is_honeypot = bool(r.get("is_honeypot"))
+
+        if is_wash or is_honeypot:
+            continue
+        if top10_rate > 45.0 or dev_team_hold > 20.0 or insider_rate > 10.0:
+            continue
+
+        # Estimasi fee: fee 5m + run-rate fee/jam
+        share = (pos / liq) if liq > 0 else 0.0
+        fee_5m = round(vol_5m * 0.01 * share, 4)
+        fee_hour = round(fee_5m * 12.0, 4)
+
+        if fee_hour < min_fee:
+            continue
+
+        chain = str(r.get("chain") or "SOL").upper()
+        if chain == "RH":
+            gmgn_url = f"https://gmgn.ai/robinhood/token/{addr}"
+            badge = "🔹"
+        else:
+            gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
+            badge = "🔸"
+
+        p1 = num(r, "price_change_percent1h")
+        mcap = num(r, "market_cap", "marketcap")
+        buys = int(num(r, "buys"))
+        sells = int(num(r, "sells"))
+        total_tx = buys + sells
+        buy_ratio = round((buys / total_tx * 100), 1) if total_tx > 0 else 50.0
+        vl_5m = (vol_5m / liq) if liq > 0 else 0.0
+        er = round(abs(p1) / (vl_5m * 12), 2) if vl_5m > 0 else 99.0
+
+        score = 80.0
+        if dev_team_hold <= 5.0 and insider_rate <= 5.0:
+            score += 10.0
+        if top10_rate <= 30.0:
+            score += 10.0
+
+        candidates.append({
+            "symbol": symbol,
+            "name": str(r.get("name") or symbol).strip(),
+            "address": addr,
+            "chain": chain,
+            "chain_badge": badge,
+            "price": num(r, "price"),
+            "liq": liq,
+            "vol_5m": vol_5m,
+            "vol": vol_5m * 12.0,
+            "fee_5m": fee_5m,
+            "fee_hour": fee_hour,
+            "fee_24h": round(fee_hour * 24, 2),
+            "p5": p5,
+            "p1": p1,
+            "mcap": mcap,
+            "buys": buys,
+            "sells": sells,
+            "buy_ratio": buy_ratio,
+            "top10_rate": top10_rate,
+            "dev_team_hold": dev_team_hold,
+            "insider_rate": insider_rate,
+            "score": score,
+            "er": er,
+            "url": gmgn_url,
+            "gmgn": gmgn_url,
+        })
+        seen_addrs.add(addr)
+
+    candidates.sort(key=lambda x: (-x["fee_hour"], -x["vol_5m"]))
     return candidates
 
 
@@ -922,10 +1089,14 @@ def generate_report(
     source_name: str = "GMGN",
     sw_candidates: list[dict] | None = None,
     break_ath_candidates: list[dict] | None = None,
+    momentum_5m_candidates: list[dict] | None = None,
 ) -> str:
     """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
     🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ ER
+
+    ⚡ 5M MOMENTUM (5m Vol > $100k & Pump Up)
+    • TOKEN ➔ Fee/h │ 5m Vol │ MC
 
     📡 ABSORPTION RADAR (MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ Status
@@ -1060,7 +1231,40 @@ def generate_report(
     else:
         lines.append("<i>(Belum ada pool memenuhi syarat Siap LP)</i>")
 
-    # 2. Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
+    # 2. ⚡ 5M MOMENTUM (5m Vol > $100k · Pump Up · Liq >= $10k)
+    m5_list = momentum_5m_candidates or []
+    if m5_list:
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("⚡ <b>5M MOMENTUM</b> (Vol > $100k · Pump Up)")
+        lines.append("<i>🔥 Ultra Flow · Liq ≥ $10k · Fee ≥ $1.00/h</i>")
+        lines.append("")
+        for m in m5_list[:6]:
+            sym = html.escape(str(m.get("symbol") or "?"))
+            sym_link = f'<a href="{m["url"]}"><b>{sym}</b></a>'
+            fee_h = m.get("fee_hour", 0.0)
+            fee_5m = m.get("fee_5m", fee_h / 12.0)
+            mc_str = _usd(m.get("mcap", 0.0))
+            vol5_str = _usd(m.get("vol_5m", 0.0))
+            p5 = m.get("p5", 0.0)
+            p5_str = f"+{p5:.1f}%" if p5 > 0 else f"{p5:.1f}%"
+            badge = m.get("chain_badge", "🔸")
+            m_ca = f"<code>{m.get('address', '')}</code>" if m.get('address') else ""
+            b_ratio = round(m.get("buy_ratio", 50.0))
+            buys = m.get("buys", 0)
+            sells = m.get("sells", 0)
+            tx_str = f"🟢 <b>{b_ratio}% Buy</b>"
+            if buys > 0 or sells > 0:
+                tx_str += f" ({buys}/{sells})"
+
+            lines.append(f"• {badge} {sym_link} ➔ <b>${fee_h:.2f}/h</b> (<i>+${fee_5m:.2f}/5m</i>) │ MC {mc_str}")
+            lines.append(f"  ⚡ 5m <b>{p5_str}</b> │ 🌊 Vol5m <b>{vol5_str}</b> │ {tx_str}")
+            if m_ca:
+                lines.append(f"  📋 {m_ca}")
+            lines.append(f'  🔗 <a href="{m["url"]}">Buka GMGN Chart ↗</a>')
+            lines.append("")
+
+    # 3. Break ATH LP Radar — hanya tampil jika ada kandidat terkonfirmasi >= 15 menit
     bath_list = break_ath_candidates or []
     if bath_list:
         lines.append("")
@@ -1250,12 +1454,35 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] Error: {bath_err}", file=sys.stderr)
         break_ath_candidates = []
 
+    # ── ⚡ 5M Momentum Candidates ───────────────────────────────────────────
+    momentum_5m_candidates: list[dict] = []
+    try:
+        raw_5m_list: list[dict] = []
+        if chain_mode in ("BOTH", "SOL"):
+            raw_sol_5m = fetch_gmgn_trending_5m("sol", limit=100)
+            if raw_sol_5m:
+                raw_5m_list.extend(raw_sol_5m)
+        if chain_mode in ("BOTH", "RH"):
+            if chain_mode == "BOTH":
+                time.sleep(1.0)
+            raw_rh_5m = fetch_gmgn_trending_5m("robinhood", limit=100)
+            if raw_rh_5m:
+                raw_5m_list.extend(raw_rh_5m)
+
+        if raw_5m_list:
+            momentum_5m_candidates = score_5m_momentum_candidates(raw_5m_list, conf)
+            if momentum_5m_candidates:
+                print(f"[{time.strftime('%H:%M:%S')}] [5M Momentum] {len(momentum_5m_candidates)} kandidat lolos filter (Vol > $100k + Pump Up)")
+    except Exception as m5_err:
+        print(f"[{time.strftime('%H:%M:%S')}] [5M Momentum] Error: {m5_err}", file=sys.stderr)
+        momentum_5m_candidates = []
 
     report_text = generate_report(
         scored_tokens,
         scan_conf,
         source_name=source,
         break_ath_candidates=break_ath_candidates,
+        momentum_5m_candidates=momentum_5m_candidates,
     )
 
     token = conf.get("telegram_bot_token") or ""
@@ -1484,6 +1711,7 @@ def main() -> None:
     print(f"🛡️ Target Min TVL: ${conf['min_liq']:,.0f}")
     print(f"📊 Filter Mcap   : ≥ {_usd(conf['min_mcap'])}")
     print(f"💵 Filter Siap LP: Fee ≥ ${conf['min_fee_siap_lp']:.2f}/jam")
+    print(f"⚡ 5M Momentum   : Vol5m ≥ ${conf.get('momentum_5m_min_vol', 100000.0)/1000:.0f}k · Pump Up · Liq ≥ ${conf.get('momentum_5m_min_liq', 10000.0)/1000:.0f}k")
     has_token = bool(conf.get("telegram_bot_token") and conf.get("telegram_chat_id"))
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")
     print("=" * 65 + "\n")
