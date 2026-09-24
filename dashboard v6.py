@@ -2063,11 +2063,13 @@ function renderGapsTable(rows) {
     <th>Token</th>
     <th class="num">Mcap</th>
     <th class="num">Liq / V/L</th>
+    <th class="num" title="Estimasi yield fee per jam modal $100">Est. Fee ($/h)</th>
     <th>Alasan Belum Lolos (Gaps)</th>
     <th style="text-align:right">Riset</th>
   </tr></thead><tbody>`;
   rows.forEach(t => {
     const pills = (t.gaps || []).map(g => `<span class="gap-pill">${g}</span>`).join('');
+    const feeH = t.fee_hour || 0;
     h += `<tr>
       <td>
         <div style="display:flex; align-items:center; gap:5px">
@@ -2078,6 +2080,7 @@ function renderGapsTable(rows) {
       </td>
       <td class="num">$${usd(t.mcap)}</td>
       <td class="num">$${usd(t.liq)} <span style="color:var(--mut)">(${t.vl.toFixed(1)}×)</span></td>
+      <td class="num"><span style="color:var(--chop); font-weight:700">$${feeH.toFixed(2)}/h</span></td>
       <td>${pills || '—'}</td>
       <td style="text-align:right">
         ${renderGapsLinks(t)}
@@ -2614,6 +2617,7 @@ function renderCurrentView() {
   }
   const chops = rows.filter(r => r.tag === 'CHOP');
   const gaps = rows.filter(r => r.tag === 'SKIP');
+  gaps.sort((a, b) => (b.fee_hour || 0) - (a.fee_hour || 0) || (b.vol || 0) - (a.vol || 0));
 
   const regimeEl = document.getElementById('kpi-regime');
   if (regimeEl) {

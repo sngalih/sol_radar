@@ -259,7 +259,7 @@ def perform_scan() -> None:
             gaps_candidates.append(p_copy)
 
         gaps = bot_sol_lp.deduplicate_best_tokens(gaps_candidates)
-        gaps.sort(key=lambda x: -x.get("vol", 0.0))
+        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
 
         top_yield = siap_lp[0]["fee_hour"] if siap_lp else (absorption[0]["fee_hour"] if absorption else 0.0)
 
@@ -1462,6 +1462,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       let filtered = rawList;
       if      (activeChain === "sol") filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() !== "RH");
       else if (activeChain === "rh")  filtered = rawList.filter(t => (t.chain || "SOL").toUpperCase() === "RH");
+
+      if (activeCategory === "gaps") {
+        filtered = [...filtered].sort((a, b) => (b.fee_hour || 0) - (a.fee_hour || 0) || (b.vol || 0) - (a.vol || 0));
+      }
 
       // Empty state
       if (!filtered.length) {
