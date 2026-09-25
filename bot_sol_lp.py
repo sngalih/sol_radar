@@ -1707,11 +1707,15 @@ def main() -> None:
     # Jalankan scan pertama segera saat bot dinyalakan
     run_single_scan(conf, dry_run=not has_token)
 
-    # Loop penjadwalan tiap interval_sec
+    # Loop penjadwalan tersinkronisasi kelipatan jam 5 menit (:00, :05, :10, dst)
     while True:
         try:
-            sleep_time = conf["interval_sec"]
-            print(f"[{time.strftime('%H:%M:%S')}] Menunggu {sleep_time} detik untuk scan berikutnya...\n")
+            interval = int(conf.get("interval_sec", 300))
+            now = time.time()
+            next_boundary = int((now // interval + 1) * interval)
+            sleep_time = max(1.0, next_boundary - now)
+            next_time_str = time.strftime('%H:%M:%S', time.localtime(next_boundary))
+            print(f"[{time.strftime('%H:%M:%S')}] Menunggu {sleep_time:.1f}s hingga kelipatan 5 menit berikutnya ({next_time_str})...\n")
             time.sleep(sleep_time)
             run_single_scan(conf, dry_run=not has_token)
         except KeyboardInterrupt:

@@ -67,3 +67,9 @@
   - Baris detail/alasan di bawah token diawali indentasi 2 spasi (contoh: `  ❌ {alasan}`).
   - Karakter pembanding pada alasan Gaps wajib di-escape HTML (`&lt;` dan `&gt;`) agar tidak memicu error Telegram 400.
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
+
+## 6. Sinkronisasi Waktu Pemindaian (Scan Timing Synchronization)
+- **Jadwal Jam Dinding Kelipatan 5 Menit**:
+  - `bot_sol_lp.py` (Telegram bot) dan `web.py` (Web dashboard) **WAJIB** mengeksekusi pemindaian pada waktu yang sama persis di setiap kelipatan 5 menit jam dinding (:00, :05, :10, :15, :20, :25, :30, :35, :40, :45, :50, :55).
+  - Formula perhitungan boundary: `next_boundary = int((time.time() // interval + 1) * interval)` di mana `interval = 300` detik.
+  - Hal ini menjamin data di chat Telegram dan data di Web Dashboard selalu 100% konsisten, mutakhir, dan tersinkronisasi tanpa jeda (drift).

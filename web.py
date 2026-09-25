@@ -298,11 +298,14 @@ def perform_scan() -> None:
         now_str = now.strftime("%H:%M:%S")
         interval = int(conf.get("interval_sec", 300))
 
+        now_epoch = time.time()
+        next_boundary = int((now_epoch // interval + 1) * interval)
+
         with state_lock:
             app_state["scanning"] = False
             app_state["scanned_at"] = now_str
-            app_state["scanned_timestamp"] = int(time.time())
-            app_state["next_scan_timestamp"] = int(time.time()) + interval
+            app_state["scanned_timestamp"] = int(now_epoch)
+            app_state["next_scan_timestamp"] = next_boundary
             app_state["total_scanned"] = len(scored_tokens)
             app_state["siap_lp"] = siap_lp
             app_state["momentum_5m"] = momentum_5m
@@ -343,11 +346,14 @@ def perform_scan() -> None:
         print(f"[Web Scan Error]: {e}", file=sys.stderr)
         with state_lock:
             app_state["scanning"] = False
+            interval = int(app_state["filters"].get("interval_sec", 300))
+            app_state["next_scan_timestamp"] = int((time.time() // interval + 1) * interval)
 
 
 def background_scanner_worker() -> None:
-    """Background daemon yang mengeksekusi pemindaian berkala."""
-    print(f"🚀 [Web Scanner] Background worker aktif (Interval: {app_state['filters'].get('interval_sec', 300)}s)")
+    """Background daemon yang mengeksekusi pemindaian berkala tersinkronisasi kelipatan 5 menit."""
+    interval = int(app_state["filters"].get("interval_sec", 300))
+    print(f"🚀 [Web Scanner] Background worker aktif (Tersinkronisasi kelipatan {interval // 60} menit)")
     # Langsung jalankan pemindaian awal saat startup
     perform_scan()
 
