@@ -1201,9 +1201,8 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🪐"
             addr = t.get("address", "")
 
-            lines.append(f"• {badge} {sym_link} ➔ ${fee_h:.2f}/h │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} ➔ ${fee_h:.2f}/h │ MC {mc_str}")
             lines.append(f"🎯 ER {er_val:.1f} │ 📊 {vl_str} │ 🛡️ {grade}{score}")
-            lines.append(f"<code>{addr}</code>")
             lines.append(f'<a href="{t["url"]}">GMGN</a>')
             lines.append("")
 
@@ -1234,9 +1233,8 @@ def generate_report(
             if buys > 0 or sells > 0:
                 tx_str += f" ({buys}/{sells})"
 
-            lines.append(f"• {badge} {sym_link} ➔ ${fee_h:.2f}/h │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} ➔ ${fee_h:.2f}/h │ MC {mc_str}")
             lines.append(f"⚡ 5m {p5_str} │ 🌊 Vol5m {vol5_str} │ {tx_str}")
-            lines.append(f"<code>{addr}</code>")
             lines.append(f'<a href="{m["url"]}">GMGN</a>')
             lines.append("")
     else:
@@ -1259,9 +1257,8 @@ def generate_report(
             vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
-            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
+            lines.append(f"{badge} {sym_link} ➔ {fee_str} │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
             lines.append(f"⏱ {dur_str} │ 📊 {vl_str} │ 🟢 {b_ratio}% Buy")
-            lines.append(f"<code>{addr}</code>")
             lines.append(f'<a href="{b["url"]}">GMGN</a>')
             lines.append("")
 
@@ -1278,8 +1275,7 @@ def generate_report(
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🪐"
             addr = t.get('address', '')
 
-            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ {mc_str} │ {status}")
-            lines.append(f"<code>{addr}</code>")
+            lines.append(f"{badge} {sym_link} ➔ {fee_str} │ {mc_str} │ {status}")
             lines.append(f'<a href="{t["url"]}">GMGN</a>')
             lines.append("")
         if len(absorption) > top_limit:
@@ -1301,9 +1297,8 @@ def generate_report(
             addr = g.get('address', '')
             gap_reason = g.get("gap_reasons", ["-"])[0]
 
-            lines.append(f"• {badge} {sym_link} ➔ {fee_str} │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} ➔ {fee_str} │ MC {mc_str}")
             lines.append(f"❌ {gap_reason}")
-            lines.append(f"<code>{addr}</code>")
             lines.append(f'<a href="{url}">GMGN</a>')
             lines.append("")
 
