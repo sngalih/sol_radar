@@ -60,9 +60,10 @@
   - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🪐` SOL). **DILARANG ada bullet point `•`** di depan badge.
-  - Nama token adalah link langsung tanpa kurung siku `[]` (contoh: `🔹 <a href="...">Token</a> ➔ $X.XX/h │ MC $X.XM`).
+  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM`).
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
-  - Baris link GMGN murni berupa teks `<a href="...">GMGN</a>`.
+  - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
+  - Baris detail/alasan di bawah token diawali indentasi 2 spasi (contoh: `  ❌ {alasan}`).
   - Karakter pembanding pada alasan Gaps wajib di-escape HTML (`&lt;` dan `&gt;`) agar tidak memicu error Telegram 400.
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
