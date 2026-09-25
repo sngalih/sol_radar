@@ -2382,17 +2382,18 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   ${subRowHtml}
                 </div>
               </td>
-              <td class="arc-td mono" style="white-space:nowrap">
-                <div style="display:flex;align-items:center;gap:6px">
-                  <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Copy CA" style="background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;border:1px solid var(--card-border);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:4px;margin:0">
-                    <span style="font-size:11px">${caShort}</span> <span style="font-size:10px">⧉</span>
-                  </button>
-                  <span style="color:var(--text-sub);font-size:10px">• ${venueTag} • ${ageHtml}</span>
+              <td class="arc-td mono" style="text-align:right;white-space:nowrap">
+                <span class="fee-hour" style="font-size:14px">${feeHour}</span>
+              </td>
+              <td class="arc-td mono" style="color:#a5b4fc;white-space:nowrap">${vlStr}</td>
+              <td class="arc-td" style="text-align:center;white-space:nowrap">
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                  <span class="state-pill ${spClass}" style="padding:3px 6px;font-size:10px;white-space:nowrap" title="${spLabel}">${spIcon}</span>
+                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:3px 8px;font-size:10px;margin:0;white-space:nowrap">GMGN</a>
                 </div>
               </td>
               <td class="arc-td mono" style="font-weight:700;color:#fff;white-space:nowrap">${mcapStr}</td>
               <td class="arc-td mono" style="color:#cbd5e1;white-space:nowrap">${liqStr}</td>
-              <td class="arc-td mono" style="color:#a5b4fc;white-space:nowrap">${vlStr}</td>
               <td class="arc-td mono" style="white-space:nowrap">${erBadge}</td>
               <td class="arc-td mono" style="font-size:11px;white-space:nowrap">
                 <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span> / <span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span>
@@ -2400,15 +2401,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               <td class="arc-td mono" style="color:var(--green-light);white-space:nowrap">${buyRatio}%</td>
               <td class="arc-td" style="white-space:nowrap">
                 <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100" style="padding:2px 5px;font-size:10px;white-space:nowrap">${sGrade} ${sScore}</span>
-              </td>
-              <td class="arc-td mono" style="text-align:right;white-space:nowrap">
-                <span class="fee-hour" style="font-size:14px">${feeHour}</span>
-              </td>
-              <td class="arc-td" style="text-align:right;white-space:nowrap">
-                <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
-                  <span class="state-pill ${spClass}" style="padding:3px 6px;font-size:10px;white-space:nowrap" title="${spLabel}">${spIcon}</span>
-                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:3px 8px;font-size:10px;margin:0;white-space:nowrap">GMGN</a>
-                </div>
               </td>
             </tr>`;
         });
@@ -2420,16 +2412,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <tr>
                   <th style="width:36px;text-align:center">#</th>
                   <th>TOKEN</th>
-                  <th>CA / VENUE</th>
+                  <th style="text-align:right">FEE/H</th>
+                  <th>V/L</th>
+                  <th style="text-align:center">AKSI</th>
                   <th>MCAP</th>
                   <th>LIQ</th>
-                  <th>V/L</th>
                   <th>ER</th>
                   <th>1H / 5M</th>
                   <th>BUY %</th>
                   <th>SAFE</th>
-                  <th style="text-align:right">FEE/H</th>
-                  <th style="text-align:right">AKSI</th>
                 </tr>
               </thead>
               <tbody>${tRows}</tbody>
