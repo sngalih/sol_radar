@@ -39,3 +39,30 @@
   - Tabel utama hanya berisi koin yang **100% lolos kriteria (CHOP)**.
   - Koin yang belum lolos kriteria harus masuk ke panel **Belum Kriteria (Gaps)** beserta label alasan spesifik.
   - Semua parameter filter (Min Liq, Min Mcap, Min V/L, Max ER, dsb.) harus dapat disesuaikan lewat web UI dan tersimpan di `rev1-filters.json`.
+  - **Desktop Screen Resolution**: Layar laptop pengguna adalah `1920 x 1200`. Variabel `--container-max` di `web.py` diatur ke `1840px` agar tabel penuh dan tidak terpotong horizontal scrollbar.
+
+## 4. VPS Deployment Invariants
+- **Path Folder VPS**: Proyek berada di `~/sol_radar` (BUKAN `~/LP`).
+- **PM2 Services**:
+  - `sol_bot`: Menjalankan bot Telegram `bot_sol_lp.py`.
+  - `sol_web`: Menjalankan web dashboard `web.py`.
+- **Perintah Deploy Standar**:
+  ```bash
+  cd ~/sol_radar
+  git pull
+  pm2 restart sol_bot
+  pm2 restart sol_web
+  ```
+
+## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
+- **Tampilan Ultra-Minimalis**:
+  - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
+  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+- **Format Token Bersih**:
+  - Diawali langsung dengan badge rantai (`🔹` RH / `🪐` SOL). **DILARANG ada bullet point `•`** di depan badge.
+  - Nama token adalah link langsung tanpa kurung siku `[]` (contoh: `🔹 <a href="...">Token</a> ➔ $X.XX/h │ MC $X.XM`).
+  - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
+  - **DILARANG memakai emoji `📋` dan `🔗`**.
+  - Baris link GMGN murni berupa teks `<a href="...">GMGN</a>`.
+  - Karakter pembanding pada alasan Gaps wajib di-escape HTML (`&lt;` dan `&gt;`) agar tidak memicu error Telegram 400.
+  - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
