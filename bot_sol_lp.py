@@ -1231,8 +1231,6 @@ def generate_report(
             addr = t.get("address", "")
 
             lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}")
-            lines.append(f"  🎯 ER {er_val:.1f} │ 📊 {vl_str} │ 🛡️ {grade}{score}")
-            lines.append("")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
