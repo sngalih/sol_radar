@@ -134,6 +134,9 @@ def perform_scan() -> None:
         app_state["scanning"] = True
 
     t0 = time.time()
+    latest_filters = load_persistent_filters()
+    with state_lock:
+        app_state["filters"].update(latest_filters)
     conf = dict(app_state["filters"])
     api_key = conf.get("gmgn_api_key", bot_sol_lp.GMGN_KEY)
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
@@ -361,10 +364,25 @@ def background_scanner_worker() -> None:
     # Langsung jalankan pemindaian awal saat startup
     perform_scan()
 
+    last_conf_check = 0
     while True:
         try:
             time.sleep(1)
             now_ts = int(time.time())
+
+            # Cek berkala file filter (setiap 3 detik) untuk mendeteksi perubahan dari Telegram Bot
+            if now_ts - last_conf_check >= 3:
+                last_conf_check = now_ts
+                latest_f = load_persistent_filters()
+                disk_mode = str(latest_f.get("chain_mode", "")).upper().strip()
+                current_mode = str(app_state["filters"].get("chain_mode", "")).upper().strip()
+                if disk_mode and disk_mode != current_mode:
+                    print(f"[{time.strftime('%H:%M:%S')}] 🔄 [Web Sync] Mendeteksi perubahan chain_mode dari Telegram/disk: {current_mode} ➔ {disk_mode}")
+                    with state_lock:
+                        app_state["filters"]["chain_mode"] = disk_mode
+                    if not app_state.get("scanning", False):
+                        threading.Thread(target=perform_scan, daemon=True).start()
+
             next_ts = app_state.get("next_scan_timestamp", 0)
             if next_ts > 0 and now_ts >= next_ts and not app_state.get("scanning", False):
                 perform_scan()
@@ -606,8 +624,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       box-shadow: 0 2px 8px rgba(0,0,0,0.5);
       border: 1px solid rgba(255,255,255,0.1);
     }
-    .chain-tab.active[data-chain="sol"] { color: var(--sol-light); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.1); }
-    .chain-tab.active[data-chain="rh"]  { color: var(--rh-light);  border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.1); }
+    .chain-tab.active[data-chain="sol"], .chain-tab.active[data-chain="SOL"] { color: var(--sol-light); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); }
+    .chain-tab.active[data-chain="rh"],  .chain-tab.active[data-chain="RH"]  { color: var(--rh-light);  border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
+    .chain-tab.active[data-chain="both"],.chain-tab.active[data-chain="BOTH"],.chain-tab.active[data-chain="all"] { color: var(--green-light); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); }
 
     /* ===== MAIN CONTAINER ===== */
     .container {
@@ -1690,16 +1709,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Segmented Chain Switcher -->
-      <div class="chain-segmented">
-        <div class="chain-tab active" data-chain="all" onclick="setChainFilter('all')">
-          🌐 ALL (<span id="cntChainAll">0</span>)
+      <!-- Segmented Chain Switcher (Tersinkronisasi 2-Arah dengan Telegram) -->
+      <div class="chain-segmented" id="chainSegmented" title="Mode Rantai (Pusat Sinkronisasi Telegram)">
+        <div class="chain-tab" id="tabChainRh" data-chain="RH" onclick="switchBackendChain('RH')">
+          🔹 RH (<span id="cntChainRh">0</span>)
         </div>
-        <div class="chain-tab" data-chain="sol" onclick="setChainFilter('sol')">
+        <div class="chain-tab" id="tabChainSol" data-chain="SOL" onclick="switchBackendChain('SOL')">
           🔸 SOL (<span id="cntChainSol">0</span>)
         </div>
-        <div class="chain-tab" data-chain="rh" onclick="setChainFilter('rh')">
-          🔹 RH (<span id="cntChainRh">0</span>)
+        <div class="chain-tab active" id="tabChainBoth" data-chain="BOTH" onclick="switchBackendChain('BOTH')">
+          🔸🔹 DUAL (<span id="cntChainAll">0</span>)
         </div>
       </div>
 
@@ -1894,6 +1913,18 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       <div class="form-section-title">⚙️ Konfigurasi Pemindaian</div>
       <div class="form-grid-2">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <div class="form-label">
+            <span>Mode Rantai (Chain Mode)</span>
+            <span style="color:var(--cyan)">Tersinkronisasi Telegram</span>
+          </div>
+          <select id="f_chain_mode" class="form-input" style="background:#0b1120;color:#fff;border:1px solid var(--card-border);height:42px;border-radius:8px;padding:0 10px;">
+            <option value="RH">🔹 Robinhood Only (RH)</option>
+            <option value="SOL">🔸 Solana Only (SOL)</option>
+            <option value="BOTH">🔸🔹 Dual / Both (SOL + RH)</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <div class="form-label">
             <span>Modal Simulasi Posisi ($)</span>
@@ -1923,7 +1954,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
   <script>
     let globalState = null;
-    let activeChain = 'all';
+    let currentChainMode = 'BOTH';
+    let activeChain = 'both';
     let activeCategory = 'siap';
     let searchQuery = '';
     let countdownInterval = null;
@@ -2071,12 +2103,49 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     /* ---- Chain & Category Filter Handlers ---- */
+    function updateChainModeUI(mode) {
+      currentChainMode = (mode || "BOTH").toUpperCase();
+      activeChain = currentChainMode.toLowerCase();
+      const tabRh   = document.getElementById("tabChainRh");
+      const tabSol  = document.getElementById("tabChainSol");
+      const tabBoth = document.getElementById("tabChainBoth");
+      if (tabRh)   tabRh.classList.toggle("active", currentChainMode === "RH");
+      if (tabSol)  tabSol.classList.toggle("active", currentChainMode === "SOL");
+      if (tabBoth) tabBoth.classList.toggle("active", currentChainMode === "BOTH");
+
+      const sel = document.getElementById("f_chain_mode");
+      if (sel) sel.value = currentChainMode;
+    }
+
+    async function switchBackendChain(mode) {
+      mode = (mode || "BOTH").toUpperCase();
+      updateChainModeUI(mode);
+      const label = mode === "RH" ? "🔹 Robinhood Only" : (mode === "SOL" ? "🔸 Solana Only" : "🔸🔹 Dual (SOL + RH)");
+      showToast(`Mengganti rantai ke: ${label}...`, "🔄");
+
+      try {
+        const res = await fetch("/api/chain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chain_mode: mode }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`Mode aktif: ${label}`, "✅");
+          fetchState();
+        } else {
+          showToast(`Gagal: ${data.error || "Gagal mengubah chain"}`, "❌");
+        }
+      } catch (err) {
+        console.error("Gagal ganti mode:", err);
+        showToast("Gagal menghubungi server", "❌");
+      }
+    }
+
+    // Alias untuk kompatibilitas fungsi lama
     function setChainFilter(chain) {
-      activeChain = chain;
-      document.querySelectorAll(".chain-tab").forEach(tab =>
-        tab.classList.toggle("active", tab.getAttribute("data-chain") === chain)
-      );
-      renderCards();
+      const modeMap = { all: "BOTH", both: "BOTH", sol: "SOL", rh: "RH" };
+      switchBackendChain(modeMap[String(chain).toLowerCase()] || "BOTH");
     }
 
     function setCategoryTab(cat) {
@@ -2091,6 +2160,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function openModal() {
       if (globalState && globalState.filters) {
         const f = globalState.filters;
+        if (f.chain_mode         !== undefined) document.getElementById("f_chain_mode").value = String(f.chain_mode).toUpperCase();
         if (f.min_fee_siap_lp     !== undefined) document.getElementById("f_min_fee").value  = f.min_fee_siap_lp;
         if (f.min_mcap           !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
         if (f.min_liq            !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
@@ -2144,6 +2214,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     function resetDefaultFilters() {
+      document.getElementById("f_chain_mode").value = "BOTH";
       document.getElementById("f_min_fee").value  = 1.0;
       document.getElementById("f_min_mcap").value = 500000;
       document.getElementById("f_min_liq").value  = 20000;
@@ -2158,7 +2229,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     async function saveFilters() {
+      const targetChain = (document.getElementById("f_chain_mode").value || "BOTH").toUpperCase();
       const payload = {
+        chain_mode:          targetChain,
         min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
         min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 500000,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
@@ -2171,6 +2244,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         position_usd:        parseFloat(document.getElementById("f_position").value) || 100.0,
         interval_sec:        parseInt(document.getElementById("f_interval").value)   || 300,
       };
+      updateChainModeUI(targetChain);
       try {
         const res  = await fetch("/api/filters", {
           method: "POST",
@@ -2180,7 +2254,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const data = await res.json();
         if (data.ok) {
           closeModal();
-          showToast("Filter berhasil disimpan!", "✅");
+          showToast("Filter & Chain berhasil disimpan!", "✅");
           fetchState();
         }
       } catch (err) {
@@ -2640,6 +2714,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
         globalState = data;
 
+        // Sync Chain Mode dari Backend / Telegram
+        const srvChain = (data.chain_mode || (data.filters && data.filters.chain_mode) || "BOTH").toUpperCase();
+        if (srvChain !== currentChainMode) {
+          updateChainModeUI(srvChain);
+        }
+
         // KPI
         document.getElementById("kpiSiap").innerText     = data.counts.siap || 0;
         document.getElementById("kpiAbsorb").innerText   = data.counts.absorption || 0;
@@ -2748,6 +2828,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "scanned_at": app_state["scanned_at"],
                     "next_scan_timestamp": app_state["next_scan_timestamp"],
                     "seconds_until_next": sec_left,
+                    "chain_mode": app_state["filters"].get("chain_mode", "BOTH"),
                     "counts": app_state["counts"],
                     "top_yield": app_state["top_yield"],
                     "filters": app_state["filters"],
@@ -2784,6 +2865,38 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "status": "scanning_started"})
             return
 
+        if path == "/api/chain":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body)
+                target_mode = str(req.get("chain_mode", "")).upper().strip()
+                if target_mode not in ("SOL", "RH", "BOTH"):
+                    self.send_json({"ok": False, "error": f"Mode tidak valid: {target_mode}. Gunakan SOL, RH, atau BOTH"}, status=400)
+                    return
+
+                with state_lock:
+                    app_state["filters"]["chain_mode"] = target_mode
+                    current_filters = dict(app_state["filters"])
+
+                save_persistent_filters(current_filters)
+                if hasattr(bot_sol_lp, "save_persistent_chain_mode"):
+                    try:
+                        bot_sol_lp.save_persistent_chain_mode(target_mode)
+                    except Exception:
+                        pass
+
+                with state_lock:
+                    is_busy = app_state["scanning"]
+                if not is_busy:
+                    threading.Thread(target=perform_scan, daemon=True).start()
+
+                self.send_json({"ok": True, "chain_mode": target_mode})
+                return
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)}, status=400)
+                return
+
         if path == "/api/filters":
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -2797,6 +2910,12 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     current_filters = dict(app_state["filters"])
 
                 save_persistent_filters(current_filters)
+                if "chain_mode" in new_f and hasattr(bot_sol_lp, "save_persistent_chain_mode"):
+                    try:
+                        bot_sol_lp.save_persistent_chain_mode(str(new_f["chain_mode"]).upper().strip())
+                    except Exception:
+                        pass
+
                 # Picu scan ulang dengan filter baru
                 threading.Thread(target=perform_scan, daemon=True).start()
                 self.send_json({"ok": True, "filters": current_filters})

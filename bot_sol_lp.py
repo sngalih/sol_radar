@@ -157,31 +157,8 @@ def get_config() -> dict[str, Any]:
     """Mengambil konfigurasi gabungan dari: CLI args, OS Env, .env file, dan json filter."""
     conf = dict(DEFAULT_CONFIG)
 
-    # 1. Coba baca dari file .env
+    # 1. Coba baca dari file .env (default env)
     file_env = load_env_file(ENV_FILE)
-
-    # 2. Coba baca dari file filter yang ada di folder
-    for fn in ["v5-filters.json", "sol-hp-filters.json", "hp-filters.json"]:
-        fp = BASE_DIR / fn
-        if fp.exists():
-            try:
-                data = json.loads(fp.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    if data.get("telegram_token"):
-                        conf["telegram_bot_token"] = str(data["telegram_token"]).strip()
-                    if data.get("telegram_chat_id"):
-                        conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
-                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee"]:
-                        if k in data:
-                            val = float(data[k])
-                            if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
-                                val = 1.0
-                            conf[k if k != "position" else "position_usd"] = val
-                    break
-            except Exception:
-                pass
-
-    # 3. Timpa dengan .env jika ada
     if "TELEGRAM_BOT_TOKEN" in file_env:
         conf["telegram_bot_token"] = file_env["TELEGRAM_BOT_TOKEN"]
     if "TELEGRAM_CHAT_ID" in file_env:
@@ -215,13 +192,32 @@ def get_config() -> dict[str, Any]:
     if "GMGN_API_KEY" in file_env:
         conf["gmgn_api_key"] = file_env["GMGN_API_KEY"].strip()
 
-    # 4. Timpa dengan Environment Variables sistem operasi
+    # 2. Coba baca dari file filter runtime (sol-hp-filters.json diprioritaskan agar sync dengan Web)
+    for fn in ["sol-hp-filters.json", "v5-filters.json", "hp-filters.json"]:
+        fp = BASE_DIR / fn
+        if fp.exists():
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    if data.get("telegram_token"):
+                        conf["telegram_bot_token"] = str(data["telegram_token"]).strip()
+                    if data.get("telegram_chat_id"):
+                        conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
+                    if data.get("chain_mode"):
+                        conf["chain_mode"] = str(data["chain_mode"]).upper().strip()
+                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee"]:
+                        if k in data:
+                            val = float(data[k])
+                            if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
+                                val = 1.0
+                            conf[k if k != "position" else "position_usd"] = val
+                    break
+            except Exception:
+                pass
+
+    # 3. Timpa dengan Environment Variables sistem operasi (jika di-set eksplisit di terminal / docker / PM2)
     conf["telegram_bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", conf["telegram_bot_token"])
     conf["telegram_chat_id"] = os.getenv("TELEGRAM_CHAT_ID", conf["telegram_chat_id"])
-    if os.getenv("CHAIN_MODE"):
-        conf["chain_mode"] = os.environ["CHAIN_MODE"].upper()
-    elif os.getenv("CHAIN"):
-        conf["chain_mode"] = os.environ["CHAIN"].upper()
     if os.getenv("GMGN_API_KEY"):
         conf["gmgn_api_key"] = os.environ["GMGN_API_KEY"].strip()
     if os.getenv("DATA_SOURCE"):
@@ -1737,6 +1733,7 @@ def main() -> None:
     # Loop penjadwalan tersinkronisasi kelipatan jam 5 menit (:00, :05, :10, dst)
     while True:
         try:
+            conf.update(get_config())
             interval = int(conf.get("interval_sec", 300))
             now = time.time()
             next_boundary = int((now // interval + 1) * interval)
@@ -1744,6 +1741,7 @@ def main() -> None:
             next_time_str = time.strftime('%H:%M:%S', time.localtime(next_boundary))
             print(f"[{time.strftime('%H:%M:%S')}] Menunggu {sleep_time:.1f}s hingga kelipatan 5 menit berikutnya ({next_time_str})...\n")
             time.sleep(sleep_time)
+            conf.update(get_config())
             run_single_scan(conf, dry_run=not has_token)
         except KeyboardInterrupt:
             print("\n[!] Bot dihentikan oleh pengguna.")

@@ -72,3 +72,11 @@
   - `bot_sol_lp.py` (Telegram bot) dan `web.py` (Web dashboard) **WAJIB** mengeksekusi pemindaian pada waktu yang sama persis di setiap kelipatan 5 menit jam dinding (:00, :05, :10, :15, :20, :25, :30, :35, :40, :45, :50, :55).
   - Formula perhitungan boundary: `next_boundary = int((time.time() // interval + 1) * interval)` di mana `interval = 300` detik.
   - Hal ini menjamin data di chat Telegram dan data di Web Dashboard selalu 100% konsisten, mutakhir, dan tersinkronisasi tanpa jeda (drift).
+
+## 7. Sinkronisasi Dua Arah Mode Rantai (Two-Way Chain Mode Sync)
+- **Penyimpanan Terpusat**:
+  - Pengaturan mode rantai (`RH`, `SOL`, `BOTH`) disimpan bersama dalam file `sol-hp-filters.json`.
+- **Integrasi Telegram & Web Dashboard**:
+  - Menu bot Telegram (`/menu`) atau tombol inline chat berfungsi sebagai pengontrol utama yang langsung mengubah `chain_mode` di `sol-hp-filters.json`.
+  - Background daemon di `web.py` mendeteksi perubahan file konfigurasi secara otomatis (maks 3 detik), memperbarui state, dan memicu scan baru.
+  - Header Web Dashboard memiliki toggle interaktif (`🔹 RH`, `🔸 SOL`, `🔸🔹 DUAL`) yang tersinkronisasi dua arah dengan Telegram bot. Mengubah mode di web dashboard akan menyimpan ke `sol-hp-filters.json` dan otomatis terbaca oleh bot Telegram pada jadwal scan berikutnya.
