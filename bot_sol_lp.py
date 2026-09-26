@@ -1207,7 +1207,7 @@ def generate_report(
     top_limit = conf.get("top_n_display", 10)
 
     mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
-    mode_icon = "🪐🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🪐")
+    mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
 
     lines = [
         f"{mode_icon} {mode_label}",
@@ -1227,7 +1227,7 @@ def generate_report(
             grade = "A" if score >= 80 else ("B" if score >= 65 else ("C" if score >= 50 else "D"))
 
             chain = str(t.get("chain", "SOL")).upper()
-            badge = "🔹" if chain == "RH" else "🪐"
+            badge = "🔹" if chain == "RH" else "🔸"
             addr = t.get("address", "")
 
             lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}")
@@ -1252,7 +1252,7 @@ def generate_report(
             vol5_str = _usd(m.get("vol_5m", 0.0))
             p5 = m.get("p5", 0.0)
             p5_str = f"+{p5:.1f}%" if p5 > 0 else f"{p5:.1f}%"
-            badge = "🔹" if str(m.get("chain", "SOL")).upper() == "RH" else "🪐"
+            badge = "🔹" if str(m.get("chain", "SOL")).upper() == "RH" else "🔸"
             addr = m.get("address", "")
             b_ratio = round(m.get("buy_ratio", 50.0))
             buys = m.get("buys", 0)
@@ -1278,7 +1278,7 @@ def generate_report(
             fee_str  = f"${b['fee_hour']:.2f}/h"
             mc_str   = _usd(b['mcap'])
             dur_str  = f"{b['duration_mins']}m"
-            badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🪐"
+            badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🔸"
             pct_sign = "+" if b["breakout_pct"] >= 0 else ""
             addr = b.get('address', '')
             vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
@@ -1298,7 +1298,7 @@ def generate_report(
             fee_str = f"${t['fee_hour']:.2f}/h"
             mc_str = f"MC {_usd(t['mcap'])}"
             status = html.escape(str(t.get("status_label", "")).strip())
-            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🪐"
+            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
             addr = t.get('address', '')
 
             lines.append(f"{badge} {sym_link} │ {fee_str} │ {mc_str} │ {status}")
@@ -1318,7 +1318,7 @@ def generate_report(
             sym_link = f'<a href="{url}">{sym}</a>'
             fee_str = f"${g.get('fee_hour', 0.0):.2f}/h"
             mc_str = _usd(g.get('mcap', 0.0))
-            badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🪐"
+            badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
             addr = g.get('address', '')
             gap_reason = g.get("gap_reasons", ["-"])[0]
 

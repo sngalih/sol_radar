@@ -58,7 +58,7 @@
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
   - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
-  - Diawali langsung dengan badge rantai (`🔹` RH / `🪐` SOL). **DILARANG ada bullet point `•`** di depan badge.
+  - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM`).
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
