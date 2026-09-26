@@ -495,6 +495,29 @@ def update_ath_cache(scored_tokens: list[dict]) -> None:
     save_ath_cache()
 
 
+def check_is_honeypot(row: dict[str, Any]) -> bool:
+    """Deteksi mutlak apakah token merupakan honeypot atau memiliki sell tax ekstrem."""
+    val = row.get("is_honeypot")
+    if val is True or val == 1 or str(val).lower() in ("true", "1"):
+        return True
+    if bool(row.get("cannot_sell")):
+        return True
+    try:
+        if float(row.get("sell_tax") or 0.0) >= 50.0:
+            return True
+    except (ValueError, TypeError):
+        pass
+    return False
+
+
+def check_is_wash(row: dict[str, Any]) -> bool:
+    """Deteksi apakah token terindikasi wash trading."""
+    val = row.get("is_wash_trading") or row.get("is_wash")
+    if val is True or val == 1 or str(val).lower() in ("true", "1"):
+        return True
+    return False
+
+
 # ================= BREAK ATH LP SCORER =================
 
 def score_break_ath_candidates(
@@ -652,8 +675,8 @@ def score_5m_momentum_candidates(
         top10_rate = round(num(r, "top_10_holder_rate") * 100, 1)
         dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
         insider_rate = round(num(r, "rat_trader_amount_rate") * 100, 1)
-        is_wash = bool(r.get("is_wash_trading"))
-        is_honeypot = bool(r.get("is_honeypot"))
+        is_wash = check_is_wash(r)
+        is_honeypot = check_is_honeypot(r)
 
         if is_wash or is_honeypot:
             continue
@@ -768,8 +791,8 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     top10_rate = round(num(row, "top_10_holder_rate") * 100, 1)
     dev_team_hold = round(num(row, "dev_team_hold_rate") * 100, 1)
     insider_rate = round(num(row, "rat_trader_amount_rate") * 100, 1)
-    is_wash = bool(row.get("is_wash_trading"))
-    is_honeypot = bool(row.get("is_honeypot"))
+    is_wash = check_is_wash(row)
+    is_honeypot = check_is_honeypot(row)
 
     buys = int(num(row, "buys"))
     sells = int(num(row, "sells"))
@@ -875,6 +898,8 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "micro_state": micro_state,
         "status_label": status_label,
         "is_chop": is_chop,
+        "is_honeypot": is_honeypot,
+        "is_wash": is_wash,
         "url": gmgn_url,
         "gmgn": gmgn_url,
         "dexscreener": dex_url,
@@ -1114,6 +1139,8 @@ def generate_report(
         and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
         and min_mcap <= p.get("mcap", 0.0) <= max_mcap
         and not (do_filter_stocks and is_tokenized_stock(p))
+        and not p.get("is_honeypot")
+        and not p.get("is_wash")
     ]
 
     # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
@@ -1130,6 +1157,8 @@ def generate_report(
         if p.get("address") not in siap_addrs
         and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
         and p.get("fee_hour", 0.0) >= min_fee_absorb
+        and not p.get("is_honeypot")
+        and not p.get("is_wash")
     ]
     absorption = deduplicate_best_tokens(absorb_candidates)
     absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
@@ -1143,7 +1172,7 @@ def generate_report(
 
     gaps_candidates = []
     for p in filtered:
-        if p.get("address") in siap_addrs:
+        if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
             continue
         reasons = []
         liq = p.get("liq", 0.0)

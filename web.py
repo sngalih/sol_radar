@@ -199,7 +199,7 @@ def perform_scan() -> None:
                     r["chain"] = "RH"
                     scored_tokens.append(bot_sol_lp.score_gmgn_token(r, conf))
 
-        # Filter dasar (Exclude native tokens, batasi rentang MCAP, dan block tokenized stocks)
+        # Filter dasar (Exclude native tokens, batasi rentang MCAP, block tokenized stocks, dan HARD FILTER NO HONEYPOT / WASH)
         do_filter_stocks = bool(conf.get("filter_stocks", True))
         filtered = [
             p for p in scored_tokens
@@ -207,6 +207,8 @@ def perform_scan() -> None:
             and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
             and min_mcap <= p.get("mcap", 0.0) <= max_mcap
             and not (do_filter_stocks and bot_sol_lp.is_tokenized_stock(p))
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
         ]
 
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
@@ -225,6 +227,8 @@ def perform_scan() -> None:
             p for p in filtered
             if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
             and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
         ]
         absorption = bot_sol_lp.deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
@@ -240,7 +244,7 @@ def perform_scan() -> None:
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         gaps_candidates = []
         for p in filtered:
-            if p.get("address") in siap_addrs:
+            if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
                 continue
             reasons = []
             liq = p.get("liq", 0.0)

@@ -18,8 +18,7 @@
 - **On-Chain Safety Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)
-  - `insider_rate <= 10%` (Rat trader risk)
-  - `is_wash == False` & `is_honeypot == False`
+  - `is_wash == False` & `is_honeypot == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
 - **Fee Decay & Monitoring**:
   - Pantau fee per jam menggunakan perbandingan rolling 2-window untuk mendeteksi pelemahan dini.
   - Tiga pemicu keluar LP: (1) Fee/hour mati/melemah, (2) Breakout harga directional, (3) Toxic inventory.
