@@ -1357,7 +1357,7 @@ def generate_report(
             mc_str = _usd(t['mcap'])
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            narr_tags = [f"[{tg}]" for tg in t.get("narratives", []) if tg in ("👑 CTO", "🤖 AI")]
+            narr_tags = [f"[{tg}]" for tg in t.get("narratives", [])]
             narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
             lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}{narr_str}")
@@ -1368,10 +1368,10 @@ def generate_report(
         lines.append("(Belum ada pool memenuhi syarat Siap LP)")
 
     # 1b. 👑 CTO REVIVAL LP (Community Take Over)
+    lines.append("")
+    lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
     c_list = cto_list or []
     if c_list:
-        lines.append("")
-        lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
         for c in c_list[:top_limit]:
             sym = html.escape(str(c.get("symbol") or "?"))
             sym_link = f'<a href="{c["url"]}">{sym}</a>'
@@ -1386,6 +1386,8 @@ def generate_report(
 
         if len(c_list) > top_limit:
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
+    else:
+        lines.append("(Belum ada token memenuhi syarat CTO)")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -1464,8 +1466,10 @@ def generate_report(
             fee_str = f"${g.get('fee_hour', 0.0):.2f}/h"
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
+            narr_tags = [f"[{tg}]" for tg in g.get("narratives", [])]
+            narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ {fee_str} │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} │ {fee_str} │ MC {mc_str}{narr_str}")
 
     report_body = "\n".join(lines).strip()
     return f"{report_body}"
