@@ -423,6 +423,64 @@ def save_ath_cache() -> None:
         print(f"[ATH Cache] Gagal simpan: {e}", file=sys.stderr)
 
 
+# ================= SHARED SCAN CACHE (Multi-Process & Anti-429 Rate Limit) =================
+GLOBAL_SCAN_CACHE: dict[str, Any] = {}
+SCAN_LOCK = threading.Lock()
+SCAN_CACHE_TTL_SEC = 50  # Cache scan berlaku selama 50s agar Bot dan Web tidak double-scrape GMGN
+
+
+def save_scan_cache(scan_data: dict[str, Any]) -> None:
+    """Simpan hasil scan ke key 'last_scan' di sol-hp-cache.json secara append-safe."""
+    fp = BASE_DIR / "sol-hp-cache.json"
+    try:
+        data: dict = {}
+        if fp.exists():
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        clean_data = dict(scan_data)
+        if "gaps" in clean_data and len(clean_data["gaps"]) > 60:
+            clean_data["gaps"] = clean_data["gaps"][:60]
+        # scored_tokens tidak perlu ditulis ke disk agar ukuran cache tetap hemat
+        clean_data.pop("scored_tokens", None)
+        data["last_scan"] = clean_data
+        fp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[Scan Cache] Gagal simpan ke {fp.name}: {e}", file=sys.stderr)
+
+
+def get_cached_scan_data(target_chain: str = "") -> dict[str, Any] | None:
+    """Muat hasil scan terakhir dari memory atau disk sol-hp-cache.json jika masih fresh (< 50s)."""
+    global GLOBAL_SCAN_CACHE
+    now = time.time()
+    t_chain = target_chain.upper().strip()
+
+    # 1. Cek memory cache
+    if GLOBAL_SCAN_CACHE:
+        age = now - GLOBAL_SCAN_CACHE.get("scanned_timestamp", 0)
+        c_mode = str(GLOBAL_SCAN_CACHE.get("chain_mode", "")).upper().strip()
+        if age < SCAN_CACHE_TTL_SEC and (not t_chain or c_mode == t_chain):
+            return GLOBAL_SCAN_CACHE
+
+    # 2. Cek disk cache
+    fp = BASE_DIR / "sol-hp-cache.json"
+    if fp.exists():
+        try:
+            data = json.loads(fp.read_text(encoding="utf-8"))
+            last_scan = data.get("last_scan")
+            if isinstance(last_scan, dict):
+                age = now - last_scan.get("scanned_timestamp", 0)
+                c_mode = str(last_scan.get("chain_mode", "")).upper().strip()
+                if age < SCAN_CACHE_TTL_SEC and (not t_chain or c_mode == t_chain):
+                    GLOBAL_SCAN_CACHE = last_scan
+                    return last_scan
+        except Exception:
+            pass
+    return None
+
+
+
 def update_ath_cache(scored_tokens: list[dict]) -> None:
     """Update ATH cache dan lacak siklus Break ATH (consecutive scans) per token.
     Prune otomatis: hapus entry tidak terlihat > 72 jam."""
@@ -1105,6 +1163,9 @@ def generate_report(
     sw_candidates: list[dict] | None = None,
     break_ath_candidates: list[dict] | None = None,
     momentum_5m_candidates: list[dict] | None = None,
+    siap_list: list[dict] | None = None,
+    absorption_list: list[dict] | None = None,
+    gaps_list: list[dict] | None = None,
 ) -> str:
     """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
     🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
@@ -1119,85 +1180,89 @@ def generate_report(
     🚀 BREAK ATH LP (15m+ Confirmed, Fee >= $1/h)
     • TOKEN ➔ Fee/h │ MC │ Durasi
 
+    ⚠️ GAPS RADAR (Kompak 1 baris tanpa alasan)
     """
-    min_mcap = float(conf.get("min_mcap", 500000.0))
-    max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
-    min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
-    min_fee_break_ath = float(conf.get("min_fee_break_ath", 1.0))
-    do_filter_stocks = bool(conf.get("filter_stocks", True))
+    if siap_list is not None and absorption_list is not None and gaps_list is not None:
+        siap_lp = siap_list
+        absorption = absorption_list
+        gaps = gaps_list
+    else:
+        min_mcap = float(conf.get("min_mcap", 500000.0))
+        max_mcap = float(conf.get("max_mcap", 500000000.0))
+        min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
+        min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
+        do_filter_stocks = bool(conf.get("filter_stocks", True))
 
-    # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
-    # Opsi A: Exclude tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
-    filtered = [
-        p for p in tokens
-        if p.get("address") not in QUOTE_MINTS
-        and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
-        and min_mcap <= p.get("mcap", 0.0) <= max_mcap
-        and not (do_filter_stocks and is_tokenized_stock(p))
-        and not p.get("is_honeypot")
-        and not p.get("is_wash")
-    ]
+        # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
+        filtered = [
+            p for p in tokens
+            if p.get("address") not in QUOTE_MINTS
+            and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
+            and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+            and not (do_filter_stocks and is_tokenized_stock(p))
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
+        ]
 
-    # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
-    siap_candidates = [
-        p for p in filtered
-        if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
-    ]
-    siap_lp = deduplicate_best_tokens(siap_candidates)
-    siap_lp.sort(key=lambda x: -x["fee_hour"])
+        # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
+        siap_candidates = [
+            p for p in filtered
+            if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+        ]
+        siap_lp = deduplicate_best_tokens(siap_candidates)
+        siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
-    siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
-    absorb_candidates = [
-        p for p in filtered
-        if p.get("address") not in siap_addrs
-        and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
-        and p.get("fee_hour", 0.0) >= min_fee_absorb
-        and not p.get("is_honeypot")
-        and not p.get("is_wash")
-    ]
-    absorption = deduplicate_best_tokens(absorb_candidates)
-    absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
+        absorb_candidates = [
+            p for p in filtered
+            if p.get("address") not in siap_addrs
+            and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
+            and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
+        ]
+        absorption = deduplicate_best_tokens(absorb_candidates)
+        absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
-    # Gaps logic
-    min_liq = float(conf.get("min_liq", 50000.0))
-    min_vl = float(conf.get("min_vl", 2.0))
-    max_5m = float(conf.get("max_5m_goyang", 15.0))
-    max_1h = float(conf.get("max_1h_goyang", 25.0))
-    max_er = float(conf.get("max_er", 20.0))
+        # Gaps logic
+        min_liq = float(conf.get("min_liq", 20000.0))
+        min_vl = float(conf.get("min_vl", 2.0))
+        max_5m = float(conf.get("max_5m", 15.0))
+        max_1h = float(conf.get("max_1h", 80.0))
+        max_er = float(conf.get("max_er", 20.0))
 
-    gaps_candidates = []
-    for p in filtered:
-        if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
-            continue
-        reasons = []
-        liq = p.get("liq", 0.0)
-        vl = p.get("vl", 0.0)
-        p5 = p.get("p5", 0.0)
-        p1 = p.get("p1", 0.0)
-        er = p.get("er", 999.0)
-        fee = p.get("fee_hour", 0.0)
+        gaps_candidates = []
+        for p in filtered:
+            if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
+                continue
+            reasons = []
+            liq = p.get("liq", 0.0)
+            vl = p.get("vl", 0.0)
+            p5 = p.get("p5", 0.0)
+            p1 = p.get("p1", 0.0)
+            er = p.get("er", 999.0)
+            fee = p.get("fee_hour", 0.0)
 
-        if liq < min_liq:
-            reasons.append(f"Liq &lt; {_usd(min_liq)}")
-        if vl < min_vl:
-            reasons.append(f"V/L &lt; {min_vl:.1f}x")
-        if abs(p5) > max_5m:
-            reasons.append(f"5m &gt; {max_5m:.0f}%")
-        if abs(p1) > max_1h:
-            reasons.append(f"1h &gt; {max_1h:.0f}%")
-        if er > max_er:
-            reasons.append(f"ER &gt; {max_er:.1f}")
-        if fee < min_fee_siap_lp:
-            reasons.append(f"Fee &lt; ${_usd(min_fee_siap_lp)}/h")
+            if liq < min_liq:
+                reasons.append(f"Liq &lt; {_usd(min_liq)}")
+            if vl < min_vl:
+                reasons.append(f"V/L &lt; {min_vl:.1f}x")
+            if abs(p5) > max_5m:
+                reasons.append(f"5m &gt; {max_5m:.0f}%")
+            if abs(p1) > max_1h:
+                reasons.append(f"1h &gt; {max_1h:.0f}%")
+            if er > max_er:
+                reasons.append(f"ER &gt; {max_er:.1f}")
+            if fee < min_fee_siap_lp:
+                reasons.append(f"Fee &lt; ${_usd(min_fee_siap_lp)}/h")
 
-        if reasons:
-            p_copy = dict(p)
-            p_copy["gap_reasons"] = reasons
-            gaps_candidates.append(p_copy)
+            if reasons:
+                p_copy = dict(p)
+                p_copy["gap_reasons"] = reasons
+                gaps_candidates.append(p_copy)
 
-    gaps = deduplicate_best_tokens(gaps_candidates)
-    gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
+        gaps = deduplicate_best_tokens(gaps_candidates)
+        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
     top_limit = conf.get("top_n_display", 10)
@@ -1217,14 +1282,8 @@ def generate_report(
             sym_link = f'<a href="{t["url"]}">{sym}</a>'
             fee_h = t.get("fee_hour", 0.0)
             mc_str = _usd(t['mcap'])
-            er_val = t.get("er", 999.0)
-            vl_str = f"V/L {t.get('vl', 0.0):.1f}x"
-            score = round(t.get("score") or 0.0)
-            grade = "A" if score >= 80 else ("B" if score >= 65 else ("C" if score >= 50 else "D"))
-
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            addr = t.get("address", "")
 
             lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}")
 
@@ -1247,7 +1306,6 @@ def generate_report(
             p5 = m.get("p5", 0.0)
             p5_str = f"+{p5:.1f}%" if p5 > 0 else f"{p5:.1f}%"
             badge = "🔹" if str(m.get("chain", "SOL")).upper() == "RH" else "🔸"
-            addr = m.get("address", "")
             b_ratio = round(m.get("buy_ratio", 50.0))
             buys = m.get("buys", 0)
             sells = m.get("sells", 0)
@@ -1274,7 +1332,6 @@ def generate_report(
             dur_str  = f"{b['duration_mins']}m"
             badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🔸"
             pct_sign = "+" if b["breakout_pct"] >= 0 else ""
-            addr = b.get('address', '')
             vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
@@ -1293,7 +1350,6 @@ def generate_report(
             mc_str = f"MC {_usd(t['mcap'])}"
             status = html.escape(str(t.get("status_label", "")).strip())
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
-            addr = t.get('address', '')
 
             lines.append(f"{badge} {sym_link} │ {fee_str} │ {mc_str} │ {status}")
             lines.append("")
@@ -1302,7 +1358,7 @@ def generate_report(
     else:
         lines.append("(Belum ada sinyal absorption baru)")
 
-    # 5. GAPS RADAR
+    # 5. GAPS RADAR (Kompak 1 baris per token)
     if gaps:
         lines.append("")
         lines.append("<b>GAPS RADAR</b>")
@@ -1313,12 +1369,8 @@ def generate_report(
             fee_str = f"${g.get('fee_hour', 0.0):.2f}/h"
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
-            addr = g.get('address', '')
-            gap_reason = g.get("gap_reasons", ["-"])[0]
 
             lines.append(f"{badge} {sym_link} │ {fee_str} │ MC {mc_str}")
-            lines.append(f"  ❌ {gap_reason}")
-            lines.append("")
 
     report_body = "\n".join(lines).strip()
     return f"{report_body}"
@@ -1326,162 +1378,284 @@ def generate_report(
 
 # ================= SCAN ROUTINE =================
 
-def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain: str = "") -> None:
-    """Melakukan 1 siklus scan, memformat pesan, dan mengirim ke Telegram."""
-    t0 = time.time()
+def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain: str = "") -> dict[str, Any]:
+    """Single Source of Truth: Menjalankan pemindaian multi-chain GMGN terpadu.
+    Mendukung caching atomik (TTL 50s) agar Bot dan Web tidak melakukan double-scrape ke GMGN.
+    """
+    global GLOBAL_SCAN_CACHE
+    chain_mode = (override_chain or conf.get("chain_mode", "BOTH")).upper()
+
+    # 1. Cek cache jika tidak dipaksa (force=False)
+    if not force:
+        cached = get_cached_scan_data(chain_mode)
+        if cached:
+            return cached
+
+    with SCAN_LOCK:
+        # Cek ulang di dalam lock (double-checked locking)
+        if not force:
+            cached = get_cached_scan_data(chain_mode)
+            if cached:
+                return cached
+
+        t0 = time.time()
+        source = conf.get("data_source", "GMGN").upper()
+        api_key = conf.get("gmgn_api_key", GMGN_KEY)
+        min_mcap = float(conf.get("min_mcap", 500000.0))
+        max_mcap = float(conf.get("max_mcap", 500000000.0))
+        min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
+        min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
+        min_liq = float(conf.get("min_liq", 20000.0))
+        min_vl = float(conf.get("min_vl", 2.0))
+        max_5m = float(conf.get("max_5m", 15.0))
+        max_1h = float(conf.get("max_1h", 80.0))
+        max_er = float(conf.get("max_er", 20.0))
+        interval = int(conf.get("interval_sec", 300))
+
+        print(f"[{time.strftime('%H:%M:%S')}] [Engine Scan] Memulai pemindaian via {source} (Chain: {chain_mode})...")
+
+        scored_tokens: list[dict[str, Any]] = []
+
+        if source == "GMGN":
+            # 1. Fetch Solana
+            if chain_mode in ("BOTH", "SOL"):
+                raw_sol = fetch_gmgn_tokens("sol", api_key=api_key, limit=50)
+                if raw_sol:
+                    for r in raw_sol:
+                        r["chain"] = "SOL"
+                        scored_tokens.append(score_gmgn_token(r, conf))
+                    print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
+                    try:
+                        pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(min_liq))
+                        meme_addrs = [
+                            (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
+                            for p in pools_raw
+                        ]
+                        dex_data = fetch_dexscreener_batch(meme_addrs)
+                        for p in pools_raw:
+                            tx = (p.get("token_x") or {}).get("address", "")
+                            ty = (p.get("token_y") or {}).get("address", "")
+                            m_addr = tx if tx not in QUOTE_MINTS else ty
+                            d = dex_data.get(m_addr, {})
+                            t_score = score_gmgn_token({
+                                "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
+                                "name": p.get("name", ""),
+                                "address": m_addr,
+                                "chain": "SOL",
+                                "price": d.get("priceUsd") or 0.0,
+                                "liquidity": float(p.get("tvl") or 0.0),
+                                "volume": float(p.get("volume", {}).get("1h") or 0.0),
+                                "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
+                                "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
+                                "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
+                                "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
+                                "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
+                            }, conf)
+                            t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                            t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
+                            scored_tokens.append(t_score)
+                    except Exception as e:
+                        print(f"[Meteora Fallback Error]: {e}", file=sys.stderr)
+
+            # 2. Fetch Robinhood
+            if chain_mode in ("BOTH", "RH"):
+                if chain_mode == "BOTH":
+                    time.sleep(1.2)
+                raw_rh = fetch_gmgn_tokens("robinhood", api_key=api_key, limit=50)
+                if raw_rh:
+                    for r in raw_rh:
+                        r["chain"] = "RH"
+                        scored_tokens.append(score_gmgn_token(r, conf))
+                    print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_rh)} token dari GMGN Robinhood.")
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] GMGN Robinhood tidak merespons atau kosong.")
+        else:
+            pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(min_liq))
+            meme_addrs = [
+                (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
+                for p in pools_raw
+            ]
+            dex_data = fetch_dexscreener_batch(meme_addrs)
+            for p in pools_raw:
+                tx = (p.get("token_x") or {}).get("address", "")
+                ty = (p.get("token_y") or {}).get("address", "")
+                m_addr = tx if tx not in QUOTE_MINTS else ty
+                d = dex_data.get(m_addr, {})
+                t_score = score_gmgn_token({
+                    "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
+                    "name": p.get("name", ""),
+                    "address": m_addr,
+                    "chain": "SOL",
+                    "price": d.get("priceUsd") or 0.0,
+                    "liquidity": float(p.get("tvl") or 0.0),
+                    "volume": float(p.get("volume", {}).get("1h") or 0.0),
+                    "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
+                    "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
+                    "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
+                    "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
+                    "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
+                }, conf)
+                t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
+                scored_tokens.append(t_score)
+
+        # Filter dasar
+        do_filter_stocks = bool(conf.get("filter_stocks", True))
+        filtered = [
+            p for p in scored_tokens
+            if p.get("address") not in QUOTE_MINTS
+            and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
+            and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+            and not (do_filter_stocks and is_tokenized_stock(p))
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
+        ]
+
+        # 1. Siap LP
+        siap_candidates = [
+            p for p in filtered
+            if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+        ]
+        siap_lp = deduplicate_best_tokens(siap_candidates)
+        siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
+
+        # 2. Absorption Radar
+        siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
+        absorb_candidates = [
+            p for p in filtered
+            if p.get("address") not in siap_addrs
+            and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
+            and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
+        ]
+        absorption = deduplicate_best_tokens(absorb_candidates)
+        absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
+
+        # 3. Break ATH
+        try:
+            update_ath_cache(scored_tokens)
+        except Exception as ath_err:
+            print(f"[{time.strftime('%H:%M:%S')}] [ATH] Update cache error: {ath_err}", file=sys.stderr)
+        break_ath = score_break_ath_candidates(scored_tokens, conf)
+
+        # 4. Gaps
+        gaps_candidates = []
+        for p in filtered:
+            if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
+                continue
+            reasons = []
+            liq = p.get("liq", 0.0)
+            vl = p.get("vl", 0.0)
+            p5 = p.get("p5", 0.0)
+            p1 = p.get("p1", 0.0)
+            er = p.get("er", 999.0)
+            fee = p.get("fee_hour", 0.0)
+
+            if liq < min_liq:
+                reasons.append(f"Liq rendah ({_usd(liq)} &lt; {_usd(min_liq)})")
+            if vl < min_vl:
+                reasons.append(f"V/L rendah ({vl:.1f}x &lt; {min_vl:.1f}x)")
+            if abs(p5) > max_5m:
+                reasons.append(f"5m goyang ({p5:+.1f}% &gt; {max_5m:.0f}%)")
+            if abs(p1) > max_1h:
+                reasons.append(f"1h goyang ({p1:+.1f}% &gt; {max_1h:.0f}%)")
+            if er > max_er:
+                reasons.append(f"ER melebar ({er:.1f} &gt; {max_er:.1f})")
+            if fee < min_fee_siap_lp:
+                reasons.append(f"Fee rendah (${fee:.2f} &lt; ${min_fee_siap_lp:.2f}/h)")
+
+            p_copy = dict(p)
+            p_copy["gap_reasons"] = reasons if reasons else ["Belum memenuhi kriteria"]
+            gaps_candidates.append(p_copy)
+
+        gaps = deduplicate_best_tokens(gaps_candidates)
+        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
+
+        # 5. 5M Momentum
+        momentum_5m = []
+        try:
+            raw_5m_list = []
+            if chain_mode in ("BOTH", "SOL"):
+                r_sol = fetch_gmgn_trending_5m("sol", limit=100)
+                if r_sol:
+                    raw_5m_list.extend(r_sol)
+            if chain_mode in ("BOTH", "RH"):
+                if chain_mode == "BOTH":
+                    time.sleep(0.5)
+                r_rh = fetch_gmgn_trending_5m("robinhood", limit=100)
+                if r_rh:
+                    raw_5m_list.extend(r_rh)
+            if raw_5m_list:
+                momentum_5m = score_5m_momentum_candidates(raw_5m_list, conf)
+        except Exception as e_5m:
+            print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
+            momentum_5m = []
+
+        all_active_for_yield = siap_lp + momentum_5m + absorption
+        top_yield = max([p.get("fee_hour", 0.0) for p in all_active_for_yield], default=0.0)
+
+        now_epoch = time.time()
+        now_dt = datetime.now()
+        now_str = now_dt.strftime("%H:%M:%S")
+        next_boundary = int((now_epoch // interval + 1) * interval)
+
+        result = {
+            "ok": True,
+            "scanned_at": now_str,
+            "scanned_timestamp": int(now_epoch),
+            "next_scan_timestamp": next_boundary,
+            "total_scanned": len(scored_tokens),
+            "chain_mode": chain_mode,
+            "scored_tokens": scored_tokens,
+            "siap_lp": siap_lp,
+            "momentum_5m": momentum_5m,
+            "absorption": absorption,
+            "break_ath": break_ath,
+            "gaps": gaps,
+            "counts": {
+                "siap": len(siap_lp),
+                "momentum_5m": len(momentum_5m),
+                "absorption": len(absorption),
+                "break_ath": len(break_ath),
+                "gaps": len(gaps),
+                "total": len(scored_tokens),
+            },
+            "top_yield": top_yield,
+        }
+
+        GLOBAL_SCAN_CACHE = result
+        save_scan_cache(result)
+
+        elapsed = time.time() - t0
+        print(
+            f"[{time.strftime('%H:%M:%S')}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
+            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)}"
+        )
+        return result
+
+
+def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain: str = "", force: bool = False) -> None:
+    """Melakukan 1 siklus scan menggunakan execute_full_scan, memformat pesan, dan mengirim ke Telegram."""
     source = conf.get("data_source", "GMGN").upper()
     chain_mode = (override_chain or conf.get("chain_mode", "BOTH")).upper()
 
     scan_conf = dict(conf)
     scan_conf["chain_mode"] = chain_mode
 
-    print(f"[{time.strftime('%H:%M:%S')}] Memulai scan via {source} (Chain: {chain_mode})...")
-
-    scored_tokens: list[dict[str, Any]] = []
-
-    if source == "GMGN":
-        api_key = conf.get("gmgn_api_key", GMGN_KEY)
-
-        # 1. Fetch Solana (jika mode BOTH atau SOL)
-        if chain_mode in ("BOTH", "SOL"):
-            raw_sol = fetch_gmgn_tokens("sol", api_key=api_key, limit=50)
-            if raw_sol:
-                for r in raw_sol:
-                    r["chain"] = "SOL"
-                    scored_tokens.append(score_gmgn_token(r, conf))
-                print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
-                try:
-                    pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(conf["min_liq"]))
-                    meme_addrs = [
-                        (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
-                        for p in pools_raw
-                    ]
-                    dex_data = fetch_dexscreener_batch(meme_addrs)
-                    for p in pools_raw:
-                        tx = (p.get("token_x") or {}).get("address", "")
-                        ty = (p.get("token_y") or {}).get("address", "")
-                        m_addr = tx if tx not in QUOTE_MINTS else ty
-                        d = dex_data.get(m_addr, {})
-                        t_score = score_gmgn_token({
-                            "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
-                            "name": p.get("name", ""),
-                            "address": m_addr,
-                            "chain": "SOL",
-                            "price": d.get("priceUsd") or 0.0,
-                            "liquidity": float(p.get("tvl") or 0.0),
-                            "volume": float(p.get("volume", {}).get("1h") or 0.0),
-                            "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
-                            "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
-                            "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
-                            "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
-                            "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
-                        }, conf)
-                        t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
-                        t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
-                        scored_tokens.append(t_score)
-                except Exception as e:
-                    print(f"[Meteora Fallback Error]: {e}", file=sys.stderr)
-
-        # 2. Fetch Robinhood (jika mode BOTH atau RH)
-        if chain_mode in ("BOTH", "RH"):
-            if chain_mode == "BOTH":
-                time.sleep(1.5)  # Jeda aman anti rate-limit antar chain
-            raw_rh = fetch_gmgn_tokens("robinhood", api_key=api_key, limit=50)
-            if raw_rh:
-                for r in raw_rh:
-                    r["chain"] = "RH"
-                    scored_tokens.append(score_gmgn_token(r, conf))
-                print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_rh)} token dari GMGN Robinhood.")
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] GMGN Robinhood tidak merespons atau kosong.")
-    else:
-        # User explicitly configured METEORA (Solana only)
-        pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(conf["min_liq"]))
-        meme_addrs = [
-            (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
-            for p in pools_raw
-        ]
-        dex_data = fetch_dexscreener_batch(meme_addrs)
-        for p in pools_raw:
-            tx = (p.get("token_x") or {}).get("address", "")
-            ty = (p.get("token_y") or {}).get("address", "")
-            m_addr = tx if tx not in QUOTE_MINTS else ty
-            d = dex_data.get(m_addr, {})
-            t_score = score_gmgn_token({
-                "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
-                "name": p.get("name", ""),
-                "address": m_addr,
-                "chain": "SOL",
-                "price": d.get("priceUsd") or 0.0,
-                "liquidity": float(p.get("tvl") or 0.0),
-                "volume": float(p.get("volume", {}).get("1h") or 0.0),
-                "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
-                "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
-                "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
-                "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
-                "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
-            }, conf)
-            t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
-            t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
-            scored_tokens.append(t_score)
-
-    elapsed = time.time() - t0
-    min_mcap = float(conf.get("min_mcap", 500000.0))
-    min_fee = float(conf.get("min_fee_siap_lp", 1.0))
-    chop_count = sum(1 for p in scored_tokens if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee and p.get("mcap", 0.0) >= min_mcap)
-    absorb_count = sum(1 for p in scored_tokens if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0)) and p.get("mcap", 0.0) >= min_mcap)
-    print(
-        f"[{time.strftime('%H:%M:%S')}] Scan selesai dalam {elapsed:.2f}s | "
-        f"Total: {len(scored_tokens)} | Siap LP: {chop_count} | Absorption: {absorb_count}"
-    )
-
-    # ── Update ATH Cache & Breakout Tracking ─────────────────────────────────
-    try:
-        update_ath_cache(scored_tokens)
-    except Exception as ath_err:
-        print(f"[{time.strftime('%H:%M:%S')}] [ATH] Update cache error: {ath_err}", file=sys.stderr)
-
-    # ── Break ATH LP Candidates ──────────────────────────────────────────────
-    break_ath_candidates: list[dict] = []
-    try:
-        break_ath_candidates = score_break_ath_candidates(scored_tokens, conf)
-        if break_ath_candidates:
-            print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] {len(break_ath_candidates)} kandidat Break ATH terkonfirmasi >= 15m")
-    except Exception as bath_err:
-        print(f"[{time.strftime('%H:%M:%S')}] [Break ATH] Error: {bath_err}", file=sys.stderr)
-        break_ath_candidates = []
-
-    # ── ⚡ 5M Momentum Candidates ───────────────────────────────────────────
-    momentum_5m_candidates: list[dict] = []
-    try:
-        raw_5m_list: list[dict] = []
-        if chain_mode in ("BOTH", "SOL"):
-            raw_sol_5m = fetch_gmgn_trending_5m("sol", limit=100)
-            if raw_sol_5m:
-                raw_5m_list.extend(raw_sol_5m)
-        if chain_mode in ("BOTH", "RH"):
-            if chain_mode == "BOTH":
-                time.sleep(1.0)
-            raw_rh_5m = fetch_gmgn_trending_5m("robinhood", limit=100)
-            if raw_rh_5m:
-                raw_5m_list.extend(raw_rh_5m)
-
-        if raw_5m_list:
-            momentum_5m_candidates = score_5m_momentum_candidates(raw_5m_list, conf)
-            if momentum_5m_candidates:
-                print(f"[{time.strftime('%H:%M:%S')}] [5M Momentum] {len(momentum_5m_candidates)} kandidat lolos filter (Vol > $100k + Pump Up)")
-    except Exception as m5_err:
-        print(f"[{time.strftime('%H:%M:%S')}] [5M Momentum] Error: {m5_err}", file=sys.stderr)
-        momentum_5m_candidates = []
+    scan_res = execute_full_scan(scan_conf, force=force, override_chain=chain_mode)
 
     report_text = generate_report(
-        scored_tokens,
+        scan_res.get("scored_tokens", []),
         scan_conf,
         source_name=source,
-        break_ath_candidates=break_ath_candidates,
-        momentum_5m_candidates=momentum_5m_candidates,
+        break_ath_candidates=scan_res.get("break_ath", []),
+        momentum_5m_candidates=scan_res.get("momentum_5m", []),
+        siap_list=scan_res.get("siap_lp", []),
+        absorption_list=scan_res.get("absorption", []),
+        gaps_list=scan_res.get("gaps", []),
     )
 
     token = conf.get("telegram_bot_token") or ""
@@ -1572,7 +1746,7 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                         elif c_data == "action_scan":
                             cur_mode = conf.get("chain_mode", "RH").upper()
                             answer_callback_query(token, cq_id, text=f"⏳ Memulai scan GMGN ({cur_mode})...")
-                            threading.Thread(target=run_single_scan, args=(conf, False, cur_mode), daemon=True).start()
+                            threading.Thread(target=run_single_scan, args=(conf, False, cur_mode, True), daemon=True).start()
 
                         elif c_data in ("action_refresh", "action_menu"):
                             cur_mode = conf.get("chain_mode", "RH").upper()
@@ -1609,7 +1783,7 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
 
                         active_chain = (target_chain or conf.get("chain_mode", "RH")).upper()
                         send_telegram_message(token, cid, f"⏳ Sedang memindai data GMGN ({active_chain})...")
-                        threading.Thread(target=run_single_scan, args=(conf, False, target_chain), daemon=True).start()
+                        threading.Thread(target=run_single_scan, args=(conf, False, target_chain, True), daemon=True).start()
 
                     # Quick Button atau Command Ganti Chain
                     elif text in ("🔹 rh only", "rh only", "rh", "/chain rh"):

@@ -63,8 +63,7 @@
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
-  - Baris detail/alasan di bawah token diawali indentasi 2 spasi (contoh: `  ❌ {alasan}`).
-  - Karakter pembanding pada alasan Gaps wajib di-escape HTML (`&lt;` dan `&gt;`) agar tidak memicu error Telegram 400.
+  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token agar tampilan daftar GAPS sangat padat (compact).
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
 
 ## 6. Sinkronisasi Waktu Pemindaian (Scan Timing Synchronization)
@@ -80,3 +79,13 @@
   - Menu bot Telegram (`/menu`) atau tombol inline chat berfungsi sebagai pengontrol utama yang langsung mengubah `chain_mode` di `sol-hp-filters.json`.
   - Background daemon di `web.py` mendeteksi perubahan file konfigurasi secara otomatis (maks 3 detik), memperbarui state, dan memicu scan baru.
   - Header Web Dashboard memiliki toggle interaktif (`🔹 RH`, `🔸 SOL`, `🔸🔹 DUAL`) yang tersinkronisasi dua arah dengan Telegram bot. Mengubah mode di web dashboard akan menyimpan ke `sol-hp-filters.json` dan otomatis terbaca oleh bot Telegram pada jadwal scan berikutnya.
+
+## 8. Arsitektur Shared Scan Engine & Caching (Single Source of Truth)
+- **Mesin Pemindaian Tunggal**:
+  - Fungsi `bot_sol_lp.execute_full_scan(conf)` adalah *Single Source of Truth* untuk semua pemindaian data GMGN Open API dan fallback Meteora.
+  - `web.py` memanggil `bot_sol_lp.execute_full_scan()` dan dilarang menduplikasi kode scraping atau kalkulasi filter.
+- **Atomic Caching & Anti-429 Rate Limit**:
+  - Hasil scan disimpan ke memori dan disk file `sol-hp-cache.json` di bawah kunci `"last_scan"` dengan TTL 50 detik dan `SCAN_LOCK`.
+  - Jika bot dan web berjalan berdekatan di jam dinding yang sama, proses kedua langsung menyajikan data dari cache tanpa request HTTP ulang ke GMGN (mengurangi beban API 50% dan mencegah 429).
+  - Manual scan (tombol "⚡ Scan" di web atau command `/scan` di Telegram) menggunakan flag `force=True` untuk mengambil data baru seketika.
+

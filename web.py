@@ -124,8 +124,10 @@ def save_persistent_filters(new_filters: dict[str, Any]) -> None:
         print(f"[ERROR] Gagal menyimpan filter: {e}", file=sys.stderr)
 
 
-def perform_scan() -> None:
-    """Eksekusi pemindaian token SOL + RH menggunakan engine bot_sol_lp."""
+def perform_scan(force: bool = False) -> None:
+    """Eksekusi pemindaian token SOL + RH menggunakan shared engine bot_sol_lp.
+    Memanfaatkan cache terpusat (TTL 50s) sehingga tidak ada duplikasi request ke GMGN.
+    """
     global app_state
 
     with state_lock:
@@ -134,219 +136,45 @@ def perform_scan() -> None:
         app_state["scanning"] = True
 
     t0 = time.time()
-    latest_filters = load_persistent_filters()
-    with state_lock:
-        app_state["filters"].update(latest_filters)
-    conf = dict(app_state["filters"])
-    api_key = conf.get("gmgn_api_key", bot_sol_lp.GMGN_KEY)
-    chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
-    min_mcap = float(conf.get("min_mcap", 500000.0))
-    max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
-    min_liq = float(conf.get("min_liq", 20000.0))
-    min_vl = float(conf.get("min_vl", 2.0))
-    max_5m = float(conf.get("max_5m", 15.0))
-    max_1h = float(conf.get("max_1h", 80.0))
-    max_er = float(conf.get("max_er", 20.0))
-
-    scored_tokens: list[dict[str, Any]] = []
-
     try:
-        # 1. Fetch Solana
-        if chain_mode in ("BOTH", "SOL"):
-            raw_sol = bot_sol_lp.fetch_gmgn_tokens("sol", api_key=api_key, limit=50)
-            if raw_sol:
-                for r in raw_sol:
-                    r["chain"] = "SOL"
-                    scored_tokens.append(bot_sol_lp.score_gmgn_token(r, conf))
-            else:
-                # Fallback ke Meteora DLMM jika GMGN Solana kosong
-                try:
-                    p_raw = bot_sol_lp.fetch_meteora_dlmm_pools(limit=40, min_tvl=int(min_liq))
-                    m_addrs = [
-                        (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in bot_sol_lp.QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
-                        for p in p_raw
-                    ]
-                    dex_data = bot_sol_lp.fetch_dexscreener_batch(m_addrs)
-                    for p in p_raw:
-                        tx = (p.get("token_x") or {}).get("address", "")
-                        ty = (p.get("token_y") or {}).get("address", "")
-                        m_addr = tx if tx not in bot_sol_lp.QUOTE_MINTS else ty
-                        d = dex_data.get(m_addr, {})
-                        t_score = bot_sol_lp.score_gmgn_token({
-                            "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
-                            "name": p.get("name", ""),
-                            "address": m_addr,
-                            "chain": "SOL",
-                            "price": d.get("priceUsd") or 0.0,
-                            "liquidity": float(p.get("tvl") or 0.0),
-                            "volume": float(p.get("volume", {}).get("1h") or 0.0),
-                            "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
-                            "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
-                            "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
-                            "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
-                            "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
-                        }, conf)
-                        t_score["url"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
-                        scored_tokens.append(t_score)
-                except Exception as e:
-                    print(f"[Meteora Fallback Error]: {e}", file=sys.stderr)
+        latest_filters = load_persistent_filters()
+        with state_lock:
+            app_state["filters"].update(latest_filters)
+        conf = dict(app_state["filters"])
 
-        # 2. Fetch Robinhood (jika BOTH atau RH)
-        if chain_mode in ("BOTH", "RH"):
-            if chain_mode == "BOTH":
-                time.sleep(1.2)  # Jeda aman anti-rate limit
-            raw_rh = bot_sol_lp.fetch_gmgn_tokens("robinhood", api_key=api_key, limit=50)
-            if raw_rh:
-                for r in raw_rh:
-                    r["chain"] = "RH"
-                    scored_tokens.append(bot_sol_lp.score_gmgn_token(r, conf))
+        # Panggil shared scan engine dari bot_sol_lp (memakai cache jika fresh < 50s)
+        res = bot_sol_lp.execute_full_scan(conf, force=force)
 
-        # Filter dasar (Exclude native tokens, batasi rentang MCAP, block tokenized stocks, dan HARD FILTER NO HONEYPOT / WASH)
-        do_filter_stocks = bool(conf.get("filter_stocks", True))
-        filtered = [
-            p for p in scored_tokens
-            if p.get("address") not in bot_sol_lp.QUOTE_MINTS
-            and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
-            and min_mcap <= p.get("mcap", 0.0) <= max_mcap
-            and not (do_filter_stocks and bot_sol_lp.is_tokenized_stock(p))
-            and not p.get("is_honeypot")
-            and not p.get("is_wash")
-        ]
-
-        min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
-
-        # 1. Kategori Siap LP (100% lolos Chop Sideways, Fee >= min_fee_siap_lp)
-        siap_candidates = [
-            p for p in filtered
-            if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
-        ]
-        siap_lp = bot_sol_lp.deduplicate_best_tokens(siap_candidates)
-        siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
-
-        # 2. Kategori Absorption Radar (Microstate ABSORPTION / REACCUMULATION atau score tinggi)
-        # Opsi B: fee_hour >= min_fee_absorb agar koin "mati yield" seperti saham tidak nongol
-        absorb_candidates = [
-            p for p in filtered
-            if (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
-            and p.get("fee_hour", 0.0) >= min_fee_absorb
-            and not p.get("is_honeypot")
-            and not p.get("is_wash")
-        ]
-        absorption = bot_sol_lp.deduplicate_best_tokens(absorb_candidates)
-        absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
-
-        # 3. Kategori Break ATH LP (15m+ Confirmed)
-        try:
-            bot_sol_lp.update_ath_cache(scored_tokens)
-        except Exception:
-            pass
-        break_ath = bot_sol_lp.score_break_ath_candidates(scored_tokens, conf)
-
-        # 4. Kategori Gaps (Token dalam rentang Mcap yang belum 100% lolos kriteria CHOP Siap LP)
-        siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
-        gaps_candidates = []
-        for p in filtered:
-            if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
-                continue
-            reasons = []
-            liq = p.get("liq", 0.0)
-            vl = p.get("vl", 0.0)
-            p5 = p.get("p5", 0.0)
-            p1 = p.get("p1", 0.0)
-            er = p.get("er", 999.0)
-            fee = p.get("fee_hour", 0.0)
-
-            if liq < min_liq:
-                reasons.append(f"Liq rendah ({bot_sol_lp._usd(liq)} < {bot_sol_lp._usd(min_liq)})")
-            if vl < min_vl:
-                reasons.append(f"V/L rendah ({vl:.1f}x < {min_vl:.1f}x)")
-            if abs(p5) > max_5m:
-                reasons.append(f"5m goyang ({p5:+.1f}% > {max_5m:.0f}%)")
-            if abs(p1) > max_1h:
-                reasons.append(f"1h goyang ({p1:+.1f}% > {max_1h:.0f}%)")
-            if er > max_er:
-                reasons.append(f"ER melebar ({er:.1f} > {max_er:.1f})")
-            if fee < min_fee_siap_lp:
-                reasons.append(f"Fee rendah (${fee:.2f} < ${min_fee_siap_lp:.2f}/h)")
-
-            p_copy = dict(p)
-            p_copy["gap_reasons"] = reasons if reasons else ["Belum memenuhi kriteria"]
-            gaps_candidates.append(p_copy)
-
-        gaps = bot_sol_lp.deduplicate_best_tokens(gaps_candidates)
-        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
-
-        # 5. Kategori ⚡ 5M Momentum (Vol 5m > $100k, Pump Up, Liq >= $10k)
-        momentum_5m = []
-        try:
-            raw_5m_list = []
-            if chain_mode in ("BOTH", "SOL"):
-                r_sol = bot_sol_lp.fetch_gmgn_trending_5m("sol", limit=100)
-                if r_sol:
-                    raw_5m_list.extend(r_sol)
-            if chain_mode in ("BOTH", "RH"):
-                if chain_mode == "BOTH":
-                    time.sleep(0.5)
-                r_rh = bot_sol_lp.fetch_gmgn_trending_5m("robinhood", limit=100)
-                if r_rh:
-                    raw_5m_list.extend(r_rh)
-
-            if raw_5m_list:
-                momentum_5m = bot_sol_lp.score_5m_momentum_candidates(raw_5m_list, conf)
-        except Exception as e_5m:
-            print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
-            momentum_5m = []
-
-        all_active_for_yield = siap_lp + momentum_5m + absorption
-        top_yield = max([p.get("fee_hour", 0.0) for p in all_active_for_yield], default=0.0)
-
-        now = datetime.now()
-        now_str = now.strftime("%H:%M:%S")
-        interval = int(conf.get("interval_sec", 300))
-
-        now_epoch = time.time()
-        next_boundary = int((now_epoch // interval + 1) * interval)
+        siap_lp = res.get("siap_lp", [])
+        momentum_5m = res.get("momentum_5m", [])
+        absorption = res.get("absorption", [])
+        break_ath = res.get("break_ath", [])
+        gaps = res.get("gaps", [])
 
         with state_lock:
             app_state["scanning"] = False
-            app_state["scanned_at"] = now_str
-            app_state["scanned_timestamp"] = int(now_epoch)
-            app_state["next_scan_timestamp"] = next_boundary
-            app_state["total_scanned"] = len(scored_tokens)
+            app_state["scanned_at"] = res.get("scanned_at")
+            app_state["scanned_timestamp"] = res.get("scanned_timestamp", 0)
+            app_state["next_scan_timestamp"] = res.get("next_scan_timestamp", 0)
+            app_state["total_scanned"] = res.get("total_scanned", 0)
             app_state["siap_lp"] = siap_lp
             app_state["momentum_5m"] = momentum_5m
             app_state["absorption"] = absorption
             app_state["break_ath"] = break_ath
             app_state["gaps"] = gaps[:40]  # Limit agar tidak membebani browser HP
-            app_state["counts"] = {
+            app_state["counts"] = res.get("counts", {
                 "siap": len(siap_lp),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
                 "gaps": len(gaps),
-                "total": len(scored_tokens),
-            }
-            app_state["top_yield"] = top_yield
-
-        # Simpan cache ringan ke disk
-        try:
-            CACHE_FILE.write_text(
-                json.dumps({
-                    "scanned_at": now_str,
-                    "counts": app_state["counts"],
-                    "top_yield": top_yield,
-                    "siap_lp": siap_lp[:20],
-                    "absorption": absorption[:20],
-                }, indent=2),
-                encoding="utf-8"
-            )
-        except Exception:
-            pass
+                "total": res.get("total_scanned", 0),
+            })
+            app_state["top_yield"] = res.get("top_yield", 0.0)
 
         print(
-            f"[{time.strftime('%H:%M:%S')}] [Web Scan] Berhasil dalam {time.time() - t0:.2f}s | "
-            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | Absorption: {len(absorption)}"
+            f"[{time.strftime('%H:%M:%S')}] [Web Sync] Selesai dalam {time.time() - t0:.2f}s | "
+            f"Total: {res.get('total_scanned', 0)} | Siap LP: {len(siap_lp)} | Absorption: {len(absorption)}"
         )
 
     except Exception as e:
@@ -2861,7 +2689,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "status": "already_scanning"})
                 return
 
-            threading.Thread(target=perform_scan, daemon=True).start()
+            threading.Thread(target=perform_scan, args=(True,), daemon=True).start()
             self.send_json({"ok": True, "status": "scanning_started"})
             return
 
@@ -2889,7 +2717,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                 with state_lock:
                     is_busy = app_state["scanning"]
                 if not is_busy:
-                    threading.Thread(target=perform_scan, daemon=True).start()
+                    threading.Thread(target=perform_scan, args=(True,), daemon=True).start()
 
                 self.send_json({"ok": True, "chain_mode": target_mode})
                 return
@@ -2917,7 +2745,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                         pass
 
                 # Picu scan ulang dengan filter baru
-                threading.Thread(target=perform_scan, daemon=True).start()
+                threading.Thread(target=perform_scan, args=(True,), daemon=True).start()
                 self.send_json({"ok": True, "filters": current_filters})
                 return
             except Exception as e:
