@@ -841,12 +841,66 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     mcap = num(row, "market_cap", "marketcap")
     vl = (vol / liq) if liq else 0.0
 
-    # On-Chain Security
+    # On-Chain Security & Multi-Layer Anti-Rug (GMGN 97 Indicators)
+    chain = str(row.get("chain") or "SOL").upper()
     top10_rate = round(num(row, "top_10_holder_rate") * 100, 1)
     dev_team_hold = round(num(row, "dev_team_hold_rate") * 100, 1)
     insider_rate = round(num(row, "rat_trader_amount_rate") * 100, 1)
     is_wash = check_is_wash(row)
     is_honeypot = check_is_honeypot(row)
+
+    rug_ratio = num(row, "rug_ratio")
+    bundler_rate = num(row, "bundler_rate")
+    holder_count = int(num(row, "holder_count", "holders"))
+    renounced_mint = row.get("renounced_mint")
+    max_rug_ratio = float(conf.get("max_rug_ratio", 0.25))
+    max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
+    min_holders = int(conf.get("min_holders", 150))
+
+    is_rug_risk = False
+    rug_reasons: list[str] = []
+    if rug_ratio > max_rug_ratio:
+        is_rug_risk = True
+        rug_reasons.append(f"Dev Rug History ({rug_ratio * 100:.0f}%)")
+    if bundler_rate > max_bundler_rate:
+        is_rug_risk = True
+        rug_reasons.append(f"Cabal Bundler ({bundler_rate * 100:.0f}%)")
+    if chain == "SOL" and renounced_mint is not None and str(renounced_mint) == "0":
+        is_rug_risk = True
+        rug_reasons.append("Mint Not Renounced")
+    if 0 < holder_count < min_holders:
+        is_rug_risk = True
+        rug_reasons.append(f"Holders Rendah ({holder_count})")
+
+    # ── Narrative Classification ─────────────────────────────────────────────
+    cto_flag = int(num(row, "cto_flag"))
+    is_cto = (cto_flag == 1)
+
+    narratives: list[str] = []
+    if is_cto:
+        narratives.append("👑 CTO")
+
+    sym_lower = symbol.lower()
+    name_lower = name.lower()
+    full_text = f"{sym_lower} {name_lower}"
+
+    ai_keywords = (" ai", "ai ", "agent", "acc", "gpt", "llm", "bot", "neural", "deep", "compute")
+    if any(kw in full_text for kw in ai_keywords) or sym_lower.startswith("ai") or sym_lower.endswith("ai"):
+        narratives.append("🤖 AI")
+
+    smart_degen_count = int(num(row, "smart_degen_count"))
+    if smart_degen_count >= 30:
+        narratives.append("🧠 Smart")
+
+    bluechip_pct = num(row, "bluechip_owner_percentage")
+    if bluechip_pct >= 0.02:
+        narratives.append("💎 Bluechip")
+
+    twitter_username = str(row.get("twitter_username") or "").strip()
+    twitter_url = f"https://x.com/{twitter_username}" if twitter_username else ""
+    telegram_url = str(row.get("telegram") or "").strip()
+    website_url = str(row.get("website") or "").strip()
+    twitter_change_flag = int(num(row, "twitter_change_flag"))
 
     buys = int(num(row, "buys"))
     sells = int(num(row, "sells"))
@@ -873,11 +927,11 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     pts_flow = 15.0 if (46.0 <= buy_ratio <= 60.0) else 12.0 if (60.0 < buy_ratio <= 72.0) else 8.0 if (38.0 <= buy_ratio < 46.0) else 3.0
     # 5. Pts Safety (Max 10 pts)
     pts_safety = 0.0
-    if not is_wash and not is_honeypot and top10_rate <= 45.0:
+    if not is_wash and not is_honeypot and not is_rug_risk and top10_rate <= 45.0:
         pts_safety += 5.0
         if dev_team_hold <= 20.0 and insider_rate <= 10.0:
             pts_safety += 3.0
-        if int(num(row, "smart_degen_count")) > 0:
+        if smart_degen_count > 0:
             pts_safety += 2.0
 
     score = round(min(100.0, max(0.0, pts_vl + pts_er + pts_vol + pts_flow + pts_safety)), 1)
@@ -887,9 +941,9 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     max_1h = float(conf.get("max_1h", 80.0))
     min_liq = float(conf.get("min_liq", 20000.0))
 
-    if is_wash or is_honeypot or top10_rate > 60.0 or insider_rate > 25.0:
+    if is_wash or is_honeypot or is_rug_risk or top10_rate > 60.0 or insider_rate > 25.0:
         micro_state = "DISTRIBUTION"
-        status_label = "Distribution / Toxic"
+        status_label = "Rug / Dangerous" if is_rug_risk else "Distribution / Toxic"
     elif p1 > max_1h or (p5 > max_5m and buy_ratio >= 65.0):
         micro_state = "EXPANSION"
         status_label = "Expansion / Runner"
@@ -915,9 +969,9 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         and er <= float(conf.get("max_er", 20.0))
         and not is_wash
         and not is_honeypot
+        and not is_rug_risk
     )
 
-    chain = str(row.get("chain") or "SOL").upper()
     if chain == "RH":
         gmgn_url = f"https://gmgn.ai/robinhood/token/{addr}"
         dex_url = f"https://fomo.family/token/{addr}"
@@ -954,6 +1008,18 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "is_chop": is_chop,
         "is_honeypot": is_honeypot,
         "is_wash": is_wash,
+        "is_rug_risk": is_rug_risk,
+        "rug_ratio": rug_ratio,
+        "bundler_rate": bundler_rate,
+        "rug_reasons": rug_reasons,
+        "is_cto": is_cto,
+        "narratives": narratives,
+        "smart_degen_count": smart_degen_count,
+        "bluechip_owner_pct": round(bluechip_pct * 100, 1),
+        "twitter_url": twitter_url,
+        "telegram_url": telegram_url,
+        "website_url": website_url,
+        "twitter_change_flag": twitter_change_flag,
         "url": gmgn_url,
         "gmgn": gmgn_url,
         "dexscreener": dex_url,
@@ -964,7 +1030,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "insider_rate": insider_rate,
         "buys": buys,
         "sells": sells,
-        "holders": int(num(row, "holder_count", "holders")),
+        "holders": holder_count,
         "logo": str(row.get("logo") or row.get("image_url") or row.get("logo_url") or ""),
     }
 
@@ -1164,12 +1230,16 @@ def generate_report(
     break_ath_candidates: list[dict] | None = None,
     momentum_5m_candidates: list[dict] | None = None,
     siap_list: list[dict] | None = None,
+    cto_list: list[dict] | None = None,
     absorption_list: list[dict] | None = None,
     gaps_list: list[dict] | None = None,
 ) -> str:
     """Membuat pesan Telegram sesuai format yang rapi & terstruktur:
     🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ ER
+
+    👑 CTO REVIVAL LP (Community Take Over, Zero Dev Risk)
+    • TOKEN ➔ Fee/h │ MC │ Narasi
 
     ⚡ 5M MOMENTUM (5m Vol > $100k & Pump Up)
     • TOKEN ➔ Fee/h │ 5m Vol │ MC
@@ -1202,6 +1272,7 @@ def generate_report(
             and not (do_filter_stocks and is_tokenized_stock(p))
             and not p.get("is_honeypot")
             and not p.get("is_wash")
+            and not p.get("is_rug_risk")
         ]
 
         # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
@@ -1236,6 +1307,8 @@ def generate_report(
             if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
                 continue
             reasons = []
+            if p.get("is_rug_risk"):
+                reasons.extend(p.get("rug_reasons", []))
             liq = p.get("liq", 0.0)
             vl = p.get("vl", 0.0)
             p5 = p.get("p5", 0.0)
@@ -1284,13 +1357,35 @@ def generate_report(
             mc_str = _usd(t['mcap'])
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
+            narr_tags = [f"[{tg}]" for tg in t.get("narratives", []) if tg in ("👑 CTO", "🤖 AI")]
+            narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}{narr_str}")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
     else:
         lines.append("(Belum ada pool memenuhi syarat Siap LP)")
+
+    # 1b. 👑 CTO REVIVAL LP (Community Take Over)
+    c_list = cto_list or []
+    if c_list:
+        lines.append("")
+        lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
+        for c in c_list[:top_limit]:
+            sym = html.escape(str(c.get("symbol") or "?"))
+            sym_link = f'<a href="{c["url"]}">{sym}</a>'
+            fee_h = c.get("fee_hour", 0.0)
+            mc_str = _usd(c['mcap'])
+            chain = str(c.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            other_narr = [f"[{tg}]" for tg in c.get("narratives", []) if tg != "👑 CTO"]
+            narr_suffix = f" │ {' '.join(other_narr)}" if other_narr else ""
+
+            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}{narr_suffix}")
+
+        if len(c_list) > top_limit:
+            lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -1511,15 +1606,30 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             and not (do_filter_stocks and is_tokenized_stock(p))
             and not p.get("is_honeypot")
             and not p.get("is_wash")
+            and not p.get("is_rug_risk")
         ]
 
-        # 1. Siap LP
+        # 1. Siap LP (100% lolos Chop Sideways)
         siap_candidates = [
             p for p in filtered
             if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
         ]
         siap_lp = deduplicate_best_tokens(siap_candidates)
         siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
+
+        # 1b. 👑 CTO REVIVAL LP (Community Take Over + Sideways + Dev Zero Risk)
+        cto_candidates = [
+            p for p in filtered
+            if p.get("is_cto")
+            and p.get("dev_team_hold", 0.0) <= 5.0
+            and abs(p.get("p5", 0.0)) <= max_5m * 1.2
+            and abs(p.get("p1", 0.0)) <= max_1h * 1.2
+            and p.get("er", 999.0) <= max_er * 1.2
+            and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+            and p.get("vl", 0.0) >= min_vl * 0.8
+        ]
+        cto_lp = deduplicate_best_tokens(cto_candidates)
+        cto_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
 
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
@@ -1530,6 +1640,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             and p.get("fee_hour", 0.0) >= min_fee_absorb
             and not p.get("is_honeypot")
             and not p.get("is_wash")
+            and not p.get("is_rug_risk")
         ]
         absorption = deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
@@ -1543,10 +1654,14 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
 
         # 4. Gaps
         gaps_candidates = []
-        for p in filtered:
+        for p in scored_tokens:
+            if p.get("address") in QUOTE_MINTS or p.get("symbol", "").upper() in ("SOL", "WSOL", "USDC", "USDT") or not (min_mcap <= p.get("mcap", 0.0) <= max_mcap) or (do_filter_stocks and is_tokenized_stock(p)):
+                continue
             if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
                 continue
             reasons = []
+            if p.get("is_rug_risk"):
+                reasons.extend(p.get("rug_reasons", []))
             liq = p.get("liq", 0.0)
             vl = p.get("vl", 0.0)
             p5 = p.get("p5", 0.0)
@@ -1567,9 +1682,10 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             if fee < min_fee_siap_lp:
                 reasons.append(f"Fee rendah (${fee:.2f} &lt; ${min_fee_siap_lp:.2f}/h)")
 
-            p_copy = dict(p)
-            p_copy["gap_reasons"] = reasons if reasons else ["Belum memenuhi kriteria"]
-            gaps_candidates.append(p_copy)
+            if reasons:
+                p_copy = dict(p)
+                p_copy["gap_reasons"] = reasons
+                gaps_candidates.append(p_copy)
 
         gaps = deduplicate_best_tokens(gaps_candidates)
         gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
@@ -1594,7 +1710,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_for_yield = siap_lp + momentum_5m + absorption
+        all_active_for_yield = siap_lp + cto_lp + momentum_5m + absorption
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_for_yield], default=0.0)
 
         now_epoch = time.time()
@@ -1611,12 +1727,14 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "chain_mode": chain_mode,
             "scored_tokens": scored_tokens,
             "siap_lp": siap_lp,
+            "cto_lp": cto_lp,
             "momentum_5m": momentum_5m,
             "absorption": absorption,
             "break_ath": break_ath,
             "gaps": gaps,
             "counts": {
                 "siap": len(siap_lp),
+                "cto": len(cto_lp),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
@@ -1632,7 +1750,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         elapsed = time.time() - t0
         print(
             f"[{time.strftime('%H:%M:%S')}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
-            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)}"
+            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)}"
         )
         return result
 
@@ -1654,6 +1772,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         break_ath_candidates=scan_res.get("break_ath", []),
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
         siap_list=scan_res.get("siap_lp", []),
+        cto_list=scan_res.get("cto_lp", []),
         absorption_list=scan_res.get("absorption", []),
         gaps_list=scan_res.get("gaps", []),
     )

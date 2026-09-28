@@ -1,13 +1,13 @@
 # Robinhood Meme LP Terminal — Project Guidelines & Domain Rules
 
-## 1. Core LP Strategy: Chop Sideways LP (Tunggal & Terfokus)
-- **Fokus Utama**: Hanya gunakan strategi tunggal: **Chop Sideways LP Farming**.
-- **Larangan Keras**: Jangan pernah menambahkan strategi sekunder (seperti "Pump Momentum", "Trend Following", dsb.) atau mengubah penandaan sinyal secara sepihak tanpa instruksi eksplisit dari pengguna.
+## 1. Core LP Strategy: Chop Sideways LP & CTO Revival LP
+- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming** dan **👑 CTO Revival LP**.
 - **Filosofi Inti**:
   - Jangan mengejar APR tinggi semata; cari meme coin yang **sudah pump → volume tetap tinggi → harga mulai chop/sideways**.
   - Volume ↑, Price → = Kandidat LP ideal.
   - Volume ↑↑, Price ↑↑↑ = Dilarang LP (sedang naik vertikal).
   - Price ↓↓↓ = Dilarang LP (sedang dump/crash bebas).
+  - **👑 CTO Revival LP**: Koin yang dev aslinya sudah rug/lepas tangan namun diambil alih oleh komunitas (`cto_flag == 1`), `dev_team_hold <= 20%`, bebas dari risiko dev dump, volume tetap aktif, dan harga mulai sideways.
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:
@@ -15,10 +15,17 @@
   - ER rendah (≤ 20, idealnya ≤ 5) menandakan volume tinggi dengan pergerakan harga sempit (sweet spot LP).
 - **Volatilitas Simetris**:
   - Pengecekan 5m (`|p5| <= max_5m`) dan 1h (`|p1| <= max_1h`) harus simetris (menolak koin yang pump gila maupun koin yang dump bebas).
-- **On-Chain Safety Filters**:
+- **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)
-  - `is_wash == False` & `is_honeypot == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
+  - `rug_ratio <= 25%` (Skor risiko riwayat rug dev GMGN)
+  - `bundler_rate <= 55%` (Maksimal sniped supply bundle block 0)
+  - `renounced_mint == 1` (Mint authority wajib dicabut pada rantai Solana)
+  - `holder_count >= 100` (Distribusi pemegang token memadai)
+  - `is_wash == False` & `is_honeypot == False` & `is_rug_risk == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, CTO Revival, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
+- **Narrative & Social Detection Engine**:
+  - Deteksi otomatis tag narasi: `👑 CTO` (Community Take Over), `🤖 AI` (AI Agents), `🧠 Smart` (Smart Money Inflow), `💎 Bluechip` (High market cap & liquidity).
+  - Integrasi tautan sosial (Twitter/X & Telegram) untuk verifikasi cepat komunitas.
 - **Fee Decay & Monitoring**:
   - Pantau fee per jam menggunakan perbandingan rolling 2-window untuk mendeteksi pelemahan dini.
   - Tiga pemicu keluar LP: (1) Fee/hour mati/melemah, (2) Breakout harga directional, (3) Toxic inventory.
@@ -56,10 +63,10 @@
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
 - **Tampilan Ultra-Minimalis**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
-  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>👑 CTO REVIVAL LP (Community Take Over)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
-  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM`).
+  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM │ [👑 CTO]`).
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
