@@ -120,7 +120,7 @@ DEFAULT_CONFIG = {
     "break_ath_min_mcap": 1000000.0,  # Min Mcap $1M (sama dengan LP biasa)
     "break_ath_min_ath": 1000000.0,   # Min ATH yang ditembus > $1M
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
-    "min_vl": 0.6,              # V/L 24h min 0.6x (disesuaikan untuk koin MCap $1M+)
+    "min_vl": 0.5,              # V/L 24h min 0.5x (disesuaikan untuk koin MCap $1M+)
     "max_5m": 15.0,             # volatilitas 5m max 15%
     "max_1h": 20.0,             # volatilitas 1h max 20% (simetris ketat)
     "max_drop_5m": -4.0,        # Asymmetric Downside Guard 5m (drop maks -4%)
@@ -220,8 +220,8 @@ def get_config() -> dict[str, Any]:
                             val = float(data[k])
                             if k in ("min_fee_siap_lp", "min_fee_break_ath") and val in (1.0, 3.0):
                                 val = 0.50
-                            if k == "min_vl" and val == 2.0:
-                                val = 0.6
+                            if k == "min_vl" and val in (0.6, 2.0):
+                                val = 0.5
                             if k == "max_1h" and val == 80.0:
                                 val = 20.0
                             if k == "min_mcap" and val == 500000.0:
@@ -619,7 +619,7 @@ def score_break_ath_candidates(
     6. Lolos on-chain safety: top10 <= 60%, insider <= 25%, not honeypot
     """
     min_scans = int(conf.get("break_ath_min_scans", 3))
-    min_fee = float(conf.get("min_fee_break_ath", 0.50))
+    min_vl = float(conf.get("min_vl", 0.5))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
     min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 1000000.0))
@@ -658,13 +658,15 @@ def score_break_ath_candidates(
         if ath_old < min_ath:
             continue
 
-        fee_h = float(t.get("fee_hour") or 0.0)
-        if fee_h < min_fee:
-            continue
-
         liq = float(t.get("liq") or 0.0)
         if liq < min_liq:
             continue
+
+        vl = float(t.get("vl") or 0.0)
+        if vl < min_vl:
+            continue
+
+        fee_h = float(t.get("fee_hour") or 0.0)
 
         buy_ratio = float(t.get("buy_ratio") or 50.0)
         if buy_ratio < min_buy:
@@ -700,7 +702,7 @@ def score_break_ath_candidates(
             "fee_24h": float(t.get("fee_24h") or 0.0),
             "liq": liq,
             "vol": float(t.get("vol") or 0.0),
-            "vl": float(t.get("vl") or 0.0),
+            "vl": vl,
             "buy_ratio": buy_ratio,
             "price": price_val,
             "range_low": round(price_val * 0.80, 8),
@@ -708,8 +710,8 @@ def score_break_ath_candidates(
             "range_pct": 20.0,
         })
 
-    # Urutkan: yield fee tertinggi dulu
-    candidates.sort(key=lambda x: -x["fee_hour"])
+    # Urutkan: perputaran volume/likuiditas (V/L) tertinggi dulu
+    candidates.sort(key=lambda x: -x["vl"])
     return candidates
 
 
@@ -723,17 +725,19 @@ def score_5m_momentum_candidates(
     1. vol_5m >= min_vol (default: $100,000)
     2. p5 > 0.0% (pump up / momentum naik)
     3. liq >= min_liq (default: $10,000)
-    4. fee_hour >= min_fee (default: $1.00/jam)
-    5. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, no wash, no honeypot
-    6. Bukan tokenized stock & bukan native quote mint
+    4. vl_5m >= min_vl (default: 0.5x turnover run-rate)
+    5. buy_ratio >= min_buy_ratio (default: 46.0%, anti-panic dump)
+    6. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, no wash, no honeypot
+    7. Bukan tokenized stock & bukan native quote mint
     """
     min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
     min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
-    min_fee = float(conf.get("momentum_5m_min_fee") or conf.get("min_fee_siap_lp", 0.50))
+    min_vl = float(conf.get("min_vl", 0.5))
     min_mcap = float(conf.get("min_mcap", 1000000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
     min_age_hours = float(conf.get("min_age_hours", 24.0))
     max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
+    min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
     pos = float(conf.get("position_usd", 100.0))
 
     candidates: list[dict] = []
@@ -777,6 +781,17 @@ def score_5m_momentum_candidates(
         if liq < min_liq:
             continue
 
+        vl_5m = round((vol_5m * 12.0) / liq, 2) if liq > 0 else 0.0
+        if vl_5m < min_vl:
+            continue
+
+        buys = int(num(r, "buys"))
+        sells = int(num(r, "sells"))
+        total_tx = buys + sells
+        buy_ratio = round((buys / total_tx * 100), 1) if total_tx > 0 else 50.0
+        if buy_ratio < min_buy_ratio:
+            continue
+
         # On-Chain Security
         top10_rate = round(num(r, "top_10_holder_rate") * 100, 1)
         dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
@@ -794,9 +809,6 @@ def score_5m_momentum_candidates(
         fee_5m = round(vol_5m * 0.01 * share, 4)
         fee_hour = round(fee_5m * 12.0, 4)
 
-        if fee_hour < min_fee:
-            continue
-
         chain = str(r.get("chain") or "SOL").upper()
         if chain == "RH":
             gmgn_url = f"https://gmgn.ai/robinhood/token/{addr}"
@@ -806,12 +818,7 @@ def score_5m_momentum_candidates(
             badge = "🔸"
 
         p1 = num(r, "price_change_percent1h")
-        buys = int(num(r, "buys"))
-        sells = int(num(r, "sells"))
-        total_tx = buys + sells
-        buy_ratio = round((buys / total_tx * 100), 1) if total_tx > 0 else 50.0
-        vl_5m = (vol_5m / liq) if liq > 0 else 0.0
-        er = round(abs(p1) / (vl_5m * 12), 2) if vl_5m > 0 else 99.0
+        er = round(abs(p1) / vl_5m, 2) if vl_5m > 0 else 99.0
 
         score = 80.0
         if dev_team_hold <= 5.0 and insider_rate <= 5.0:
@@ -829,6 +836,7 @@ def score_5m_momentum_candidates(
             "liq": liq,
             "vol_5m": vol_5m,
             "vol": vol_5m * 12.0,
+            "vl": vl_5m,
             "fee_5m": fee_5m,
             "fee_hour": fee_hour,
             "fee_24h": round(fee_hour * 24, 2),
@@ -850,7 +858,7 @@ def score_5m_momentum_candidates(
         })
         seen_addrs.add(addr)
 
-    candidates.sort(key=lambda x: (-x["fee_hour"], -x["vol_5m"]))
+    candidates.sort(key=lambda x: (-x["vl"], -x["vol_5m"]))
     return candidates
 
 
@@ -992,7 +1000,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     ath_mcap = num(row, "history_highest_market_cap")
     ath_drawdown = round(((mcap - ath_mcap) / ath_mcap * 100.0), 1) if ath_mcap > 0 else 0.0
 
-    min_vl = float(conf.get("min_vl", 0.6))
+    min_vl = float(conf.get("min_vl", 0.5))
     max_5m = float(conf.get("max_5m", 15.0))
     max_1h = float(conf.get("max_1h", 20.0))
     max_drop_5m = float(conf.get("max_drop_5m", -4.0))
@@ -1340,31 +1348,31 @@ def generate_report(
             and not p.get("is_rug_risk")
         ]
 
-        # 1. Kategori Siap LP: lolos kriteria CHOP 100% dan fee_hour >= min_fee_siap_lp
+        # 1. Kategori Siap LP: lolos kriteria CHOP 100%
         siap_candidates = [
             p for p in filtered
-            if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+            if p.get("is_chop")
         ]
         siap_lp = deduplicate_best_tokens(siap_candidates)
-        siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        siap_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
             p for p in filtered
             if p.get("address") not in siap_addrs
             and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
-            and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and p.get("vl", 0.0) >= min_vl
             and not p.get("is_honeypot")
             and not p.get("is_wash")
         ]
         absorption = deduplicate_best_tokens(absorb_candidates)
-        absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        absorption.sort(key=lambda x: -x.get("vl", 0.0))
 
         # Gaps logic
         min_liq = float(conf.get("min_liq", 20000.0))
-        min_vl = float(conf.get("min_vl", 2.0))
+        min_vl = float(conf.get("min_vl", 0.5))
         max_5m = float(conf.get("max_5m", 15.0))
-        max_1h = float(conf.get("max_1h", 80.0))
+        max_1h = float(conf.get("max_1h", 20.0))
         max_er = float(conf.get("max_er", 20.0))
 
         gaps_candidates = []
@@ -1379,7 +1387,6 @@ def generate_report(
             p5 = p.get("p5", 0.0)
             p1 = p.get("p1", 0.0)
             er = p.get("er", 999.0)
-            fee = p.get("fee_hour", 0.0)
 
             if liq < min_liq:
                 reasons.append(f"Liq &lt; {_usd(min_liq)}")
@@ -1391,8 +1398,6 @@ def generate_report(
                 reasons.append(f"1h &gt; {max_1h:.0f}%")
             if er > max_er:
                 reasons.append(f"ER &gt; {max_er:.1f}")
-            if fee < min_fee_siap_lp:
-                reasons.append(f"Fee &lt; ${_usd(min_fee_siap_lp)}/h")
 
             if reasons:
                 p_copy = dict(p)
@@ -1400,7 +1405,7 @@ def generate_report(
                 gaps_candidates.append(p_copy)
 
         gaps = deduplicate_best_tokens(gaps_candidates)
-        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
+        gaps.sort(key=lambda x: (-x.get("vl", 0.0), -x.get("vol", 0.0)))
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
     top_limit = conf.get("top_n_display", 10)
@@ -1418,14 +1423,14 @@ def generate_report(
         for idx, t in enumerate(siap_lp[:top_limit]):
             sym = html.escape(str(t.get("symbol") or "?"))
             sym_link = f'<a href="{t["url"]}">{sym}</a>'
-            fee_h = t.get("fee_hour", 0.0)
+            vl = t.get("vl", 0.0)
             mc_str = _usd(t['mcap'])
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
             narr_tags = [f"[{tg}]" for tg in t.get("narratives", [])]
             narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}{narr_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_str}")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -1440,14 +1445,14 @@ def generate_report(
         for c in c_list[:top_limit]:
             sym = html.escape(str(c.get("symbol") or "?"))
             sym_link = f'<a href="{c["url"]}">{sym}</a>'
-            fee_h = c.get("fee_hour", 0.0)
+            vl = c.get("vl", 0.0)
             mc_str = _usd(c['mcap'])
             chain = str(c.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
             other_narr = [f"[{tg}]" for tg in c.get("narratives", []) if tg != "👑 CTO"]
             narr_suffix = f" │ {' '.join(other_narr)}" if other_narr else ""
 
-            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}{narr_suffix}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_suffix}")
 
         if len(c_list) > top_limit:
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
@@ -1462,7 +1467,7 @@ def generate_report(
         for m in m5_list[:6]:
             sym = html.escape(str(m.get("symbol") or "?"))
             sym_link = f'<a href="{m["url"]}">{sym}</a>'
-            fee_h = m.get("fee_hour", 0.0)
+            vl = m.get("vl", 0.0)
             mc_str = _usd(m.get("mcap", 0.0))
             vol5_str = _usd(m.get("vol_5m", 0.0))
             p5 = m.get("p5", 0.0)
@@ -1475,7 +1480,7 @@ def generate_report(
             if buys > 0 or sells > 0:
                 tx_str += f" ({buys}/{sells})"
 
-            lines.append(f"{badge} {sym_link} │ ${fee_h:.2f}/h │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
             lines.append(f"  ⚡ 5m {p5_str} │ 🌊 Vol5m {vol5_str} │ {tx_str}")
             lines.append("")
     else:
@@ -1489,16 +1494,15 @@ def generate_report(
         for b in bath_list[:6]:
             sym = html.escape(str(b.get("symbol") or "?"))
             sym_link = f'<a href="{b["url"]}">{sym}</a>'
-            fee_str  = f"${b['fee_hour']:.2f}/h"
+            vl = b.get("vl", 0.0)
             mc_str   = _usd(b['mcap'])
             dur_str  = f"{b['duration_mins']}m"
             badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🔸"
             pct_sign = "+" if b["breakout_pct"] >= 0 else ""
-            vl_str   = f"V/L {b.get('vl', 0.0):.1f}x"
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
-            lines.append(f"{badge} {sym_link} │ {fee_str} │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
-            lines.append(f"  ⏱ {dur_str} │ 📊 {vl_str} │ 🟢 {b_ratio}% Buy")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
+            lines.append(f"  ⏱ {dur_str} │ 🌊 Vol {_usd(b.get('vol', 0.0))} │ 🟢 {b_ratio}% Buy")
             lines.append("")
 
     # 4. ABSORPTION RADAR
@@ -1508,12 +1512,12 @@ def generate_report(
         for t in absorption[:top_limit]:
             sym = html.escape(str(t.get("symbol") or "?"))
             sym_link = f'<a href="{t["url"]}">{sym}</a>'
-            fee_str = f"${t['fee_hour']:.2f}/h"
+            vl = t.get("vl", 0.0)
             mc_str = f"MC {_usd(t['mcap'])}"
             status = html.escape(str(t.get("status_label", "")).strip())
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
 
-            lines.append(f"{badge} {sym_link} │ {fee_str} │ {mc_str} │ {status}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ {mc_str} │ {status}")
             lines.append("")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
@@ -1528,13 +1532,13 @@ def generate_report(
             sym = html.escape(str(g.get("symbol") or "?"))
             url = g.get("url") or f"https://gmgn.ai/sol/token/{g.get('address','')}"
             sym_link = f'<a href="{url}">{sym}</a>'
-            fee_str = f"${g.get('fee_hour', 0.0):.2f}/h"
+            vl = g.get("vl", 0.0)
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
             narr_tags = [f"[{tg}]" for tg in g.get("narratives", [])]
             narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ {fee_str} │ MC {mc_str}{narr_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_str}")
 
     report_body = "\n".join(lines).strip()
     return f"{report_body}"
@@ -1571,7 +1575,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 0.50))
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
         min_liq = float(conf.get("min_liq", 20000.0))
-        min_vl = float(conf.get("min_vl", 0.6))
+        min_vl = float(conf.get("min_vl", 0.5))
         max_5m = float(conf.get("max_5m", 15.0))
         max_1h = float(conf.get("max_1h", 20.0))
         max_drop_5m = float(conf.get("max_drop_5m", -4.0))
@@ -1687,10 +1691,10 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         # 1. Siap LP (100% lolos Chop Sideways)
         siap_candidates = [
             p for p in filtered
-            if p.get("is_chop") and p.get("fee_hour", 0.0) >= min_fee_siap_lp
+            if p.get("is_chop")
         ]
         siap_lp = deduplicate_best_tokens(siap_candidates)
-        siap_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        siap_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
         # 1b. 👑 CTO REVIVAL LP (Community Take Over + Sideways + Dev Zero Risk)
         cto_candidates = [
@@ -1704,11 +1708,10 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             and abs(p.get("p5", 0.0)) <= max_5m * 1.2
             and abs(p.get("p1", 0.0)) <= max_1h * 1.2
             and p.get("er", 999.0) <= max_er * 1.2
-            and p.get("fee_hour", 0.0) >= min_fee_siap_lp
-            and p.get("vl", 0.0) >= min_vl * 0.8
+            and p.get("vl", 0.0) >= min_vl
         ]
         cto_lp = deduplicate_best_tokens(cto_candidates)
-        cto_lp.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        cto_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
@@ -1716,7 +1719,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             p for p in filtered
             if p.get("address") not in siap_addrs
             and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
-            and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and p.get("vl", 0.0) >= min_vl
             and p.get("ath_drawdown", 0.0) >= max_ath_drawdown
             and p.get("buy_ratio", 50.0) >= min_buy_ratio
             and not p.get("is_honeypot")
@@ -1724,7 +1727,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             and not p.get("is_rug_risk")
         ]
         absorption = deduplicate_best_tokens(absorb_candidates)
-        absorption.sort(key=lambda x: -x.get("fee_hour", 0.0))
+        absorption.sort(key=lambda x: -x.get("vl", 0.0))
 
         # 3. Break ATH
         try:
@@ -1754,7 +1757,6 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             p5 = p.get("p5", 0.0)
             p1 = p.get("p1", 0.0)
             er = p.get("er", 999.0)
-            fee = p.get("fee_hour", 0.0)
             buy_r = p.get("buy_ratio", 50.0)
             ath_dd = p.get("ath_drawdown", 0.0)
 
@@ -1776,8 +1778,6 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 reasons.append(f"ATH drop dalam ({ath_dd:.0f}% &lt; {max_ath_drawdown:.0f}%)")
             if er > max_er:
                 reasons.append(f"ER melebar ({er:.1f} &gt; {max_er:.1f})")
-            if fee < min_fee_siap_lp:
-                reasons.append(f"Fee rendah (${fee:.2f} &lt; ${min_fee_siap_lp:.2f}/h)")
 
             if reasons:
                 p_copy = dict(p)
@@ -1785,7 +1785,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 gaps_candidates.append(p_copy)
 
         gaps = deduplicate_best_tokens(gaps_candidates)
-        gaps.sort(key=lambda x: (-x.get("fee_hour", 0.0), -x.get("vol", 0.0)))
+        gaps.sort(key=lambda x: (-x.get("vl", 0.0), -x.get("vol", 0.0)))
 
         # 5. 5M Momentum
         momentum_5m = []
@@ -2099,7 +2099,7 @@ def main() -> None:
     print(f"💰 Posisi Modal  : ${conf['position_usd']:.0f} USD")
     print(f"🛡️ Target Min TVL: ${conf['min_liq']:,.0f}")
     print(f"📊 Filter Mcap   : ≥ {_usd(conf['min_mcap'])}")
-    print(f"💵 Filter Siap LP: Fee ≥ ${conf['min_fee_siap_lp']:.2f}/jam")
+    print(f"📊 Filter Siap LP: V/L ≥ {conf['min_vl']:.1f}x · Buy% ≥ {conf['min_buy_ratio']:.0f}%")
     print(f"⚡ 5M Momentum   : Vol5m ≥ ${conf.get('momentum_5m_min_vol', 100000.0)/1000:.0f}k · Pump Up · Liq ≥ ${conf.get('momentum_5m_min_liq', 10000.0)/1000:.0f}k")
     has_token = bool(conf.get("telegram_bot_token") and conf.get("telegram_chat_id"))
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")

@@ -18,8 +18,7 @@
   - `ath_drawdown >= -85.0%`: MCap saat ini tidak boleh drop lebih dari 85% dari All-Time High (menolak koin zombie / kuburan bagholder).
   - `max_1h <= 20.0%` & `max_5m <= 15.0%`: Pengetatan rentang volatilitas 1 jam simetris untuk konsolidasi sideways sejati.
   - **Asymmetric Downside Guard**: `p1 >= -8.0%` (penurunan 1 jam maks -8%) dan `p5 >= -4.0%` (penurunan 5 menit maks -4%). Menolak koin yang sedang meluncur bebas (*falling knife*).
-  - `min_vl >= 0.6x`: Disesuaikan untuk token $MCap \ge \$1\text{M}$ yang berlikuiditas tebal agar tidak terbuang ke Gaps.
-  - `min_fee_siap_lp >= $0.50/jam`: Ambang batas fee rasional untuk modal \$100 (setara APR $+4,380\%/\text{tahun}$).
+  - `min_vl >= 0.5x`: Standar rasio perputaran volume terhadap likuiditas (Turnover V/L) universal untuk SEMUA strategi (Siap LP, CTO Revival, 5M Momentum, Break ATH, Absorption, dan Gaps). Menggantikan filter ambang batas fee/jam arbitrer ($/h) demi objektivitas konsisten lintas timeframe dan pool.
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
   - `min_mcap >= $1,000,000` ($1M USD Market Cap)
   - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
@@ -75,11 +74,11 @@
   - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>👑 CTO REVIVAL LP (Community Take Over)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
-  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM │ [👑 CTO]`).
+  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ [👑 CTO]`).
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
-  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ $X.XX/h │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token agar tampilan daftar GAPS sangat padat (compact).
+  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token agar tampilan daftar GAPS sangat padat (compact).
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
 
 ## 6. Sinkronisasi Waktu Pemindaian (Scan Timing Synchronization)

@@ -78,7 +78,7 @@ def load_persistent_filters() -> dict[str, Any]:
         "min_mcap": 1000000.0,
         "max_mcap": 500000000.0,
         "min_age_hours": 24.0,
-        "min_vl": 0.6,
+        "min_vl": 0.5,
         "max_5m": 15.0,
         "max_1h": 20.0,
         "max_drop_5m": -4.0,
@@ -109,8 +109,8 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["min_fee_siap_lp"] = 0.50
                 if saved.get("min_fee_break_ath") in (1.0, 3.0):
                     saved["min_fee_break_ath"] = 0.50
-                if saved.get("min_vl") == 2.0:
-                    saved["min_vl"] = 0.6
+                if saved.get("min_vl") in (0.6, 2.0):
+                    saved["min_vl"] = 0.5
                 if saved.get("max_1h") == 80.0:
                     saved["max_1h"] = 20.0
                 if saved.get("min_mcap") == 500000.0:
@@ -1764,7 +1764,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <span>Min V/L 24h</span>
             <span>Perputaran fee (MC $1M+)</span>
           </div>
-          <input type="number" step="0.1" id="f_min_vl" class="form-input" value="0.6">
+          <input type="number" step="0.1" id="f_min_vl" class="form-input" value="0.5">
         </div>
 
         <div class="form-group">
@@ -2136,7 +2136,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("f_min_mcap").value = 1000000;
         document.getElementById("f_min_age_hours").value = 12;
         document.getElementById("f_min_liq").value  = 15000;
-        document.getElementById("f_min_vl").value   = 0.4;
+        document.getElementById("f_min_vl").value   = 0.3;
         document.getElementById("f_min_buy_ratio").value = 42.0;
         document.getElementById("f_max_ath_drawdown").value = -90.0;
         document.getElementById("f_max_drop_1h").value = -12.0;
@@ -2155,7 +2155,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       document.getElementById("f_min_mcap").value = 1000000;
       document.getElementById("f_min_age_hours").value = 24;
       document.getElementById("f_min_liq").value  = 20000;
-      document.getElementById("f_min_vl").value   = 0.6;
+      document.getElementById("f_min_vl").value   = 0.5;
       document.getElementById("f_min_buy_ratio").value = 46.0;
       document.getElementById("f_max_ath_drawdown").value = -85.0;
       document.getElementById("f_max_drop_1h").value = -8.0;
@@ -2176,7 +2176,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 1000000,
         min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 24,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
-        min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 0.6,
+        min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 0.5,
         min_buy_ratio:       parseFloat(document.getElementById("f_min_buy_ratio").value) || 46.0,
         max_ath_drawdown:    parseFloat(document.getElementById("f_max_ath_drawdown").value) || -85.0,
         max_drop_1h:         parseFloat(document.getElementById("f_max_drop_1h").value) || -8.0,
@@ -2929,7 +2929,7 @@ def run_server() -> None:
     print(f"🔸 Solana        : Aktif (GMGN / Fallback Meteora)")
     print(f"🔹 Robinhood     : Aktif (GMGN Open API)")
     print(f"🎯 Strategi      : Chop Sideways LP Farming (100% Bot Parity)")
-    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp', 0.5)}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ V/L ≥ {initial_filters.get('min_vl', 0.6)}x │ Buy% ≥ {initial_filters.get('min_buy_ratio', 46.0)}%")
+    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp', 0.5)}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ V/L ≥ {initial_filters.get('min_vl', 0.5)}x │ Buy% ≥ {initial_filters.get('min_buy_ratio', 46.0)}%")
     print(f"🌐 Akses Browser : http://localhost:{PORT} atau http://<IP_VPS>:{PORT}")
     print("=" * 60)
 
