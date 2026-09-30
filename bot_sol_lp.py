@@ -720,14 +720,15 @@ def score_break_ath_candidates(
 def score_5m_momentum_candidates(
     tokens_5m: list[dict],
     conf: dict[str, Any],
+    scored_map: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Filter kandidat strategi ⚡ 5M MOMENTUM:
     1. vol_5m >= min_vol (default: $100,000)
     2. p5 > 0.0% (pump up / momentum naik)
     3. liq >= min_liq (default: $10,000)
-    4. vl_5m >= min_vl (default: 0.5x turnover run-rate)
+    4. V/L >= min_vl (disinkronkan dengan 1h V/L jika ada di database scan agar seragam 100%)
     5. buy_ratio >= min_buy_ratio (default: 46.0%, anti-panic dump)
-    6. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, no wash, no honeypot
+    6. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, bundler <= 55%, rug <= 25%, no wash, no honeypot
     7. Bukan tokenized stock & bukan native quote mint
     """
     min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
@@ -738,6 +739,8 @@ def score_5m_momentum_candidates(
     min_age_hours = float(conf.get("min_age_hours", 24.0))
     max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
     min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
+    max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
+    max_rug_ratio = float(conf.get("max_rug_ratio", 0.25))
     pos = float(conf.get("position_usd", 100.0))
 
     candidates: list[dict] = []
@@ -781,8 +784,16 @@ def score_5m_momentum_candidates(
         if liq < min_liq:
             continue
 
-        vl_5m = round((vol_5m * 12.0) / liq, 2) if liq > 0 else 0.0
-        if vl_5m < min_vl:
+        # V/L Calculation: Jika token sudah ada di database scan 1h (scored_map),
+        # gunakan vl 1h riil agar nilainya 100% identik di 5M Momentum, Siap, CTO, Gaps & Web.
+        # Jika belum ada di list 1h, gunakan perputaran volume 5m terhadap likuiditas.
+        token_1h = scored_map.get(addr) if scored_map else None
+        if token_1h and float(token_1h.get("vl") or 0.0) > 0:
+            vl_val = float(token_1h.get("vl") or 0.0)
+        else:
+            vl_val = round((vol_5m * 12.0) / liq, 2) if liq > 0 else 0.0
+
+        if vl_val < min_vl:
             continue
 
         buys = int(num(r, "buys"))
@@ -792,16 +803,20 @@ def score_5m_momentum_candidates(
         if buy_ratio < min_buy_ratio:
             continue
 
-        # On-Chain Security
+        # On-Chain Security & Multi-Layer Anti-Rug
         top10_rate = round(num(r, "top_10_holder_rate") * 100, 1)
         dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
         insider_rate = round(num(r, "rat_trader_amount_rate") * 100, 1)
+        bundler_rate = num(r, "bundler_rate")
+        rug_ratio = num(r, "rug_ratio")
         is_wash = check_is_wash(r)
         is_honeypot = check_is_honeypot(r)
 
         if is_wash or is_honeypot:
             continue
         if top10_rate > 45.0 or dev_team_hold > 20.0 or insider_rate > 10.0:
+            continue
+        if bundler_rate > max_bundler_rate or rug_ratio > max_rug_ratio:
             continue
 
         # Estimasi fee: fee 5m + run-rate fee/jam
@@ -818,7 +833,7 @@ def score_5m_momentum_candidates(
             badge = "🔸"
 
         p1 = num(r, "price_change_percent1h")
-        er = round(abs(p1) / vl_5m, 2) if vl_5m > 0 else 99.0
+        er = round(abs(p1) / vl_val, 2) if vl_val > 0 else 99.0
 
         score = 80.0
         if dev_team_hold <= 5.0 and insider_rate <= 5.0:
@@ -836,7 +851,7 @@ def score_5m_momentum_candidates(
             "liq": liq,
             "vol_5m": vol_5m,
             "vol": vol_5m * 12.0,
-            "vl": vl_5m,
+            "vl": vl_val,
             "fee_5m": fee_5m,
             "fee_hour": fee_hour,
             "fee_24h": round(fee_hour * 24, 2),
@@ -1802,13 +1817,15 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 if r_rh:
                     raw_5m_list.extend(r_rh)
             if raw_5m_list:
-                momentum_5m = score_5m_momentum_candidates(raw_5m_list, conf)
+                scored_map = {str(t.get("address") or ""): t for t in scored_tokens if t.get("address")}
+                momentum_5m = score_5m_momentum_candidates(raw_5m_list, conf, scored_map=scored_map)
         except Exception as e_5m:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_for_yield = siap_lp + cto_lp + momentum_5m + absorption
-        top_yield = max([p.get("fee_hour", 0.0) for p in all_active_for_yield], default=0.0)
+        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption
+        top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
+        top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
         now_epoch = time.time()
         now_dt = datetime.now()
@@ -1839,6 +1856,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 "total": len(scored_tokens),
             },
             "top_yield": top_yield,
+            "top_vl": top_vl,
         }
 
         GLOBAL_SCAN_CACHE = result

@@ -53,7 +53,7 @@
   - Tabel utama hanya berisi koin yang **100% lolos kriteria (CHOP)**.
   - Koin yang belum lolos kriteria harus masuk ke panel **Belum Kriteria (Gaps)** beserta label alasan spesifik.
   - **Desktop Screen Resolution**: Layar laptop pengguna adalah `1920 x 1200`. Variabel `--container-max` di `web.py` diatur ke `1840px` agar tabel penuh dan tidak terpotong horizontal scrollbar.
-  - **Susunan Kolom Tabel (Table Mode)**: Urutan kolom wajib: `#` │ `TOKEN` │ `FEE/H` │ `V/L` │ `AKSI` │ `MCAP` │ `LIQ` │ `ER` │ `1H / 5M` │ `BUY %` │ `SAFE`. Kolom CA/VENUE dihapus agar tabel padat dan tombol AKSI (GMGN) berada langsung di kolom ke-5.
+  - **Susunan Kolom Tabel (Table Mode)**: Urutan kolom wajib: `#` │ `TOKEN` │ `V/L` │ `AKSI` │ `MCAP` │ `LIQ` │ `ER` │ `1H / 5M` │ `BUY %` │ `SAFE`. Kolom `FEE/H` dan CA/VENUE dihapus agar tabel bersih, padat, dan tombol AKSI (GMGN) berada langsung di kolom ke-4.
 
 ## 4. VPS Deployment Invariants
 - **Path Folder VPS**: Proyek berada di `~/sol_radar` (BUKAN `~/LP`).

@@ -59,6 +59,7 @@ app_state: dict[str, Any] = {
     "gaps": [],
     "counts": {"siap": 0, "cto": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "total": 0},
     "top_yield": 0.0,
+    "top_vl": 0.0,
     "filters": {},
 }
 
@@ -196,6 +197,7 @@ def perform_scan(force: bool = False) -> None:
                 "total": res.get("total_scanned", 0),
             })
             app_state["top_yield"] = res.get("top_yield", 0.0)
+            app_state["top_vl"] = res.get("top_vl", 0.0)
 
         print(
             f"[{time.strftime('%H:%M:%S')}] [Web Sync] Selesai dalam {time.time() - t0:.2f}s | "
@@ -1642,8 +1644,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <div id="kpiAbsorb" class="kpi-val">0</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label"><span>💰</span> Top Yield</div>
-          <div id="kpiTopYield" class="kpi-val green">$0.00</div>
+          <div class="kpi-label"><span>🔥</span> Top V/L</div>
+          <div id="kpiTopYield" class="kpi-val green">0.0x</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label"><span>🕒</span> Scan</div>
@@ -1720,20 +1722,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       <!-- Quick Tuning Presets -->
       <div class="preset-strip">
-        <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif ($1.0/h)</button>
-        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($0.5/h)</button>
-        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($0.3/h)</button>
+        <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif (V/L 0.8x)</button>
+        <button class="btn-preset active" onclick="applyPreset('standar')">⚖️ Standar (V/L 0.5x)</button>
+        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif (V/L 0.3x)</button>
       </div>
 
       <div class="form-section-title">📊 Kriteria Chop Sideways LP (Anti-Drill Down)</div>
+      <input type="hidden" id="f_min_fee" value="0.5">
       <div class="form-grid-2">
-        <div class="form-group">
-          <div class="form-label">
-            <span>Min Fee Siap LP ($/jam)</span>
-            <span style="color:var(--green-light)">Posisi $100</span>
-          </div>
-          <input type="number" step="0.05" id="f_min_fee" class="form-input" value="0.5">
-        </div>
 
         <div class="form-group">
           <div class="form-label">
@@ -2303,17 +2299,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       // Pareto guarantee for gaps
       if (activeCategory === "gaps") {
-        filtered = [...filtered].sort((a, b) => (b.fee_hour || 0) - (a.fee_hour || 0) || (b.vol || 0) - (a.vol || 0));
+        filtered = [...filtered].sort((a, b) => (b.vl || 0) - (a.vl || 0) || (b.vol || 0) - (a.vol || 0));
       }
 
       // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $0.50/h, Buy% ≥ 46%, Drop 1h ≤ -8%, ATH Drop ≤ 85%).",
-          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, Buy% ≥ 46%, ATH Drop ≤ 85%).",
-          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, MC ≥ $1M, Usia ≥ 24h).",
-          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, Buy% ≥ 46%).",
-          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, Fee ≥ $0.50/h).",
+          siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
+          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, V/L ≥ 0.5x, Buy% ≥ 46%, ATH Drop ≤ 85%).",
+          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x, Buy% ≥ 46%).",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x).",
           gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
@@ -2422,10 +2418,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   ${subRowHtml}
                 </div>
               </td>
-              <td class="arc-td mono" style="text-align:right;white-space:nowrap">
-                <span class="fee-hour" style="font-size:14px">${feeHour}</span>
-              </td>
-              <td class="arc-td mono" style="color:#a5b4fc;white-space:nowrap">${vlStr}</td>
+              <td class="arc-td mono" style="text-align:center;font-weight:700;color:#38bdf8;font-size:13px;white-space:nowrap">${vlStr}</td>
               <td class="arc-td" style="text-align:center;white-space:nowrap">
                 <div style="display:flex;align-items:center;justify-content:center;gap:6px">
                   <span class="state-pill ${spClass}" style="padding:3px 6px;font-size:10px;white-space:nowrap" title="${spLabel}">${spIcon}</span>
@@ -2452,8 +2445,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <tr>
                   <th style="width:36px;text-align:center">#</th>
                   <th>TOKEN</th>
-                  <th style="text-align:right">FEE/H</th>
-                  <th>V/L</th>
+                  <th style="text-align:center">V/L</th>
                   <th style="text-align:center">AKSI</th>
                   <th>MCAP</th>
                   <th>LIQ</th>
@@ -2617,15 +2609,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 </div>
               </div>
               <div class="token-fee-right">
-                <div class="fee-hour">${feeHour}</div>
-                <div class="fee-day">${feeDay}</div>
+                <div class="fee-hour" style="color:#38bdf8">${vlStr}</div>
+                <div class="fee-day" style="color:var(--text-muted);font-size:10px">V/L TURNOVER</div>
               </div>
             </div>
 
             <div class="metrics-grid">
               <div class="metric-cell"><div class="m-label">MCAP</div><div class="m-val">${mcapStr}</div></div>
               <div class="metric-cell"><div class="m-label">LIQ TVL</div><div class="m-val">${liqStr}</div></div>
-              <div class="metric-cell"><div class="m-label">V/L 24H</div><div class="m-val">${vlStr}</div></div>
+              <div class="metric-cell"><div class="m-label">24H VOL</div><div class="m-val">${formatUsd(t.vol || 0)}</div></div>
               <div class="metric-cell"><div class="m-label">ER SCORE</div><div class="m-val">${erBadge}</div></div>
             </div>
 
@@ -2707,7 +2699,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // KPI
         document.getElementById("kpiSiap").innerText     = data.counts.siap || 0;
         document.getElementById("kpiAbsorb").innerText   = data.counts.absorption || 0;
-        document.getElementById("kpiTopYield").innerText = data.top_yield ? `$${data.top_yield.toFixed(2)}/h` : "$0.00";
+        const topVl = (data.top_vl !== undefined && data.top_vl !== null) ? Number(data.top_vl).toFixed(1) + "x" : (data.top_yield ? `${Number(data.top_yield).toFixed(1)}x` : "0.0x");
+        document.getElementById("kpiTopYield").innerText = topVl;
         document.getElementById("kpiTime").innerText     = data.scanned_at || "--:--";
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
         document.getElementById("kpiBath").innerText     = bathCount;
@@ -2818,6 +2811,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "chain_mode": app_state["filters"].get("chain_mode", "BOTH"),
                     "counts": app_state["counts"],
                     "top_yield": app_state["top_yield"],
+                    "top_vl": app_state.get("top_vl", 0.0),
                     "filters": app_state["filters"],
                     "siap_lp": app_state["siap_lp"],
                     "cto_lp": app_state.get("cto_lp", []),
