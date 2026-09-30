@@ -112,22 +112,26 @@ DEFAULT_CONFIG = {
     "min_mcap": 1000000.0,      # Market cap minimal $1M ($1,000,000)
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
     "min_age_hours": 24.0,      # Usia minimal token 24 jam (hard filter anti-sniper)
-    "min_fee_siap_lp": 1.0,     # Hanya tampilkan Siap LP jika fee/hour >= $1.00
+    "min_fee_siap_lp": 0.50,    # Hanya tampilkan Siap LP jika fee/hour >= $0.50
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
-    "min_fee_break_ath": 1.0,   # Hanya tampilkan Break ATH LP jika fee/hour >= $1.00
+    "min_fee_break_ath": 0.50,  # Hanya tampilkan Break ATH LP jika fee/hour >= $0.50
     "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
     "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
     "break_ath_min_mcap": 1000000.0,  # Min Mcap $1M (sama dengan LP biasa)
     "break_ath_min_ath": 1000000.0,   # Min ATH yang ditembus > $1M
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
-    "min_vl": 2.0,              # V/L 24h min 2x
+    "min_vl": 0.6,              # V/L 24h min 0.6x (disesuaikan untuk koin MCap $1M+)
     "max_5m": 15.0,             # volatilitas 5m max 15%
-    "max_1h": 80.0,             # volatilitas 1h max 80%
+    "max_1h": 20.0,             # volatilitas 1h max 20% (simetris ketat)
+    "max_drop_5m": -4.0,        # Asymmetric Downside Guard 5m (drop maks -4%)
+    "max_drop_1h": -8.0,        # Asymmetric Downside Guard 1h (drop maks -8%)
+    "min_buy_ratio": 46.0,      # Order flow hard gate (min 46% buy, anti-panic dump)
+    "max_ath_drawdown": -85.0,  # Batas ATH Drawdown (drop maks -85%, anti-zombie trap)
     "max_er": 20.0,             # Efficiency Ratio max 20
     "min_absorb_score": 65.0,
     "momentum_5m_min_vol": 100000.0,  # Min Volume 5m > $100k
     "momentum_5m_min_liq": 10000.0,   # Min Liquidity >= $10k
-    "momentum_5m_min_fee": 1.0,       # Min Fee run-rate >= $1.00/jam
+    "momentum_5m_min_fee": 0.50,      # Min Fee run-rate >= $0.50/jam
     "top_n_display": 12,        # batas tampilan list token per kategori
 }
 
@@ -206,11 +210,20 @@ def get_config() -> dict[str, Any]:
                         conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
                     if data.get("chain_mode"):
                         conf["chain_mode"] = str(data["chain_mode"]).upper().strip()
-                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee", "min_mcap", "max_mcap", "min_age_hours"]:
+                    for k in [
+                        "min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position",
+                        "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol",
+                        "momentum_5m_min_liq", "momentum_5m_min_fee", "min_mcap", "max_mcap",
+                        "min_age_hours", "max_drop_1h", "max_drop_5m", "min_buy_ratio", "max_ath_drawdown"
+                    ]:
                         if k in data:
                             val = float(data[k])
-                            if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
-                                val = 1.0
+                            if k in ("min_fee_siap_lp", "min_fee_break_ath") and val in (1.0, 3.0):
+                                val = 0.50
+                            if k == "min_vl" and val == 2.0:
+                                val = 0.6
+                            if k == "max_1h" and val == 80.0:
+                                val = 20.0
                             if k == "min_mcap" and val == 500000.0:
                                 val = 1000000.0
                             conf[k if k != "position" else "position_usd"] = val
@@ -237,6 +250,18 @@ def get_config() -> dict[str, Any]:
         conf["min_age_hours"] = float(os.environ["MIN_AGE_HOURS"])
     if os.getenv("MIN_FEE_SIAP_LP"):
         conf["min_fee_siap_lp"] = float(os.environ["MIN_FEE_SIAP_LP"])
+    if os.getenv("MIN_VL"):
+        conf["min_vl"] = float(os.environ["MIN_VL"])
+    if os.getenv("MAX_1H"):
+        conf["max_1h"] = float(os.environ["MAX_1H"])
+    if os.getenv("MIN_BUY_RATIO"):
+        conf["min_buy_ratio"] = float(os.environ["MIN_BUY_RATIO"])
+    if os.getenv("MAX_ATH_DRAWDOWN"):
+        conf["max_ath_drawdown"] = float(os.environ["MAX_ATH_DRAWDOWN"])
+    if os.getenv("MAX_DROP_1H"):
+        conf["max_drop_1h"] = float(os.environ["MAX_DROP_1H"])
+    if os.getenv("MAX_DROP_5M"):
+        conf["max_drop_5m"] = float(os.environ["MAX_DROP_5M"])
 
     return conf
 
@@ -594,7 +619,7 @@ def score_break_ath_candidates(
     6. Lolos on-chain safety: top10 <= 60%, insider <= 25%, not honeypot
     """
     min_scans = int(conf.get("break_ath_min_scans", 3))
-    min_fee = float(conf.get("min_fee_break_ath", 1.0))
+    min_fee = float(conf.get("min_fee_break_ath", 0.50))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
     min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 1000000.0))
@@ -704,10 +729,11 @@ def score_5m_momentum_candidates(
     """
     min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
     min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
-    min_fee = float(conf.get("momentum_5m_min_fee") or conf.get("min_fee_siap_lp", 1.0))
+    min_fee = float(conf.get("momentum_5m_min_fee") or conf.get("min_fee_siap_lp", 0.50))
     min_mcap = float(conf.get("min_mcap", 1000000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
     min_age_hours = float(conf.get("min_age_hours", 24.0))
+    max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
     pos = float(conf.get("position_usd", 100.0))
 
     candidates: list[dict] = []
@@ -732,6 +758,11 @@ def score_5m_momentum_candidates(
         open_ts = num(r, "open_timestamp", "creation_timestamp")
         age_hours = round((time.time() - open_ts) / 3600.0, 1) if open_ts > 0 else 9999.0
         if age_hours < min_age_hours:
+            continue
+
+        ath_mcap = num(r, "history_highest_market_cap")
+        ath_drawdown = round(((mcap - ath_mcap) / ath_mcap * 100.0), 1) if ath_mcap > 0 else 0.0
+        if ath_drawdown < max_ath_drawdown:
             continue
 
         vol_5m = num(r, "volume")
@@ -805,6 +836,7 @@ def score_5m_momentum_candidates(
             "p1": p1,
             "mcap": mcap,
             "age_hours": age_hours,
+            "ath_drawdown": ath_drawdown,
             "buys": buys,
             "sells": sells,
             "buy_ratio": buy_ratio,
@@ -957,36 +989,50 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
 
     score = round(min(100.0, max(0.0, pts_vl + pts_er + pts_vol + pts_flow + pts_safety)), 1)
 
-    min_vl = float(conf.get("min_vl", 2.0))
+    ath_mcap = num(row, "history_highest_market_cap")
+    ath_drawdown = round(((mcap - ath_mcap) / ath_mcap * 100.0), 1) if ath_mcap > 0 else 0.0
+
+    min_vl = float(conf.get("min_vl", 0.6))
     max_5m = float(conf.get("max_5m", 15.0))
-    max_1h = float(conf.get("max_1h", 80.0))
+    max_1h = float(conf.get("max_1h", 20.0))
+    max_drop_5m = float(conf.get("max_drop_5m", -4.0))
+    max_drop_1h = float(conf.get("max_drop_1h", -8.0))
+    min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
+    max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
     min_liq = float(conf.get("min_liq", 20000.0))
 
     if is_wash or is_honeypot or is_rug_risk or top10_rate > 60.0 or insider_rate > 25.0:
         micro_state = "DISTRIBUTION"
         status_label = "Rug / Dangerous" if is_rug_risk else "Distribution / Toxic"
+    elif ath_drawdown < max_ath_drawdown:
+        micro_state = "DISTRIBUTION"
+        status_label = f"Zombie / Drop ATH ({ath_drawdown:.0f}%)"
     elif p1 > max_1h or (p5 > max_5m and buy_ratio >= 65.0):
         micro_state = "EXPANSION"
         status_label = "Expansion / Runner"
-    elif p1 < -25.0 or (p5 < -10.0 and buy_ratio < 40.0):
+    elif p1 < max_drop_1h or p5 < max_drop_5m or buy_ratio < min_buy_ratio:
         micro_state = "DISTRIBUTION"
         status_label = "Distribution / Dump"
     elif score >= 70.0 and vl >= min_vl and abs(p5) <= max_5m and abs(p1) <= max_1h and liq >= min_liq:
         micro_state = "ABSORPTION"
         status_label = "Absorption (Prime LP)"
-    elif score >= 50.0 and vl >= 2.0 and abs(p5) <= max_5m * 1.3:
+    elif score >= 50.0 and vl >= min_vl and abs(p5) <= max_5m * 1.3:
         micro_state = "REACCUMULATION"
         status_label = "Ugly Reaccumulation"
     else:
         micro_state = "NEUTRAL"
         status_label = "Chopping Sideways"
 
-    # Validasi filter kriteria Chop Sideways LP
+    # Validasi filter kriteria Chop Sideways LP (Anti-Burn & Anti-Drill-Down)
     is_chop = (
         liq >= min_liq
         and vl >= min_vl
         and abs(p5) <= max_5m
+        and p5 >= max_drop_5m
         and abs(p1) <= max_1h
+        and p1 >= max_drop_1h
+        and buy_ratio >= min_buy_ratio
+        and ath_drawdown >= max_ath_drawdown
         and er <= float(conf.get("max_er", 20.0))
         and not is_wash
         and not is_honeypot
@@ -999,9 +1045,6 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     else:
         gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
         dex_url = f"https://dexscreener.com/solana/{addr}"
-
-    # ATH Market Cap langsung dari GMGN (history_highest_market_cap)
-    ath_mcap = num(row, "history_highest_market_cap")
 
     # Usia token dalam jam (dari open_timestamp atau creation_timestamp)
     open_ts = num(row, "open_timestamp", "creation_timestamp")
@@ -1045,6 +1088,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "gmgn": gmgn_url,
         "dexscreener": dex_url,
         "ath_mcap": ath_mcap,       # ATH MC dari GMGN (history_highest_market_cap)
+        "ath_drawdown": ath_drawdown, # Drawdown dari ATH (%)
         "age_hours": age_hours,     # Usia token dalam jam (dari open_timestamp)
         "top10_rate": top10_rate,
         "dev_team_hold": dev_team_hold,
@@ -1524,12 +1568,16 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         min_mcap = float(conf.get("min_mcap", 1000000.0))
         max_mcap = float(conf.get("max_mcap", 500000000.0))
         min_age_hours = float(conf.get("min_age_hours", 24.0))
-        min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
+        min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 0.50))
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
         min_liq = float(conf.get("min_liq", 20000.0))
-        min_vl = float(conf.get("min_vl", 2.0))
+        min_vl = float(conf.get("min_vl", 0.6))
         max_5m = float(conf.get("max_5m", 15.0))
-        max_1h = float(conf.get("max_1h", 80.0))
+        max_1h = float(conf.get("max_1h", 20.0))
+        max_drop_5m = float(conf.get("max_drop_5m", -4.0))
+        max_drop_1h = float(conf.get("max_drop_1h", -8.0))
+        min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
+        max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
         max_er = float(conf.get("max_er", 20.0))
         interval = int(conf.get("interval_sec", 300))
 
@@ -1649,6 +1697,10 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             p for p in filtered
             if p.get("is_cto")
             and p.get("dev_team_hold", 0.0) <= 5.0
+            and p.get("buy_ratio", 50.0) >= min_buy_ratio
+            and p.get("ath_drawdown", 0.0) >= max_ath_drawdown
+            and p.get("p1", 0.0) >= max_drop_1h
+            and p.get("p5", 0.0) >= max_drop_5m
             and abs(p.get("p5", 0.0)) <= max_5m * 1.2
             and abs(p.get("p1", 0.0)) <= max_1h * 1.2
             and p.get("er", 999.0) <= max_er * 1.2
@@ -1665,6 +1717,8 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             if p.get("address") not in siap_addrs
             and (p.get("micro_state") in ("ABSORPTION", "REACCUMULATION") or p.get("score", 0.0) >= conf.get("min_absorb_score", 65.0))
             and p.get("fee_hour", 0.0) >= min_fee_absorb
+            and p.get("ath_drawdown", 0.0) >= max_ath_drawdown
+            and p.get("buy_ratio", 50.0) >= min_buy_ratio
             and not p.get("is_honeypot")
             and not p.get("is_wash")
             and not p.get("is_rug_risk")
@@ -1701,15 +1755,25 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             p1 = p.get("p1", 0.0)
             er = p.get("er", 999.0)
             fee = p.get("fee_hour", 0.0)
+            buy_r = p.get("buy_ratio", 50.0)
+            ath_dd = p.get("ath_drawdown", 0.0)
 
             if liq < min_liq:
                 reasons.append(f"Liq rendah ({_usd(liq)} &lt; {_usd(min_liq)})")
             if vl < min_vl:
                 reasons.append(f"V/L rendah ({vl:.1f}x &lt; {min_vl:.1f}x)")
-            if abs(p5) > max_5m:
-                reasons.append(f"5m goyang ({p5:+.1f}% &gt; {max_5m:.0f}%)")
-            if abs(p1) > max_1h:
+            if p1 < max_drop_1h:
+                reasons.append(f"1h dump ({p1:+.1f}% &lt; {max_drop_1h:.0f}%)")
+            elif abs(p1) > max_1h:
                 reasons.append(f"1h goyang ({p1:+.1f}% &gt; {max_1h:.0f}%)")
+            if p5 < max_drop_5m:
+                reasons.append(f"5m dump ({p5:+.1f}% &lt; {max_drop_5m:.0f}%)")
+            elif abs(p5) > max_5m:
+                reasons.append(f"5m goyang ({p5:+.1f}% &gt; {max_5m:.0f}%)")
+            if buy_r < min_buy_ratio:
+                reasons.append(f"Buy% rendah ({buy_r:.1f}% &lt; {min_buy_ratio:.0f}%)")
+            if ath_dd < max_ath_drawdown:
+                reasons.append(f"ATH drop dalam ({ath_dd:.0f}% &lt; {max_ath_drawdown:.0f}%)")
             if er > max_er:
                 reasons.append(f"ER melebar ({er:.1f} &gt; {max_er:.1f})")
             if fee < min_fee_siap_lp:

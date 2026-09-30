@@ -69,18 +69,22 @@ def load_persistent_filters() -> dict[str, Any]:
     # Ensure mobile-specific defaults match bot
     defaults = {
         "position_usd": 100.0,
-        "min_fee_siap_lp": 1.0,
-        "min_fee_break_ath": 1.0,
+        "min_fee_siap_lp": 0.50,
+        "min_fee_break_ath": 0.50,
         "momentum_5m_min_vol": 100000.0,
         "momentum_5m_min_liq": 10000.0,
-        "momentum_5m_min_fee": 1.0,
+        "momentum_5m_min_fee": 0.50,
         "min_liq": 20000.0,
         "min_mcap": 1000000.0,
         "max_mcap": 500000000.0,
         "min_age_hours": 24.0,
-        "min_vl": 2.0,
+        "min_vl": 0.6,
         "max_5m": 15.0,
-        "max_1h": 80.0,
+        "max_1h": 20.0,
+        "max_drop_5m": -4.0,
+        "max_drop_1h": -8.0,
+        "min_buy_ratio": 46.0,
+        "max_ath_drawdown": -85.0,
         "max_er": 20.0,
         "min_absorb_score": 65.0,
         "interval_sec": 300,
@@ -101,14 +105,26 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["interval_sec"] = saved["interval"]
                 if "min_absorb_mcap" in saved and ("min_mcap" not in saved or saved.get("min_mcap") == 0):
                     saved["min_mcap"] = saved["min_absorb_mcap"]
-                if saved.get("min_fee_siap_lp") == 3.0:
-                    saved["min_fee_siap_lp"] = 1.0
-                if saved.get("min_fee_break_ath") == 3.0:
-                    saved["min_fee_break_ath"] = 1.0
+                if saved.get("min_fee_siap_lp") in (1.0, 3.0):
+                    saved["min_fee_siap_lp"] = 0.50
+                if saved.get("min_fee_break_ath") in (1.0, 3.0):
+                    saved["min_fee_break_ath"] = 0.50
+                if saved.get("min_vl") == 2.0:
+                    saved["min_vl"] = 0.6
+                if saved.get("max_1h") == 80.0:
+                    saved["max_1h"] = 20.0
                 if saved.get("min_mcap") == 500000.0:
                     saved["min_mcap"] = 1000000.0
                 if "min_age_hours" not in saved:
                     saved["min_age_hours"] = 24.0
+                if "min_buy_ratio" not in saved:
+                    saved["min_buy_ratio"] = 46.0
+                if "max_ath_drawdown" not in saved:
+                    saved["max_ath_drawdown"] = -85.0
+                if "max_drop_1h" not in saved:
+                    saved["max_drop_1h"] = -8.0
+                if "max_drop_5m" not in saved:
+                    saved["max_drop_5m"] = -4.0
 
                 for k, v in saved.items():
                     if k in conf and v is not None:
@@ -1704,19 +1720,19 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       <!-- Quick Tuning Presets -->
       <div class="preset-strip">
-        <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif ($5/h)</button>
-        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($1/h)</button>
-        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($0.5/h)</button>
+        <button class="btn-preset" onclick="applyPreset('konservatif')">🛡️ Konservatif ($1.0/h)</button>
+        <button class="btn-preset" onclick="applyPreset('standar')">⚖️ Standar ($0.5/h)</button>
+        <button class="btn-preset" onclick="applyPreset('agresif')">🚀 Agresif ($0.3/h)</button>
       </div>
 
-      <div class="form-section-title">📊 Kriteria Chop Sideways LP</div>
+      <div class="form-section-title">📊 Kriteria Chop Sideways LP (Anti-Drill Down)</div>
       <div class="form-grid-2">
         <div class="form-group">
           <div class="form-label">
             <span>Min Fee Siap LP ($/jam)</span>
             <span style="color:var(--green-light)">Posisi $100</span>
           </div>
-          <input type="number" step="0.1" id="f_min_fee" class="form-input" value="1.0">
+          <input type="number" step="0.05" id="f_min_fee" class="form-input" value="0.5">
         </div>
 
         <div class="form-group">
@@ -1746,9 +1762,33 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="form-group">
           <div class="form-label">
             <span>Min V/L 24h</span>
-            <span>Perputaran fee</span>
+            <span>Perputaran fee (MC $1M+)</span>
           </div>
-          <input type="number" step="0.5" id="f_min_vl" class="form-input" value="2.0">
+          <input type="number" step="0.1" id="f_min_vl" class="form-input" value="0.6">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Buy Ratio (%)</span>
+            <span style="color:var(--green-light)">Anti-Panic Sell (min 46%)</span>
+          </div>
+          <input type="number" step="1" id="f_min_buy_ratio" class="form-input" value="46.0">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Max ATH Drawdown (%)</span>
+            <span style="color:#fde047">Anti-Zombie (Drop ≤ 85%)</span>
+          </div>
+          <input type="number" step="1" id="f_max_ath_drawdown" class="form-input" value="-85.0">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Max Drop 1 Jam (%)</span>
+            <span style="color:var(--sol-light)">Downside Guard (Drop ≤ 8%)</span>
+          </div>
+          <input type="number" step="1" id="f_max_drop_1h" class="form-input" value="-8.0">
         </div>
 
         <div class="form-group">
@@ -1762,9 +1802,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="form-group">
           <div class="form-label">
             <span>Max Volatilitas 1h (%)</span>
-            <span>Simetris pump/dump</span>
+            <span>Simetris pump/dump (max 20%)</span>
           </div>
-          <input type="number" step="5" id="f_max_1h" class="form-input" value="80.0">
+          <input type="number" step="1" id="f_max_1h" class="form-input" value="20.0">
         </div>
 
         <div class="form-group">
@@ -2050,6 +2090,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         if (f.min_age_hours      !== undefined) document.getElementById("f_min_age_hours").value = f.min_age_hours;
         if (f.min_liq            !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
         if (f.min_vl             !== undefined) document.getElementById("f_min_vl").value   = f.min_vl;
+        if (f.min_buy_ratio      !== undefined) document.getElementById("f_min_buy_ratio").value = f.min_buy_ratio;
+        if (f.max_ath_drawdown   !== undefined) document.getElementById("f_max_ath_drawdown").value = f.max_ath_drawdown;
+        if (f.max_drop_1h        !== undefined) document.getElementById("f_max_drop_1h").value = f.max_drop_1h;
         if (f.max_5m             !== undefined) document.getElementById("f_max_5m").value   = f.max_5m;
         if (f.max_1h             !== undefined) document.getElementById("f_max_1h").value   = f.max_1h;
         if (f.max_er             !== undefined) document.getElementById("f_max_er").value   = f.max_er;
@@ -2071,13 +2114,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     function applyPreset(p) {
       if (p === 'konservatif') {
-        document.getElementById("f_min_fee").value  = 5.0;
+        document.getElementById("f_min_fee").value  = 1.0;
         document.getElementById("f_min_mcap").value = 1000000;
         document.getElementById("f_min_age_hours").value = 48;
         document.getElementById("f_min_liq").value  = 30000;
-        document.getElementById("f_min_vl").value   = 3.0;
+        document.getElementById("f_min_vl").value   = 0.8;
+        document.getElementById("f_min_buy_ratio").value = 50.0;
+        document.getElementById("f_max_ath_drawdown").value = -75.0;
+        document.getElementById("f_max_drop_1h").value = -6.0;
         document.getElementById("f_max_5m").value   = 10.0;
-        document.getElementById("f_max_1h").value   = 60.0;
+        document.getElementById("f_max_1h").value   = 15.0;
         document.getElementById("f_max_er").value   = 15.0;
         document.getElementById("f_m5_vol").value   = 150000;
         document.getElementById("f_m5_liq").value   = 20000;
@@ -2086,13 +2132,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         resetDefaultFilters();
         showToast("Preset Standar dipilih", "⚖️");
       } else if (p === 'agresif') {
-        document.getElementById("f_min_fee").value  = 0.5;
+        document.getElementById("f_min_fee").value  = 0.3;
         document.getElementById("f_min_mcap").value = 1000000;
         document.getElementById("f_min_age_hours").value = 12;
         document.getElementById("f_min_liq").value  = 15000;
-        document.getElementById("f_min_vl").value   = 1.5;
+        document.getElementById("f_min_vl").value   = 0.4;
+        document.getElementById("f_min_buy_ratio").value = 42.0;
+        document.getElementById("f_max_ath_drawdown").value = -90.0;
+        document.getElementById("f_max_drop_1h").value = -12.0;
         document.getElementById("f_max_5m").value   = 20.0;
-        document.getElementById("f_max_1h").value   = 100.0;
+        document.getElementById("f_max_1h").value   = 25.0;
         document.getElementById("f_max_er").value   = 25.0;
         document.getElementById("f_m5_vol").value   = 80000;
         document.getElementById("f_m5_liq").value   = 10000;
@@ -2102,13 +2151,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     function resetDefaultFilters() {
       document.getElementById("f_chain_mode").value = "BOTH";
-      document.getElementById("f_min_fee").value  = 1.0;
+      document.getElementById("f_min_fee").value  = 0.5;
       document.getElementById("f_min_mcap").value = 1000000;
       document.getElementById("f_min_age_hours").value = 24;
       document.getElementById("f_min_liq").value  = 20000;
-      document.getElementById("f_min_vl").value   = 2.0;
+      document.getElementById("f_min_vl").value   = 0.6;
+      document.getElementById("f_min_buy_ratio").value = 46.0;
+      document.getElementById("f_max_ath_drawdown").value = -85.0;
+      document.getElementById("f_max_drop_1h").value = -8.0;
       document.getElementById("f_max_5m").value   = 15.0;
-      document.getElementById("f_max_1h").value   = 80.0;
+      document.getElementById("f_max_1h").value   = 20.0;
       document.getElementById("f_max_er").value   = 20.0;
       document.getElementById("f_m5_vol").value   = 100000;
       document.getElementById("f_m5_liq").value   = 10000;
@@ -2120,13 +2172,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const targetChain = (document.getElementById("f_chain_mode").value || "BOTH").toUpperCase();
       const payload = {
         chain_mode:          targetChain,
-        min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
+        min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 0.5,
         min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 1000000,
         min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 24,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
-        min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
+        min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 0.6,
+        min_buy_ratio:       parseFloat(document.getElementById("f_min_buy_ratio").value) || 46.0,
+        max_ath_drawdown:    parseFloat(document.getElementById("f_max_ath_drawdown").value) || -85.0,
+        max_drop_1h:         parseFloat(document.getElementById("f_max_drop_1h").value) || -8.0,
+        max_drop_5m:         -4.0,
         max_5m:              parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
-        max_1h:              parseFloat(document.getElementById("f_max_1h").value)   || 80.0,
+        max_1h:              parseFloat(document.getElementById("f_max_1h").value)   || 20.0,
         max_er:              parseFloat(document.getElementById("f_max_er").value)   || 20.0,
         momentum_5m_min_vol: parseFloat(document.getElementById("f_m5_vol").value)  || 100000.0,
         momentum_5m_min_liq: parseFloat(document.getElementById("f_m5_liq").value)  || 10000.0,
@@ -2253,11 +2309,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h, MC ≥ $1M, Usia ≥ 24h).",
-          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, MC ≥ $1M, Usia ≥ 24h).",
+          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $0.50/h, Buy% ≥ 46%, Drop 1h ≤ -8%, ATH Drop ≤ 85%).",
+          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, Buy% ≥ 46%, ATH Drop ≤ 85%).",
           momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, MC ≥ $1M, Usia ≥ 24h).",
-          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h).",
-          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, Fee ≥ $1/h).",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, Buy% ≥ 46%).",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, Fee ≥ $0.50/h).",
           gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
@@ -2873,7 +2929,7 @@ def run_server() -> None:
     print(f"🔸 Solana        : Aktif (GMGN / Fallback Meteora)")
     print(f"🔹 Robinhood     : Aktif (GMGN Open API)")
     print(f"🎯 Strategi      : Chop Sideways LP Farming (100% Bot Parity)")
-    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp')}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ Usia ≥ {initial_filters.get('min_age_hours', 24.0)}h")
+    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp', 0.5)}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ V/L ≥ {initial_filters.get('min_vl', 0.6)}x │ Buy% ≥ {initial_filters.get('min_buy_ratio', 46.0)}%")
     print(f"🌐 Akses Browser : http://localhost:{PORT} atau http://<IP_VPS>:{PORT}")
     print("=" * 60)
 

@@ -13,8 +13,13 @@
 - **Efficiency Ratio (ER)**:
   - Rumus: `ER = abs(p1) / vl` (di mana `p1` = % change 1 jam, `vl` = Volume/Liquidity).
   - ER rendah (≤ 20, idealnya ≤ 5) menandakan volume tinggi dengan pergerakan harga sempit (sweet spot LP).
-- **Volatilitas Simetris**:
-  - Pengecekan 5m (`|p5| <= max_5m`) dan 1h (`|p1| <= max_1h`) harus simetris (menolak koin yang pump gila maupun koin yang dump bebas).
+- **Anti-Burn & Anti-Drill-Down Protection Engine**:
+  - `buy_ratio >= 46.0%`: Minimal 46% transaksi adalah BUY (menolak koin yang didominasi kepanikan jual / panic dumping).
+  - `ath_drawdown >= -85.0%`: MCap saat ini tidak boleh drop lebih dari 85% dari All-Time High (menolak koin zombie / kuburan bagholder).
+  - `max_1h <= 20.0%` & `max_5m <= 15.0%`: Pengetatan rentang volatilitas 1 jam simetris untuk konsolidasi sideways sejati.
+  - **Asymmetric Downside Guard**: `p1 >= -8.0%` (penurunan 1 jam maks -8%) dan `p5 >= -4.0%` (penurunan 5 menit maks -4%). Menolak koin yang sedang meluncur bebas (*falling knife*).
+  - `min_vl >= 0.6x`: Disesuaikan untuk token $MCap \ge \$1\text{M}$ yang berlikuiditas tebal agar tidak terbuang ke Gaps.
+  - `min_fee_siap_lp >= $0.50/jam`: Ambang batas fee rasional untuk modal \$100 (setara APR $+4,380\%/\text{tahun}$).
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
   - `min_mcap >= $1,000,000` ($1M USD Market Cap)
   - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
