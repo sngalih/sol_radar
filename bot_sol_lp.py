@@ -109,15 +109,16 @@ DEFAULT_CONFIG = {
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
     "min_liq": 20000,           # TVL pool min $20k
-    "min_mcap": 500000.0,       # Market cap minimal $500k
+    "min_mcap": 1000000.0,      # Market cap minimal $1M ($1,000,000)
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
+    "min_age_hours": 24.0,      # Usia minimal token 24 jam (hard filter anti-sniper)
     "min_fee_siap_lp": 1.0,     # Hanya tampilkan Siap LP jika fee/hour >= $1.00
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
     "min_fee_break_ath": 1.0,   # Hanya tampilkan Break ATH LP jika fee/hour >= $1.00
     "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
     "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
-    "break_ath_min_mcap": 500000.0,  # Min Mcap $500k (sama dengan LP biasa)
-    "break_ath_min_ath": 500000.0,   # Min ATH yang ditembus > $500k
+    "break_ath_min_mcap": 1000000.0,  # Min Mcap $1M (sama dengan LP biasa)
+    "break_ath_min_ath": 1000000.0,   # Min ATH yang ditembus > $1M
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     "min_vl": 2.0,              # V/L 24h min 2x
     "max_5m": 15.0,             # volatilitas 5m max 15%
@@ -205,11 +206,13 @@ def get_config() -> dict[str, Any]:
                         conf["telegram_chat_id"] = str(data["telegram_chat_id"]).strip()
                     if data.get("chain_mode"):
                         conf["chain_mode"] = str(data["chain_mode"]).upper().strip()
-                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee"]:
+                    for k in ["min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position", "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "momentum_5m_min_liq", "momentum_5m_min_fee", "min_mcap", "max_mcap", "min_age_hours"]:
                         if k in data:
                             val = float(data[k])
                             if k in ("min_fee_siap_lp", "min_fee_break_ath") and val == 3.0:
                                 val = 1.0
+                            if k == "min_mcap" and val == 500000.0:
+                                val = 1000000.0
                             conf[k if k != "position" else "position_usd"] = val
                     break
             except Exception:
@@ -230,6 +233,8 @@ def get_config() -> dict[str, Any]:
         conf["min_mcap"] = float(os.environ["MIN_MCAP"])
     if os.getenv("MAX_MCAP"):
         conf["max_mcap"] = float(os.environ["MAX_MCAP"])
+    if os.getenv("MIN_AGE_HOURS"):
+        conf["min_age_hours"] = float(os.environ["MIN_AGE_HOURS"])
     if os.getenv("MIN_FEE_SIAP_LP"):
         conf["min_fee_siap_lp"] = float(os.environ["MIN_FEE_SIAP_LP"])
 
@@ -592,9 +597,10 @@ def score_break_ath_candidates(
     min_fee = float(conf.get("min_fee_break_ath", 1.0))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
-    min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 500000.0))
+    min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 1000000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_ath = float(conf.get("break_ath_min_ath") or 500000.0)
+    min_ath = float(conf.get("break_ath_min_ath") or 1000000.0)
+    min_age_hours = float(conf.get("min_age_hours", 24.0))
 
     candidates: list[dict] = []
     now = int(time.time())
@@ -618,6 +624,9 @@ def score_break_ath_candidates(
 
         mcap = float(t.get("mcap") or 0.0)
         if not (min_mcap <= mcap <= max_mcap):
+            continue
+
+        if float(t.get("age_hours") or 0.0) < min_age_hours:
             continue
 
         ath_old = float(cached.get("ath_mcap") or 0.0)
@@ -696,6 +705,9 @@ def score_5m_momentum_candidates(
     min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
     min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
     min_fee = float(conf.get("momentum_5m_min_fee") or conf.get("min_fee_siap_lp", 1.0))
+    min_mcap = float(conf.get("min_mcap", 1000000.0))
+    max_mcap = float(conf.get("max_mcap", 500000000.0))
+    min_age_hours = float(conf.get("min_age_hours", 24.0))
     pos = float(conf.get("position_usd", 100.0))
 
     candidates: list[dict] = []
@@ -711,6 +723,15 @@ def score_5m_momentum_candidates(
             continue
 
         if is_tokenized_stock(r):
+            continue
+
+        mcap = num(r, "market_cap", "marketcap")
+        if not (min_mcap <= mcap <= max_mcap):
+            continue
+
+        open_ts = num(r, "open_timestamp", "creation_timestamp")
+        age_hours = round((time.time() - open_ts) / 3600.0, 1) if open_ts > 0 else 9999.0
+        if age_hours < min_age_hours:
             continue
 
         vol_5m = num(r, "volume")
@@ -754,7 +775,6 @@ def score_5m_momentum_candidates(
             badge = "🔸"
 
         p1 = num(r, "price_change_percent1h")
-        mcap = num(r, "market_cap", "marketcap")
         buys = int(num(r, "buys"))
         sells = int(num(r, "sells"))
         total_tx = buys + sells
@@ -784,6 +804,7 @@ def score_5m_momentum_candidates(
             "p5": p5,
             "p1": p1,
             "mcap": mcap,
+            "age_hours": age_hours,
             "buys": buys,
             "sells": sells,
             "buy_ratio": buy_ratio,
@@ -1500,8 +1521,9 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         t0 = time.time()
         source = conf.get("data_source", "GMGN").upper()
         api_key = conf.get("gmgn_api_key", GMGN_KEY)
-        min_mcap = float(conf.get("min_mcap", 500000.0))
+        min_mcap = float(conf.get("min_mcap", 1000000.0))
         max_mcap = float(conf.get("max_mcap", 500000000.0))
+        min_age_hours = float(conf.get("min_age_hours", 24.0))
         min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
         min_liq = float(conf.get("min_liq", 20000.0))
@@ -1600,13 +1622,14 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
                 scored_tokens.append(t_score)
 
-        # Filter dasar
+        # Filter dasar (Hard filter: MCap >= min_mcap, Age >= min_age_hours, No Rug/Honeypot/Wash)
         do_filter_stocks = bool(conf.get("filter_stocks", True))
         filtered = [
             p for p in scored_tokens
             if p.get("address") not in QUOTE_MINTS
             and p.get("symbol", "").upper() not in ("SOL", "WSOL", "USDC", "USDT")
             and min_mcap <= p.get("mcap", 0.0) <= max_mcap
+            and p.get("age_hours", 0.0) >= min_age_hours
             and not (do_filter_stocks and is_tokenized_stock(p))
             and not p.get("is_honeypot")
             and not p.get("is_wash")
@@ -1659,7 +1682,13 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         # 4. Gaps
         gaps_candidates = []
         for p in scored_tokens:
-            if p.get("address") in QUOTE_MINTS or p.get("symbol", "").upper() in ("SOL", "WSOL", "USDC", "USDT") or not (min_mcap <= p.get("mcap", 0.0) <= max_mcap) or (do_filter_stocks and is_tokenized_stock(p)):
+            if (
+                p.get("address") in QUOTE_MINTS
+                or p.get("symbol", "").upper() in ("SOL", "WSOL", "USDC", "USDT")
+                or not (min_mcap <= p.get("mcap", 0.0) <= max_mcap)
+                or p.get("age_hours", 0.0) < min_age_hours
+                or (do_filter_stocks and is_tokenized_stock(p))
+            ):
                 continue
             if p.get("address") in siap_addrs or p.get("is_honeypot") or p.get("is_wash"):
                 continue

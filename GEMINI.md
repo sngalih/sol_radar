@@ -15,6 +15,10 @@
   - ER rendah (≤ 20, idealnya ≤ 5) menandakan volume tinggi dengan pergerakan harga sempit (sweet spot LP).
 - **Volatilitas Simetris**:
   - Pengecekan 5m (`|p5| <= max_5m`) dan 1h (`|p1| <= max_1h`) harus simetris (menolak koin yang pump gila maupun koin yang dump bebas).
+- **Hard Filter Screening Skala Global (Front Gate Filter)**:
+  - `min_mcap >= $1,000,000` ($1M USD Market Cap)
+  - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
+  - Token dengan Market Cap < $1M atau Usia < 24 jam di-drop langsung dari pemindaian (Hard Filter Drop) dan tidak akan muncul di strategi mana pun termasuk Gaps Radar.
 - **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)

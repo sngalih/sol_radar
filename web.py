@@ -75,8 +75,9 @@ def load_persistent_filters() -> dict[str, Any]:
         "momentum_5m_min_liq": 10000.0,
         "momentum_5m_min_fee": 1.0,
         "min_liq": 20000.0,
-        "min_mcap": 500000.0,
+        "min_mcap": 1000000.0,
         "max_mcap": 500000000.0,
+        "min_age_hours": 24.0,
         "min_vl": 2.0,
         "max_5m": 15.0,
         "max_1h": 80.0,
@@ -104,6 +105,10 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["min_fee_siap_lp"] = 1.0
                 if saved.get("min_fee_break_ath") == 3.0:
                     saved["min_fee_break_ath"] = 1.0
+                if saved.get("min_mcap") == 500000.0:
+                    saved["min_mcap"] = 1000000.0
+                if "min_age_hours" not in saved:
+                    saved["min_age_hours"] = 24.0
 
                 for k, v in saved.items():
                     if k in conf and v is not None:
@@ -1717,9 +1722,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="form-group">
           <div class="form-label">
             <span>Min Market Cap ($)</span>
-            <span>Filter micap</span>
+            <span>Hard filter min $1M</span>
           </div>
-          <input type="number" step="50000" id="f_min_mcap" class="form-input" value="500000">
+          <input type="number" step="100000" id="f_min_mcap" class="form-input" value="1000000">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Min Usia Token (Jam)</span>
+            <span style="color:var(--sol-light)">Hard filter anti-sniper</span>
+          </div>
+          <input type="number" step="1" id="f_min_age_hours" class="form-input" value="24">
         </div>
 
         <div class="form-group">
@@ -2034,6 +2047,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         if (f.chain_mode         !== undefined) document.getElementById("f_chain_mode").value = String(f.chain_mode).toUpperCase();
         if (f.min_fee_siap_lp     !== undefined) document.getElementById("f_min_fee").value  = f.min_fee_siap_lp;
         if (f.min_mcap           !== undefined) document.getElementById("f_min_mcap").value = f.min_mcap;
+        if (f.min_age_hours      !== undefined) document.getElementById("f_min_age_hours").value = f.min_age_hours;
         if (f.min_liq            !== undefined) document.getElementById("f_min_liq").value  = f.min_liq;
         if (f.min_vl             !== undefined) document.getElementById("f_min_vl").value   = f.min_vl;
         if (f.max_5m             !== undefined) document.getElementById("f_max_5m").value   = f.max_5m;
@@ -2058,7 +2072,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function applyPreset(p) {
       if (p === 'konservatif') {
         document.getElementById("f_min_fee").value  = 5.0;
-        document.getElementById("f_min_mcap").value = 500000;
+        document.getElementById("f_min_mcap").value = 1000000;
+        document.getElementById("f_min_age_hours").value = 48;
         document.getElementById("f_min_liq").value  = 30000;
         document.getElementById("f_min_vl").value   = 3.0;
         document.getElementById("f_max_5m").value   = 10.0;
@@ -2072,7 +2087,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         showToast("Preset Standar dipilih", "⚖️");
       } else if (p === 'agresif') {
         document.getElementById("f_min_fee").value  = 0.5;
-        document.getElementById("f_min_mcap").value = 500000;
+        document.getElementById("f_min_mcap").value = 1000000;
+        document.getElementById("f_min_age_hours").value = 12;
         document.getElementById("f_min_liq").value  = 15000;
         document.getElementById("f_min_vl").value   = 1.5;
         document.getElementById("f_max_5m").value   = 20.0;
@@ -2087,7 +2103,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function resetDefaultFilters() {
       document.getElementById("f_chain_mode").value = "BOTH";
       document.getElementById("f_min_fee").value  = 1.0;
-      document.getElementById("f_min_mcap").value = 500000;
+      document.getElementById("f_min_mcap").value = 1000000;
+      document.getElementById("f_min_age_hours").value = 24;
       document.getElementById("f_min_liq").value  = 20000;
       document.getElementById("f_min_vl").value   = 2.0;
       document.getElementById("f_max_5m").value   = 15.0;
@@ -2104,7 +2121,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const payload = {
         chain_mode:          targetChain,
         min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 1.0,
-        min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 500000,
+        min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 1000000,
+        min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 24,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
         min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 2.0,
         max_5m:              parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
@@ -2235,12 +2253,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
-          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h & MC ≥ $500k).",
-          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, dev hold ≤ 20%, fee ≥ $1/h).",
-          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, Pump Up, Liq ≥ $10k).",
-          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
-          break_ath:   "Belum ada token Break ATH terkonfirmasi (≥ 15m, Fee ≥ $1/h, ATH > $500k).",
-          gaps:        "Tidak ada token radar yang berada di luar kriteria.",
+          siap:        "Belum ada token memenuhi kriteria Siap LP (Fee ≥ $1/h, MC ≥ $1M, Usia ≥ 24h).",
+          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, MC ≥ $1M, Usia ≥ 24h).",
+          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, MC ≥ $1M, Usia ≥ 24h).",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h).",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, Fee ≥ $1/h).",
+          gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
@@ -2855,7 +2873,7 @@ def run_server() -> None:
     print(f"🔸 Solana        : Aktif (GMGN / Fallback Meteora)")
     print(f"🔹 Robinhood     : Aktif (GMGN Open API)")
     print(f"🎯 Strategi      : Chop Sideways LP Farming (100% Bot Parity)")
-    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp')}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 500000))}")
+    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp')}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ Usia ≥ {initial_filters.get('min_age_hours', 24.0)}h")
     print(f"🌐 Akses Browser : http://localhost:{PORT} atau http://<IP_VPS>:{PORT}")
     print("=" * 60)
 
