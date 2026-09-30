@@ -5,6 +5,8 @@
 # Local filters & runtime state files (prevent token/credential leaks)
 *-filters.json
 *-log.json
+*-cache.json
+signal-history*.json
 
 # Python bytecode & virtual environments
 __pycache__/

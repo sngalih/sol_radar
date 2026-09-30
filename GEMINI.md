@@ -104,3 +104,16 @@
   - Jika bot dan web berjalan berdekatan di jam dinding yang sama, proses kedua langsung menyajikan data dari cache tanpa request HTTP ulang ke GMGN (mengurangi beban API 50% dan mencegah 429).
   - Manual scan (tombol "⚡ Scan" di web atau command `/scan` di Telegram) menggunakan flag `force=True` untuk mengambil data baru seketika.
 
+## 9. 24H Signal History Logging & WIB Timezone Invariant
+- **Zona Waktu WIB (UTC+7)**:
+  - Seluruh pencatatan waktu, tampilan jam pemindaian (`scanned_at`), dan format pelaporan di Telegram Bot maupun Web Dashboard **WAJIB** dikonversi ke zona waktu **WIB (UTC+7)** (`timezone(timedelta(hours=7))`).
+  - Mengatasi inkonsistensi waktu server VPS yang umumnya menggunakan sistem jam UTC.
+- **Pencatatan Riwayat Sinyal 24 Jam (`signal-history.json`)**:
+  - Setiap pemindaian (interval 5 menit) mencatat token yang lolos strategi aktif: `5M Momentum`, `Siap LP`, `CTO Revival`, `Break ATH`, dan `Absorption Radar`.
+  - Rolling retention: Data yang berusia lebih dari 24 jam (86.400 detik) otomatis di-prune/dihapus secara berkala.
+  - Penyimpanan persisten ganda: file `signal-history.json` dan key `"signal_history"` di `sol-hp-cache.json`.
+  - Format agregasi mencakup frekuensi kemunculan (`count`) dan daftar jam kemunculan WIB (contoh: `09:05, 20:30, 23:20 WIB`).
+- **Integrasi Telegram Bot & Web Dashboard**:
+  - Telegram Bot: Command `/history` (atau `/log`), tombol reply keyboard `📜 History 24h`, dan tombol inline callback. Pada laporan berkala 5 menit, token yang muncul berulang (> 1x) menampilkan baris riwayat: `🕒 Sinyal: 09:05, 20:30, 23:20 WIB (3x)`.
+  - Web Dashboard: Tab ke-7 `📜 HISTORY (24H)` (Hotkey `7`) menyajikan tampilan Cards & Table khusus riwayat sinyal 24 jam, serta badge riwayat kemunculan pada kartu/tabel di tab aktif lainnya.
+

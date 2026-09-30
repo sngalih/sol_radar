@@ -15,10 +15,25 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+# ================= TIMEZONE WIB (UTC+7) =================
+WIB = timezone(timedelta(hours=7))
+
+def now_wib() -> datetime:
+    """Mengembalikan objek datetime saat ini dalam zona waktu WIB (UTC+7)."""
+    return datetime.now(WIB)
+
+def get_wib_str(ts: float | int | None = None, fmt: str = "%H:%M:%S") -> str:
+    """Format timestamp (epoch second) ke string WIB. Default waktu sekarang."""
+    if ts is None:
+        dt = datetime.now(WIB)
+    else:
+        dt = datetime.fromtimestamp(ts, tz=WIB)
+    return dt.strftime(fmt)
 
 # Ensure stdout handles UTF-8 smoothly
 if hasattr(sys.stdout, "reconfigure"):
@@ -57,7 +72,8 @@ app_state: dict[str, Any] = {
     "absorption": [],
     "break_ath": [],
     "gaps": [],
-    "counts": {"siap": 0, "cto": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "total": 0},
+    "signal_history": [],
+    "counts": {"siap": 0, "cto": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
     "top_yield": 0.0,
     "top_vl": 0.0,
     "filters": {},
@@ -174,6 +190,9 @@ def perform_scan(force: bool = False) -> None:
         absorption = res.get("absorption", [])
         break_ath = res.get("break_ath", [])
         gaps = res.get("gaps", [])
+        signal_history = res.get("signal_history", [])
+        if not signal_history:
+            signal_history = bot_sol_lp.get_aggregated_signal_history()
 
         with state_lock:
             app_state["scanning"] = False
@@ -187,21 +206,16 @@ def perform_scan(force: bool = False) -> None:
             app_state["absorption"] = absorption
             app_state["break_ath"] = break_ath
             app_state["gaps"] = gaps[:40]  # Limit agar tidak membebani browser HP
-            app_state["counts"] = res.get("counts", {
-                "siap": len(siap_lp),
-                "cto": len(cto_lp),
-                "momentum_5m": len(momentum_5m),
-                "absorption": len(absorption),
-                "break_ath": len(break_ath),
-                "gaps": len(gaps),
-                "total": res.get("total_scanned", 0),
-            })
+            app_state["signal_history"] = signal_history
+            c_dict = dict(res.get("counts", {}))
+            c_dict["history"] = len(signal_history)
+            app_state["counts"] = c_dict
             app_state["top_yield"] = res.get("top_yield", 0.0)
             app_state["top_vl"] = res.get("top_vl", 0.0)
 
         print(
-            f"[{time.strftime('%H:%M:%S')}] [Web Sync] Selesai dalam {time.time() - t0:.2f}s | "
-            f"Total: {res.get('total_scanned', 0)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | Absorption: {len(absorption)}"
+            f"[{get_wib_str()}] [Web Sync] Selesai dalam {time.time() - t0:.2f}s | "
+            f"Total: {res.get('total_scanned', 0)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
 
     except Exception as e:
@@ -1648,8 +1662,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <div id="kpiTopYield" class="kpi-val green">0.0x</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label"><span>🕒</span> Scan</div>
-          <div id="kpiTime" class="kpi-val yellow">--:--</div>
+          <div class="kpi-label"><span>🕒</span> Scan (WIB)</div>
+          <div id="kpiTime" class="kpi-val yellow">--:-- WIB</div>
         </div>
       </div>
     </div>
@@ -1680,6 +1694,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 6">
           <span>⚠️ GAPS</span>
           <span id="badgeGaps" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="history" onclick="setCategoryTab('history')" title="Hotkey: 7">
+          <span>📜 HISTORY (24H)</span>
+          <span id="badgeHistory" class="badge-count">0</span>
         </div>
       </div>
 
@@ -2272,7 +2290,17 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
       else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
       else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
+      else if (activeCategory === "history")     rawList = globalState.signal_history || [];
       else                                       rawList = globalState.gaps        || [];
+
+      // History lookup for recurring token badges
+      const histLookup = {};
+      (globalState.signal_history || []).forEach(h => {
+        const a = (h.address || "").toLowerCase();
+        if (a && (!histLookup[a] || h.count > histLookup[a].count)) {
+          histLookup[a] = h;
+        }
+      });
 
       // Count badges in chain switcher
       let solCount = 0, rhCount = 0;
@@ -2310,6 +2338,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
           absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x, Buy% ≥ 46%).",
           break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x).",
+          history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir (5M Momentum, Siap LP, CTO, Break ATH, Absorption).",
           gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
@@ -2320,6 +2349,140 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <div class="empty-desc">${searchMsg}<br>Coba ubah filter Chain atau sesuaikan tuning di menu ⚙️.</div>
           </div>`;
         updateFooter(0, globalState.total_scanned || 0);
+        return;
+      }
+
+      // ===== SPECIALIZED VIEW FOR 24H SIGNAL HISTORY =====
+      if (activeCategory === "history") {
+        if (viewMode === "table") {
+          let tRows = "";
+          filtered.forEach((t, idx) => {
+            const isRh = (t.chain || "SOL").toUpperCase() === "RH";
+            const chainBadge = isRh
+              ? `<span class="chain-pill rh" style="font-size:9px;padding:1px 4px;margin-left:4px">RH</span>`
+              : `<span class="chain-pill sol" style="font-size:9px;padding:1px 4px;margin-left:4px">SOL</span>`;
+            const rankBadge = getRankBadge(idx);
+            const mcapStr = formatUsd(t.mcap || 0);
+            const vlStr = (t.vl || 0).toFixed(1) + "x";
+            const avatarHtml = renderAvatar(t.symbol, t.logo, 32);
+
+            let stratCls = "state-momentum", stratIcon = "⚡";
+            if (t.strategy_key === "siap_lp") { stratCls = "state-chop"; stratIcon = "🟢"; }
+            else if (t.strategy_key === "cto_lp") { stratCls = "state-cto"; stratIcon = "👑"; }
+            else if (t.strategy_key === "break_ath") { stratCls = "state-ath"; stratIcon = "🚀"; }
+            else if (t.strategy_key === "absorption") { stratCls = "state-absorption"; stratIcon = "📡"; }
+
+            tRows += `
+              <tr class="arc-tr">
+                <td class="arc-td" style="width:36px;text-align:center;white-space:nowrap">${rankBadge}</td>
+                <td class="arc-td" style="white-space:nowrap">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    ${avatarHtml}
+                    <div>
+                      <div style="display:flex;align-items:center">
+                        <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:800;font-size:13.5px;color:#fff;text-decoration:none">${t.symbol || "?"}</a>
+                        ${chainBadge}
+                      </div>
+                      <div style="color:var(--text-muted);font-size:11px">${t.name || ""}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="arc-td" style="text-align:center;white-space:nowrap">
+                  <span class="state-pill ${stratCls}" style="padding:3px 8px;font-size:11px;font-weight:700">${stratIcon} ${t.strategy || t.strategy_key}</span>
+                </td>
+                <td class="arc-td mono" style="text-align:center;white-space:nowrap">
+                  <span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 8px;border-radius:12px;font-weight:700;font-size:12px">${t.count}x Muncul</span>
+                </td>
+                <td class="arc-td mono" style="color:#fbbf24;font-size:12px;font-weight:600;white-space:nowrap">
+                  🕒 ${t.summary_times || t.time_wib || ""}
+                </td>
+                <td class="arc-td" style="text-align:center;white-space:nowrap">
+                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:3px 10px;font-size:11px;font-weight:700">GMGN ↗</a>
+                </td>
+                <td class="arc-td mono" style="font-weight:700;color:#fff;white-space:nowrap">${mcapStr}</td>
+                <td class="arc-td mono" style="text-align:center;font-weight:700;color:#38bdf8;font-size:13px;white-space:nowrap">${vlStr}</td>
+              </tr>`;
+          });
+
+          container.innerHTML = `
+            <div class="table-container">
+              <table class="arc-table">
+                <thead class="arc-thead">
+                  <tr>
+                    <th style="width:36px;text-align:center">#</th>
+                    <th style="min-width:180px">TOKEN</th>
+                    <th style="text-align:center;min-width:140px">STRATEGI</th>
+                    <th style="text-align:center;width:110px">FREKUENSI</th>
+                    <th style="min-width:240px">JAM SINYAL (WIB)</th>
+                    <th style="text-align:center;width:80px">AKSI</th>
+                    <th style="width:100px">MCAP</th>
+                    <th style="text-align:center;width:80px">V/L</th>
+                  </tr>
+                </thead>
+                <tbody>${tRows}</tbody>
+              </table>
+            </div>`;
+        } else {
+          let cardsHtml = '<div class="card-list">';
+          filtered.forEach((t, idx) => {
+            const isRh = (t.chain || "SOL").toUpperCase() === "RH";
+            const chainBadge = isRh
+              ? `<span class="chain-pill rh" style="font-size:9px;padding:1px 4px;margin-left:4px">RH</span>`
+              : `<span class="chain-pill sol" style="font-size:9px;padding:1px 4px;margin-left:4px">SOL</span>`;
+            const mcapStr = formatUsd(t.mcap || 0);
+            const vlStr = (t.vl || 0).toFixed(1) + "x";
+            const avatarHtml = renderAvatar(t.symbol, t.logo, 38);
+            const dexsUrl = isRh ? `https://fomo.family/token/${t.address}` : `https://dexscreener.com/solana/${t.address}`;
+
+            let stratCls = "state-momentum", stratIcon = "⚡";
+            if (t.strategy_key === "siap_lp") { stratCls = "state-chop"; stratIcon = "🟢"; }
+            else if (t.strategy_key === "cto_lp") { stratCls = "state-cto"; stratIcon = "👑"; }
+            else if (t.strategy_key === "break_ath") { stratCls = "state-ath"; stratIcon = "🚀"; }
+            else if (t.strategy_key === "absorption") { stratCls = "state-absorption"; stratIcon = "📡"; }
+
+            cardsHtml += `
+              <div class="token-card" style="border-left: 3px solid #3b82f6;">
+                <div class="card-row-top">
+                  <div class="token-info-left">
+                    ${avatarHtml}
+                    <div class="token-name-block">
+                      <div class="symbol-row" style="display:flex;align-items:center;gap:4px">
+                        <span class="token-symbol"><a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:none">${t.symbol || "?"}</a></span>
+                        ${chainBadge}
+                      </div>
+                      <div class="token-sub-row">
+                        <span class="token-name">${t.name || ""}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="text-align:right">
+                    <span class="state-pill ${stratCls}" style="font-size:11px;font-weight:700">${stratIcon} ${t.strategy || t.strategy_key}</span>
+                    <div style="margin-top:4px"><span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${t.count}x Muncul</span></div>
+                  </div>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;margin:10px 0">
+                  <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">🕒 Riwayat Sinyal 24 Jam Terakhir:</div>
+                  <div style="font-family:var(--font-mono);color:#fbbf24;font-size:13px;font-weight:700;word-break:break-word">🕒 ${t.summary_times || t.time_wib || ""}</div>
+                </div>
+
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px;">
+                  <div class="metric-cell"><div class="m-label">MCAP</div><div class="m-val">${mcapStr}</div></div>
+                  <div class="metric-cell"><div class="m-label">V/L TURNOVER</div><div class="m-val" style="color:#38bdf8">${vlStr}</div></div>
+                </div>
+
+                <div style="display:flex;gap:6px;margin-top:10px">
+                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="flex:1;text-align:center;padding:7px;font-size:11px;font-weight:700">GMGN ↗</a>
+                  <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-copy-inline" style="flex:1;text-align:center;padding:7px;font-size:11px;justify-content:center">${isRh ? "FOMO ↗" : "DexS ↗"}</a>
+                  <button class="btn-copy-inline" onclick="copyCA('${t.address}', this)" style="padding:7px 10px;font-size:11px">Salin CA</button>
+                </div>
+              </div>
+            `;
+          });
+          cardsHtml += '</div>';
+          container.innerHTML = cardsHtml;
+        }
+        updateFooter(filtered.length, globalState.total_scanned || 0);
         return;
       }
 
@@ -2404,6 +2567,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             return `<span class="narr-pill ${cls}">${n}</span>`;
           }).join('');
           const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
+          const histInfo = histLookup[(t.address || "").toLowerCase()];
+          const histBadge = (histInfo && histInfo.count > 1)
+            ? `<span style="display:inline-flex;align-items:center;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);padding:1px 6px;border-radius:6px;font-size:10px;font-weight:600;margin-left:6px;white-space:nowrap" title="Sinyal muncul ${histInfo.count}x: ${histInfo.summary_times}">🕒 ${histInfo.count}x (${histInfo.summary_times})</span>`
+            : "";
 
           tRows += `
             <tr class="arc-tr ${rankClass}">
@@ -2416,6 +2583,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   ${narrHtml}
                   ${twitterHtml}
                   ${subRowHtml}
+                  ${histBadge}
                 </div>
               </td>
               <td class="arc-td mono" style="text-align:center;font-weight:700;color:#38bdf8;font-size:13px;white-space:nowrap">${vlStr}</td>
@@ -2583,6 +2751,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
         const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
+        const histInfoCard = histLookup[(t.address || "").toLowerCase()];
+        const cardHistHtml = (histInfoCard && histInfoCard.count > 1)
+          ? `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:6px;padding:4px 8px;margin:6px 0;font-size:11px;color:#fbbf24;font-family:var(--font-mono)">🕒 <b>Sinyal 24h (${histInfoCard.count}x):</b> ${escapeHtml(histInfoCard.summary_times)}</div>`
+          : "";
+
         html += `
           <div class="token-card ${cardClass} ${rankClass}">
             <div class="card-row-top">
@@ -2622,6 +2795,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>
 
             ${athHtml}
+            ${cardHistHtml}
 
             <!-- Order Flow Bar -->
             <div class="orderflow-wrap">
@@ -2701,7 +2875,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("kpiAbsorb").innerText   = data.counts.absorption || 0;
         const topVl = (data.top_vl !== undefined && data.top_vl !== null) ? Number(data.top_vl).toFixed(1) + "x" : (data.top_yield ? `${Number(data.top_yield).toFixed(1)}x` : "0.0x");
         document.getElementById("kpiTopYield").innerText = topVl;
-        document.getElementById("kpiTime").innerText     = data.scanned_at || "--:--";
+        document.getElementById("kpiTime").innerText     = data.scanned_at ? (data.scanned_at.includes("WIB") ? data.scanned_at : data.scanned_at + " WIB") : "--:-- WIB";
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
         document.getElementById("kpiBath").innerText     = bathCount;
 
@@ -2714,6 +2888,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
         document.getElementById("badgeBath").innerText   = bathCount;
         document.getElementById("badgeGaps").innerText   = data.counts.gaps || 0;
+        const bHist = document.getElementById("badgeHistory");
+        if (bHist) bHist.innerText = (data.counts && data.counts.history) || (data.signal_history ? data.signal_history.length : 0);
 
         renderCards();
         updateCountdown();
@@ -2740,6 +2916,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (e.key === "4") setCategoryTab("absorption");
       else if (e.key === "5") setCategoryTab("break_ath");
       else if (e.key === "6") setCategoryTab("gaps");
+      else if (e.key === "7") setCategoryTab("history");
       else if (e.key === "/") {
         e.preventDefault();
         const inp = document.getElementById("tokenSearch");
@@ -2819,12 +2996,24 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "absorption": app_state["absorption"],
                     "break_ath": app_state.get("break_ath", []),
                     "gaps": app_state["gaps"],
+                    "signal_history": app_state.get("signal_history", []),
                 }
             self.send_json(data)
             return
 
+        if path == "/api/signal-history":
+            with state_lock:
+                sig_data = {
+                    "ok": True,
+                    "updated_at": app_state.get("scanned_at"),
+                    "total": len(app_state.get("signal_history", [])),
+                    "history": app_state.get("signal_history", []),
+                }
+            self.send_json(sig_data)
+            return
+
         if path in ("/api/health", "/health"):
-            self.send_json({"status": "ok", "port": PORT, "time": datetime.now().isoformat()})
+            self.send_json({"status": "ok", "port": PORT, "time": now_wib().isoformat()})
             return
 
         self.send_response(404)

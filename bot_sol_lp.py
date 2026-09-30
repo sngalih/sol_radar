@@ -27,9 +27,28 @@ import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
+
+# ================= TIMEZONE WIB (UTC+7) =================
+WIB = timezone(timedelta(hours=7))
+
+def now_wib() -> datetime:
+    """Mengembalikan objek datetime saat ini dalam zona waktu WIB (UTC+7)."""
+    return datetime.now(WIB)
+
+def get_wib_str(ts: float | int | None = None, fmt: str = "%H:%M:%S") -> str:
+    """Format timestamp (epoch second) ke string WIB. Default waktu sekarang."""
+    if ts is None:
+        dt = datetime.now(WIB)
+    else:
+        dt = datetime.fromtimestamp(ts, tz=WIB)
+    return dt.strftime(fmt)
+
+def get_wib_time_short(ts: float | int | None = None) -> str:
+    """Mengembalikan format jam:menit WIB (contoh: '09:05')."""
+    return get_wib_str(ts, fmt="%H:%M")
 
 # Ensure stdout handles UTF-8 smoothly on Windows and Linux consoles
 if hasattr(sys.stdout, "reconfigure"):
@@ -510,6 +529,296 @@ def get_cached_scan_data(target_chain: str = "") -> dict[str, Any] | None:
     return None
 
 
+# ================= 24H SIGNAL HISTORY LOGGING (WIB EDITION) =================
+SIGNAL_HISTORY_FILE = BASE_DIR / "signal-history.json"
+SIGNAL_RETENTION_SEC = 86400  # 24 jam rolling window
+SIGNAL_HISTORY: list[dict[str, Any]] = []
+
+
+def load_signal_history() -> None:
+    """Muat riwayat sinyal dari signal-history.json atau sol-hp-cache.json saat startup."""
+    global SIGNAL_HISTORY
+    raw_events: list[dict[str, Any]] = []
+
+    # 1. Coba baca dari signal-history.json
+    if SIGNAL_HISTORY_FILE.exists():
+        try:
+            data = json.loads(SIGNAL_HISTORY_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and "events" in data and isinstance(data["events"], list):
+                raw_events = data["events"]
+            elif isinstance(data, list):
+                raw_events = data
+        except Exception as e:
+            print(f"[Signal History] Gagal muat {SIGNAL_HISTORY_FILE.name}: {e}", file=sys.stderr)
+
+    # 2. Fallback baca dari sol-hp-cache.json
+    if not raw_events:
+        fp_cache = BASE_DIR / "sol-hp-cache.json"
+        if fp_cache.exists():
+            try:
+                c_data = json.loads(fp_cache.read_text(encoding="utf-8"))
+                stored = c_data.get("signal_history")
+                if isinstance(stored, list):
+                    raw_events = stored
+            except Exception:
+                pass
+
+    # Prune event yang lebih tua dari 24 jam
+    cutoff = int(time.time()) - SIGNAL_RETENTION_SEC
+    SIGNAL_HISTORY = [e for e in raw_events if int(e.get("timestamp", 0)) >= cutoff]
+    print(f"[Signal History] Dimuat {len(SIGNAL_HISTORY)} event sinyal aktif (24h rolling window)")
+
+
+def save_signal_history() -> None:
+    """Simpan riwayat sinyal ke signal-history.json dan sol-hp-cache.json secara atomik."""
+    global SIGNAL_HISTORY
+    now_ts = int(time.time())
+    cutoff = now_ts - SIGNAL_RETENTION_SEC
+    # Auto-prune saat menyimpan
+    clean_history = [e for e in SIGNAL_HISTORY if int(e.get("timestamp", 0)) >= cutoff]
+    SIGNAL_HISTORY = clean_history
+
+    # 1. Tulis ke signal-history.json
+    try:
+        payload = {
+            "updated_at": now_ts,
+            "updated_at_wib": get_wib_str(now_ts, "%Y-%m-%d %H:%M:%S WIB"),
+            "count": len(clean_history),
+            "events": clean_history,
+        }
+        SIGNAL_HISTORY_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[Signal History] Gagal simpan ke {SIGNAL_HISTORY_FILE.name}: {e}", file=sys.stderr)
+
+    # 2. Simpan juga ke sol-hp-cache.json
+    fp_cache = BASE_DIR / "sol-hp-cache.json"
+    try:
+        c_data: dict = {}
+        if fp_cache.exists():
+            try:
+                c_data = json.loads(fp_cache.read_text(encoding="utf-8"))
+            except Exception:
+                c_data = {}
+        c_data["signal_history"] = clean_history
+        fp_cache.write_text(json.dumps(c_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[Signal History] Gagal simpan ke cache disk: {e}", file=sys.stderr)
+
+
+def record_signal_events(scan_results: dict[str, Any], scan_ts: int | None = None) -> list[dict[str, Any]]:
+    """Mencatat sinyal baru yang muncul di strategi aktif (5M Momentum, Siap LP, CTO, ATH, Absorption).
+    Mencegah pencatatan berulang pada interval scan 5m yang sama untuk token & strategi yang sama.
+    """
+    global SIGNAL_HISTORY
+    now_ts = scan_ts or int(time.time())
+    scan_boundary = int((now_ts // 300) * 300)
+    cutoff = now_ts - SIGNAL_RETENTION_SEC
+
+    # Kategori strategi aktif yang dicatat
+    categories = [
+        ("momentum_5m", "5M MOMENTUM", scan_results.get("momentum_5m", [])),
+        ("siap_lp", "SIAP LP", scan_results.get("siap_lp", [])),
+        ("cto_lp", "CTO REVIVAL", scan_results.get("cto_lp", [])),
+        ("break_ath", "BREAK ATH", scan_results.get("break_ath", [])),
+        ("absorption", "ABSORPTION", scan_results.get("absorption", [])),
+    ]
+
+    # Set event yang sudah ada di scan_boundary ini untuk menghindari duplikat: (addr, strategy_key, scan_boundary)
+    existing_keys = {
+        (
+            str(e.get("address") or "").strip().lower(),
+            str(e.get("strategy_key") or "").strip().lower(),
+            int(e.get("scan_boundary", int(e.get("timestamp", 0)) // 300 * 300)),
+        )
+        for e in SIGNAL_HISTORY
+    }
+
+    time_wib = get_wib_str(now_ts, "%H:%M")
+    date_wib = get_wib_str(now_ts, "%d/%m")
+
+    new_added = 0
+    for strat_key, strat_title, token_list in categories:
+        if not token_list:
+            continue
+        for t in token_list:
+            addr = str(t.get("address") or "").strip()
+            if not addr:
+                continue
+            key = (addr.lower(), strat_key.lower(), scan_boundary)
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+
+            sym = str(t.get("symbol") or "?").strip()
+            chain = str(t.get("chain") or "SOL").upper()
+            url = t.get("url") or (f"https://fomo.family/token/{addr}" if chain == "RH" else f"https://gmgn.ai/sol/token/{addr}")
+
+            event = {
+                "id": f"{chain}_{sym}_{strat_key}_{now_ts}",
+                "address": addr,
+                "symbol": sym,
+                "name": str(t.get("name") or sym),
+                "logo": t.get("logo", ""),
+                "chain": chain,
+                "strategy": strat_title,
+                "strategy_key": strat_key,
+                "timestamp": now_ts,
+                "scan_boundary": scan_boundary,
+                "time_wib": time_wib,
+                "date_wib": date_wib,
+                "mcap": float(t.get("mcap") or 0.0),
+                "vl": float(t.get("vl") or 0.0),
+                "liq": float(t.get("liq") or 0.0),
+                "url": url,
+            }
+            SIGNAL_HISTORY.append(event)
+            new_added += 1
+
+    # Auto-prune
+    SIGNAL_HISTORY = [e for e in SIGNAL_HISTORY if int(e.get("timestamp", 0)) >= cutoff]
+
+    if new_added > 0:
+        save_signal_history()
+        print(f"[{get_wib_str()}] [Signal History] +{new_added} sinyal baru dicatat. Total 24h: {len(SIGNAL_HISTORY)}")
+
+    return SIGNAL_HISTORY
+
+
+def get_aggregated_signal_history(retention_sec: int = SIGNAL_RETENTION_SEC) -> list[dict[str, Any]]:
+    """Mengagregasi riwayat sinyal per (strategy_key, address) selama 24 jam terakhir.
+    Menghitung jumlah kemunculan (count) dan daftar jam kemunculan WIB (misal '09:05, 20:30, 23:20 WIB').
+    """
+    global SIGNAL_HISTORY
+    cutoff = int(time.time()) - retention_sec
+    valid_events = [e for e in SIGNAL_HISTORY if int(e.get("timestamp", 0)) >= cutoff]
+
+    today_date = get_wib_str(fmt="%d/%m")
+
+    # Kelompokkan berdasarkan (strategy_key, address)
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for e in valid_events:
+        addr = str(e.get("address") or "").strip().lower()
+        s_key = str(e.get("strategy_key") or "").strip().lower()
+        if not addr or not s_key:
+            continue
+        g_key = (s_key, addr)
+        if g_key not in groups:
+            groups[g_key] = []
+        groups[g_key].append(e)
+
+    aggregated: list[dict[str, Any]] = []
+    for (s_key, addr), evts in groups.items():
+        # Urutkan berdasarkan waktu
+        evts.sort(key=lambda x: int(x.get("timestamp", 0)))
+        first_evt = evts[0]
+        last_evt = evts[-1]
+
+        # Bangun daftar jam unik berurutan
+        time_strings: list[str] = []
+        seen_times = set()
+        for ev in evts:
+            tw = ev.get("time_wib") or get_wib_str(ev.get("timestamp"), "%H:%M")
+            dw = ev.get("date_wib") or get_wib_str(ev.get("timestamp"), "%d/%m")
+            # Jika beda hari dengan hari ini, tambahkan tanggal (misal '29/09 23:20')
+            full_t = f"{dw} {tw}" if dw != today_date else tw
+            if full_t not in seen_times:
+                seen_times.add(full_t)
+                time_strings.append(full_t)
+
+        summary_times = ", ".join(time_strings) + " WIB" if time_strings else ""
+
+        aggregated.append({
+            "address": last_evt.get("address", addr),
+            "symbol": last_evt.get("symbol", "?"),
+            "name": last_evt.get("name", ""),
+            "logo": last_evt.get("logo", ""),
+            "chain": last_evt.get("chain", "SOL"),
+            "strategy": last_evt.get("strategy", s_key.upper()),
+            "strategy_key": s_key,
+            "count": len(evts),
+            "first_seen_ts": int(first_evt.get("timestamp", 0)),
+            "last_seen_ts": int(last_evt.get("timestamp", 0)),
+            "first_seen_wib": time_strings[0] if time_strings else "",
+            "last_seen_wib": time_strings[-1] if time_strings else "",
+            "timestamps_wib": time_strings,
+            "summary_times": summary_times,
+            "mcap": last_evt.get("mcap", 0.0),
+            "vl": last_evt.get("vl", 0.0),
+            "liq": last_evt.get("liq", 0.0),
+            "url": last_evt.get("url", ""),
+        })
+
+    # Urutkan berdasarkan waktu kemunculan terakhir (terbaru di atas)
+    aggregated.sort(key=lambda x: -x["last_seen_ts"])
+    return aggregated
+
+
+def get_token_signal_history_map(retention_sec: int = SIGNAL_RETENTION_SEC) -> dict[str, dict[str, Any]]:
+    """Menghasilkan peta lookup riwayat sinyal tercepat per address token: { address_lower: aggregated_item }."""
+    agg = get_aggregated_signal_history(retention_sec)
+    m: dict[str, dict[str, Any]] = {}
+    for it in agg:
+        a = str(it.get("address") or "").strip().lower()
+        if a and (a not in m or it.get("count", 1) > m[a].get("count", 1)):
+            m[a] = it
+    return m
+
+
+def build_telegram_history_report(retention_hours: int = 24) -> str:
+    """Membuat laporan riwayat sinyal yang muncul selama 24 jam terakhir dalam zona waktu WIB."""
+    aggregated = get_aggregated_signal_history(retention_hours * 3600)
+    now_str = get_wib_str(fmt="%H:%M WIB")
+
+    if not aggregated:
+        return (
+            "📜 <b>RIWAYAT SINYAL 24 JAM TERAKHIR (WIB)</b>\n\n"
+            f"<i>Belum ada sinyal aktif yang terdeteksi dalam {retention_hours} jam terakhir (per {now_str}).</i>\n\n"
+            "<i>Sinyal akan otomatis tercatat saat token memenuhi kriteria: Siap LP, CTO, 5M Momentum, Break ATH, atau Absorption.</i>"
+        )
+
+    categories = [
+        ("momentum_5m", "⚡ <b>5M MOMENTUM</b>"),
+        ("siap_lp", "🟢 <b>SIAP LP (Chop Sideways)</b>"),
+        ("cto_lp", "👑 <b>CTO REVIVAL LP</b>"),
+        ("break_ath", "🚀 <b>BREAK ATH LP</b>"),
+        ("absorption", "📡 <b>ABSORPTION RADAR</b>"),
+    ]
+
+    lines = [
+        "📜 <b>RIWAYAT SINYAL 24 JAM TERAKHIR (WIB)</b>",
+        ""
+    ]
+
+    total_tokens = 0
+    total_occurrences = 0
+
+    for cat_key, cat_title in categories:
+        items = [x for x in aggregated if x.get("strategy_key") == cat_key]
+        if not items:
+            continue
+
+        lines.append(cat_title)
+        for it in items[:10]:
+            sym = html.escape(str(it.get("symbol") or "?"))
+            sym_link = f'<a href="{it.get("url")}">{sym}</a>' if it.get("url") else sym
+            chain = str(it.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            count = it.get("count", 1)
+            vl = it.get("vl", 0.0)
+            mc_str = _usd(it.get("mcap", 0.0))
+            times_str = it.get("summary_times", "")
+
+            lines.append(f"{badge} {sym_link} ({count}x) │ V/L {vl:.1f}x │ MC {mc_str}")
+            lines.append(f"  🕒 {times_str}")
+            lines.append("")
+            total_tokens += 1
+            total_occurrences += count
+
+        if len(items) > 10:
+            lines.append(f"<i>...dan {len(items) - 10} token lainnya</i>\n")
+
+    lines.append(f"<i>Total: {total_occurrences} sinyal ({total_tokens} token unik) tercatat per {now_str}.</i>")
+    return "\n".join(lines).strip()
 
 def update_ath_cache(scored_tokens: list[dict]) -> None:
     """Update ATH cache dan lacak siklus Break ATH (consecutive scans) per token.
@@ -1223,7 +1532,7 @@ def save_persistent_chain_mode(new_mode: str) -> None:
                 data = {}
         data["chain_mode"] = new_mode
         fp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        print(f"[{time.strftime('%H:%M:%S')}] [Config] chain_mode disimpan ke {fp.name}: {new_mode}")
+        print(f"[{get_wib_str()}] [Config] chain_mode disimpan ke {fp.name}: {new_mode}")
     except Exception as e:
         print(f"[WARN] Gagal menyimpan chain_mode ke {fp.name}: {e}", file=sys.stderr)
 
@@ -1246,6 +1555,7 @@ def build_chain_inline_markup(current_mode: str) -> dict[str, Any]:
             ],
             [
                 {"text": "⚡ Scan Sekarang", "callback_data": "action_scan"},
+                {"text": "📜 History 24h", "callback_data": "action_history"},
                 {"text": "🔄 Refresh Status", "callback_data": "action_refresh"},
             ],
         ]
@@ -1257,7 +1567,7 @@ def build_chain_reply_keyboard() -> dict[str, Any]:
     return {
         "keyboard": [
             [{"text": "🔹 RH Only"}, {"text": "🔸 SOL Only"}, {"text": "🔸🔹 SOL + RH"}],
-            [{"text": "⚡ Scan Sekarang"}, {"text": "⚙️ Menu Toggle"}],
+            [{"text": "⚡ Scan Sekarang"}, {"text": "📜 History 24h"}, {"text": "⚙️ Menu Toggle"}],
         ],
         "resize_keyboard": True,
         "is_persistent": True,
@@ -1424,6 +1734,7 @@ def generate_report(
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
     top_limit = conf.get("top_n_display", 10)
+    hist_map = get_token_signal_history_map()
 
     mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
     mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
@@ -1446,6 +1757,10 @@ def generate_report(
             narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_str}")
+            addr = str(t.get("address") or "").strip().lower()
+            hist = hist_map.get(addr)
+            if hist and hist.get("count", 1) > 1:
+                lines.append(f"  🕒 Sinyal: {hist['summary_times']} ({hist['count']}x)")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -1468,6 +1783,10 @@ def generate_report(
             narr_suffix = f" │ {' '.join(other_narr)}" if other_narr else ""
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_suffix}")
+            c_addr = str(c.get("address") or "").strip().lower()
+            c_hist = hist_map.get(c_addr)
+            if c_hist and c_hist.get("count", 1) > 1:
+                lines.append(f"  🕒 Sinyal: {c_hist['summary_times']} ({c_hist['count']}x)")
 
         if len(c_list) > top_limit:
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
@@ -1497,6 +1816,10 @@ def generate_report(
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
             lines.append(f"  ⚡ 5m {p5_str} │ 🌊 Vol5m {vol5_str} │ {tx_str}")
+            m_addr = str(m.get("address") or "").strip().lower()
+            m_hist = hist_map.get(m_addr)
+            if m_hist and m_hist.get("count", 1) > 1:
+                lines.append(f"  🕒 Sinyal: {m_hist['summary_times']} ({m_hist['count']}x)")
             lines.append("")
     else:
         lines.append("(Belum ada token memenuhi syarat Momentum)")
@@ -1518,6 +1841,10 @@ def generate_report(
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
             lines.append(f"  ⏱ {dur_str} │ 🌊 Vol {_usd(b.get('vol', 0.0))} │ 🟢 {b_ratio}% Buy")
+            b_addr = str(b.get("address") or "").strip().lower()
+            b_hist = hist_map.get(b_addr)
+            if b_hist and b_hist.get("count", 1) > 1:
+                lines.append(f"  🕒 Sinyal: {b_hist['summary_times']} ({b_hist['count']}x)")
             lines.append("")
 
     # 4. ABSORPTION RADAR
@@ -1533,6 +1860,10 @@ def generate_report(
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ {mc_str} │ {status}")
+            t_addr = str(t.get("address") or "").strip().lower()
+            t_hist = hist_map.get(t_addr)
+            if t_hist and t_hist.get("count", 1) > 1:
+                lines.append(f"  🕒 Sinyal: {t_hist['summary_times']} ({t_hist['count']}x)")
             lines.append("")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
@@ -1600,7 +1931,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         max_er = float(conf.get("max_er", 20.0))
         interval = int(conf.get("interval_sec", 300))
 
-        print(f"[{time.strftime('%H:%M:%S')}] [Engine Scan] Memulai pemindaian via {source} (Chain: {chain_mode})...")
+        print(f"[{get_wib_str()}] [Engine Scan] Memulai pemindaian via {source} (Chain: {chain_mode})...")
 
         scored_tokens: list[dict[str, Any]] = []
 
@@ -1612,9 +1943,9 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                     for r in raw_sol:
                         r["chain"] = "SOL"
                         scored_tokens.append(score_gmgn_token(r, conf))
-                    print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
+                    print(f"[{get_wib_str()}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
                 else:
-                    print(f"[{time.strftime('%H:%M:%S')}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
+                    print(f"[{get_wib_str()}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
                     try:
                         pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(min_liq))
                         meme_addrs = [
@@ -1656,9 +1987,9 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                     for r in raw_rh:
                         r["chain"] = "RH"
                         scored_tokens.append(score_gmgn_token(r, conf))
-                    print(f"[{time.strftime('%H:%M:%S')}] Berhasil mengambil {len(raw_rh)} token dari GMGN Robinhood.")
+                    print(f"[{get_wib_str()}] Berhasil mengambil {len(raw_rh)} token dari GMGN Robinhood.")
                 else:
-                    print(f"[{time.strftime('%H:%M:%S')}] GMGN Robinhood tidak merespons atau kosong.")
+                    print(f"[{get_wib_str()}] GMGN Robinhood tidak merespons atau kosong.")
         else:
             pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(min_liq))
             meme_addrs = [
@@ -1748,7 +2079,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         try:
             update_ath_cache(scored_tokens)
         except Exception as ath_err:
-            print(f"[{time.strftime('%H:%M:%S')}] [ATH] Update cache error: {ath_err}", file=sys.stderr)
+            print(f"[{get_wib_str()}] [ATH] Update cache error: {ath_err}", file=sys.stderr)
         break_ath = score_break_ath_candidates(scored_tokens, conf)
 
         # 4. Gaps
@@ -1828,8 +2159,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
         now_epoch = time.time()
-        now_dt = datetime.now()
-        now_str = now_dt.strftime("%H:%M:%S")
+        now_str = get_wib_str(now_epoch, "%H:%M:%S WIB")
         next_boundary = int((now_epoch // interval + 1) * interval)
 
         result = {
@@ -1859,13 +2189,23 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "top_vl": top_vl,
         }
 
+        # 6. Catat event sinyal ke dalam signal-history.json & sol-hp-cache.json
+        try:
+            record_signal_events(result, scan_ts=int(now_epoch))
+        except Exception as e_sig:
+            print(f"[WARN] Record signal events error: {e_sig}", file=sys.stderr)
+
+        signal_history = get_aggregated_signal_history()
+        result["signal_history"] = signal_history
+        result["counts"]["history"] = len(signal_history)
+
         GLOBAL_SCAN_CACHE = result
         save_scan_cache(result)
 
         elapsed = time.time() - t0
         print(
-            f"[{time.strftime('%H:%M:%S')}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
-            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)}"
+            f"[{get_wib_str()}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
+            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
         return result
 
@@ -1923,9 +2263,9 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         }
         ok, err = send_telegram_message(token, chat_id, report_text, reply_markup=report_buttons)
         if ok:
-            print(f"[{time.strftime('%H:%M:%S')}] ✅ Berhasil mengirim report ke Telegram chat {chat_id}!")
+            print(f"[{get_wib_str()}] ✅ Berhasil mengirim report ke Telegram chat {chat_id}!")
         else:
-            print(f"[{time.strftime('%H:%M:%S')}] ❌ Gagal kirim Telegram: {err}", file=sys.stderr)
+            print(f"[{get_wib_str()}] ❌ Gagal kirim Telegram: {err}", file=sys.stderr)
 
 
 # ================= INTERACTIVE TELEGRAM LISTENER =================
@@ -1982,6 +2322,11 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                             answer_callback_query(token, cq_id, text=f"⏳ Memulai scan GMGN ({cur_mode})...")
                             threading.Thread(target=run_single_scan, args=(conf, False, cur_mode, True), daemon=True).start()
 
+                        elif c_data in ("action_history", "cmd_history"):
+                            answer_callback_query(token, cq_id, text="📜 Membuka riwayat sinyal 24h...")
+                            hist_text = build_telegram_history_report()
+                            send_telegram_message(token, c_cid, hist_text)
+
                         elif c_data in ("action_refresh", "action_menu"):
                             cur_mode = conf.get("chain_mode", "RH").upper()
                             answer_callback_query(token, cq_id, text="🔄 Menu diperbarui")
@@ -2018,6 +2363,11 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                         active_chain = (target_chain or conf.get("chain_mode", "RH")).upper()
                         send_telegram_message(token, cid, f"⏳ Sedang memindai data GMGN ({active_chain})...")
                         threading.Thread(target=run_single_scan, args=(conf, False, target_chain, True), daemon=True).start()
+
+                    # Perintah Riwayat Sinyal 24 Jam
+                    elif text in ("/history", "/hist", "/log", "/logs", "📜 history 24h", "📜 riwayat sinyal", "history"):
+                        hist_text = build_telegram_history_report()
+                        send_telegram_message(token, cid, hist_text)
 
                     # Quick Button atau Command Ganti Chain
                     elif text in ("🔹 rh only", "rh only", "rh", "/chain rh"):
@@ -2067,6 +2417,7 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                             f"<b>Mode Aktif Saat Ini:</b>\n"
                             f"• {mode_desc}\n\n"
                             "<b>Perintah Tersedia:</b>\n"
+                            "• <code>/history</code> - Riwayat log sinyal 24 jam terakhir (WIB)\n"
                             "• <code>/menu</code> - Buka toggle menu pengaturan rantai\n"
                             "• <code>/scan</code> - Jalankan pemindaian sesuai mode aktif\n"
                             "• <code>/scan rh</code> - Quick scan khusus Robinhood 🔹\n"
@@ -2123,8 +2474,9 @@ def main() -> None:
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")
     print("=" * 65 + "\n")
 
-    # Muat ATH cache dari disk (persist dari sesi sebelumnya)
+    # Muat ATH cache & Signal History dari disk (persist dari sesi sebelumnya)
     load_ath_cache()
+    load_signal_history()
 
     if args.dry_run or args.once:
         run_single_scan(conf, dry_run=args.dry_run)
@@ -2146,8 +2498,8 @@ def main() -> None:
             now = time.time()
             next_boundary = int((now // interval + 1) * interval)
             sleep_time = max(1.0, next_boundary - now)
-            next_time_str = time.strftime('%H:%M:%S', time.localtime(next_boundary))
-            print(f"[{time.strftime('%H:%M:%S')}] Menunggu {sleep_time:.1f}s hingga kelipatan 5 menit berikutnya ({next_time_str})...\n")
+            next_time_str = get_wib_str(next_boundary, "%H:%M:%S WIB")
+            print(f"[{get_wib_str()}] Menunggu {sleep_time:.1f}s hingga kelipatan 5 menit berikutnya ({next_time_str})...\n")
             time.sleep(sleep_time)
             conf.update(get_config())
             run_single_scan(conf, dry_run=not has_token)
