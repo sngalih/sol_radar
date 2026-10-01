@@ -480,12 +480,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 5px;
       user-select: none;
       white-space: nowrap;
       font-family: var(--font-mono);
     }
     .chain-tab:hover { color: var(--text-main); }
+
+    .chain-count-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: inherit;
+      font-family: var(--font-mono);
+      min-width: 18px;
+      text-align: center;
+      line-height: 1.2;
+    }
 
     .chain-tab.active {
       background: var(--card-bg);
@@ -605,23 +618,31 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border-radius: 10px;
       background: rgba(255,255,255,0.08);
       color: var(--text-main);
-      font-weight: 700;
+      font-weight: 800;
       font-family: var(--font-mono);
+      min-width: 20px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
     }
 
     .cat-tab.active { background: #132238; border-color: var(--green); color: var(--green-light); box-shadow: 0 0 12px var(--green-glow); }
-    .cat-tab.active[data-cat="cto"] { border-color: #a855f7; color: #d8b4fe; box-shadow: 0 0 12px rgba(168, 85, 247, 0.35); }
+    .cat-tab.active[data-cat="cto"]         { border-color: #a855f7; color: #d8b4fe; box-shadow: 0 0 12px rgba(168, 85, 247, 0.35); }
     .cat-tab.active[data-cat="momentum_5m"] { border-color: #eab308; color: #fde047; box-shadow: 0 0 12px rgba(234, 179, 8, 0.35); }
-    .cat-tab.active[data-cat="absorption"] { border-color: var(--blue); color: var(--rh-light); box-shadow: 0 0 12px var(--rh-glow); }
-    .cat-tab.active[data-cat="break_ath"]  { border-color: var(--cyan); color: var(--cyan-light); box-shadow: 0 0 12px var(--cyan-glow); }
-    .cat-tab.active[data-cat="gaps"]       { border-color: var(--yellow); color: var(--sol-light); box-shadow: 0 0 12px var(--sol-glow); }
+    .cat-tab.active[data-cat="absorption"]  { border-color: var(--blue); color: var(--rh-light); box-shadow: 0 0 12px var(--rh-glow); }
+    .cat-tab.active[data-cat="break_ath"]   { border-color: var(--cyan); color: var(--cyan-light); box-shadow: 0 0 12px var(--cyan-glow); }
+    .cat-tab.active[data-cat="gaps"]        { border-color: var(--yellow); color: var(--sol-light); box-shadow: 0 0 12px var(--sol-glow); }
+    .cat-tab.active[data-cat="history"]     { border-color: #f59e0b; color: #fbbf24; box-shadow: 0 0 12px rgba(245, 158, 11, 0.35); }
 
     .cat-tab.active .badge-count                          { background: rgba(16,185,129,0.25); color: var(--green-light); }
     .cat-tab.active[data-cat="cto"] .badge-count          { background: rgba(168, 85, 247, 0.25); color: #d8b4fe; }
     .cat-tab.active[data-cat="momentum_5m"] .badge-count  { background: rgba(234, 179, 8, 0.25); color: #fde047; }
-    .cat-tab.active[data-cat="absorption"] .badge-count  { background: rgba(59,130,246,0.25); color: var(--rh-light); }
-    .cat-tab.active[data-cat="break_ath"]  .badge-count  { background: rgba(6,182,212,0.25); color: var(--cyan-light); }
-    .cat-tab.active[data-cat="gaps"]       .badge-count  { background: rgba(245,158,11,0.25); color: var(--sol-light); }
+    .cat-tab.active[data-cat="absorption"] .badge-count   { background: rgba(59,130,246,0.25); color: var(--rh-light); }
+    .cat-tab.active[data-cat="break_ath"] .badge-count    { background: rgba(6,182,212,0.25); color: var(--cyan-light); }
+    .cat-tab.active[data-cat="gaps"] .badge-count         { background: rgba(245,158,11,0.25); color: var(--sol-light); }
+    .cat-tab.active[data-cat="history"] .badge-count      { background: rgba(245,158,11,0.25); color: #fbbf24; }
 
     /* Controls Right: Search + View Switcher */
     .controls-right {
@@ -771,9 +792,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border: 1px solid rgba(217, 119, 6, 0.35);
     }
     .rank-dim {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-dim);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.07);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     /* ===== MICRO METADATA (Age & Venue) ===== */
@@ -1121,17 +1142,18 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     .state-pill {
-      font-size: 10.5px;
+      font-size: 11px;
       font-weight: 700;
-      padding: 4px 9px;
-      border-radius: 7px;
+      padding: 3px 8px;
+      border-radius: 6px;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 5px;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 58%;
+      max-width: none;
+      line-height: 1.3;
+      flex-shrink: 0;
     }
     .state-absorption { background: var(--blue-bg);  color: var(--rh-light);   border: 1px solid rgba(59,130,246,0.3); }
     .state-chop       { background: var(--green-bg); color: var(--green-light);border: 1px solid rgba(16,185,129,0.3); }
@@ -1302,6 +1324,65 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       display: inline-flex;
       vertical-align: middle;
       margin-right: 5px;
+    }
+
+    /* Signal History Time Pills & Compact Badge */
+    .time-cell-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      max-width: 440px;
+    }
+    .time-pill {
+      font-size: 10.5px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(251, 191, 36, 0.1);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .time-pill.recent {
+      background: rgba(251, 191, 36, 0.22);
+      color: #fde047;
+      border-color: rgba(251, 191, 36, 0.5);
+      font-weight: 700;
+    }
+    .time-pill-more {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.07);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .time-pill-more:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .badge-hist-compact {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(251, 191, 36, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-left: 6px;
+      white-space: nowrap;
+      font-family: var(--font-mono);
     }
 
     /* ===== EMPTY STATE ===== */
@@ -1522,6 +1603,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     /* ===== RESPONSIVE MEDIA QUERIES ===== */
 
+    /* Mobile Phone Layout (HP) */
+    @media (max-width: 640px) {
+      .container { padding: 10px 12px; }
+      .brand-title { font-size: 16px; }
+      .kpi-card { padding: 8px 6px; }
+      .kpi-label { font-size: 9.5px; }
+      .kpi-val { font-size: 15px; }
+      #kpiTime { font-size: 12px; }
+      .cat-tab { min-width: 78px; padding: 7px 6px; font-size: 10.5px; }
+      .cat-tab .badge-count { font-size: 9.5px; min-width: 18px; height: 15px; }
+      .search-input { font-size: 12px; padding: 7px 28px 7px 30px; }
+      .btn-view { padding: 5px 8px; font-size: 10.5px; }
+    }
+
     /* Tablet & Desktop Layouts */
     @media (min-width: 768px) {
       .container { padding: 18px 24px; }
@@ -1616,13 +1711,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <!-- Segmented Chain Switcher (Tersinkronisasi 2-Arah dengan Telegram) -->
       <div class="chain-segmented" id="chainSegmented" title="Mode Rantai (Pusat Sinkronisasi Telegram)">
         <div class="chain-tab" id="tabChainRh" data-chain="RH" onclick="switchBackendChain('RH')">
-          🔹 RH (<span id="cntChainRh">0</span>)
+          <span>🔹 RH</span><span class="chain-count-badge" id="cntChainRh">0</span>
         </div>
         <div class="chain-tab" id="tabChainSol" data-chain="SOL" onclick="switchBackendChain('SOL')">
-          🔸 SOL (<span id="cntChainSol">0</span>)
+          <span>🔸 SOL</span><span class="chain-count-badge" id="cntChainSol">0</span>
         </div>
         <div class="chain-tab active" id="tabChainBoth" data-chain="BOTH" onclick="switchBackendChain('BOTH')">
-          🔸🔹 DUAL (<span id="cntChainAll">0</span>)
+          <span>🔸🔹 DUAL</span><span class="chain-count-badge" id="cntChainAll">0</span>
         </div>
       </div>
 
@@ -1898,6 +1993,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     let searchQuery = '';
     let countdownInterval = null;
     let viewMode = localStorage.getItem("lp_view_mode") || (window.innerWidth >= 1024 ? "table" : "cards");
+    let lastRenderStateKey = "";
 
     /* ---- ArcTools Style Avatar Generator ---- */
     function getAvatarGradient(s) {
@@ -1964,10 +2060,54 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const bTable = document.getElementById("btnViewTable");
       if (bCards) bCards.classList.toggle("active", mode === "cards");
       if (bTable) bTable.classList.toggle("active", mode === "table");
+      lastRenderStateKey = "";
       renderCards();
     }
 
     /* ---- Helpers ---- */
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function renderTimePills(timestamps, summaryTimes, maxPills = 3) {
+      let times = Array.isArray(timestamps) && timestamps.length ? [...timestamps] : [];
+      if (!times.length && summaryTimes) {
+        times = summaryTimes.replace(/\s*WIB/g, "").split(",").map(s => s.trim()).filter(Boolean);
+      }
+      if (!times.length) return `<span class="time-pill">—</span>`;
+
+      if (times.length <= maxPills + 1) {
+        return `<div class="time-cell-wrap">` +
+          times.map(t => `<span class="time-pill recent">🕒 ${escapeHtml(t)}</span>`).join("") +
+          `</div>`;
+      }
+
+      const recent = times.slice(-maxPills);
+      const earlierCount = times.length - maxPills;
+      const allText = times.join(", ") + " WIB";
+
+      return `
+        <div class="time-cell-wrap">
+          ${recent.map(t => `<span class="time-pill recent">🕒 ${escapeHtml(t)}</span>`).join("")}
+          <span class="time-pill-more" title="Seluruh riwayat: ${escapeHtml(allText)}" onclick="toggleTimePills(this, '${escapeHtml(allText)}')">
+            +${earlierCount} jam lainnya
+          </span>
+        </div>`;
+    }
+
+    window.toggleTimePills = function(el, allText) {
+      const parent = el.parentElement;
+      if (!parent) return;
+      const times = allText.replace(/\s*WIB/g, "").split(",").map(s => s.trim()).filter(Boolean);
+      parent.innerHTML = times.map(t => `<span class="time-pill recent" style="margin:1px">🕒 ${escapeHtml(t)}</span>`).join("") +
+        `<span class="time-pill-more" onclick="renderCards()" style="background:rgba(244,63,94,0.18);color:#fb7185">Tutup ✕</span>`;
+    };
     function formatUsd(val) {
       if (!val || val <= 0) return "$0";
       if (val >= 1e6) {
@@ -2030,6 +2170,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const clr = document.getElementById("searchClear");
       searchQuery = (inp.value || "").trim().toLowerCase();
       clr.classList.toggle("visible", searchQuery.length > 0);
+      lastRenderStateKey = "";
       renderCards();
     }
 
@@ -2044,6 +2185,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function updateChainModeUI(mode) {
       currentChainMode = (mode || "BOTH").toUpperCase();
       activeChain = currentChainMode.toLowerCase();
+      lastRenderStateKey = "";
       const tabRh   = document.getElementById("tabChainRh");
       const tabSol  = document.getElementById("tabChainSol");
       const tabBoth = document.getElementById("tabChainBoth");
@@ -2091,6 +2233,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       document.querySelectorAll(".cat-tab").forEach(tab =>
         tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
       );
+      lastRenderStateKey = "";
       renderCards();
     }
 
@@ -2372,10 +2515,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             else if (t.strategy_key === "break_ath") { stratCls = "state-ath"; stratIcon = "🚀"; }
             else if (t.strategy_key === "absorption") { stratCls = "state-absorption"; stratIcon = "📡"; }
 
+            const timePillsHtml = renderTimePills(t.timestamps_wib, t.summary_times, 3);
+
             tRows += `
               <tr class="arc-tr">
                 <td class="arc-td" style="width:36px;text-align:center;white-space:nowrap">${rankBadge}</td>
-                <td class="arc-td" style="white-space:nowrap">
+                <td class="arc-td" style="white-space:nowrap;min-width:180px">
                   <div style="display:flex;align-items:center;gap:6px">
                     ${avatarHtml}
                     <div>
@@ -2387,20 +2532,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                     </div>
                   </div>
                 </td>
-                <td class="arc-td" style="text-align:center;white-space:nowrap">
-                  <span class="state-pill ${stratCls}" style="padding:3px 8px;font-size:11px;font-weight:700">${stratIcon} ${t.strategy || t.strategy_key}</span>
+                <td class="arc-td" style="text-align:center;white-space:nowrap;width:130px">
+                  <span class="state-pill ${stratCls}">${stratIcon} ${t.strategy || t.strategy_key}</span>
                 </td>
-                <td class="arc-td mono" style="text-align:center;white-space:nowrap">
-                  <span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 8px;border-radius:12px;font-weight:700;font-size:12px">${t.count}x Muncul</span>
-                </td>
-                <td class="arc-td mono" style="color:#fbbf24;font-size:12px;font-weight:600;white-space:nowrap">
-                  🕒 ${t.summary_times || t.time_wib || ""}
-                </td>
-                <td class="arc-td" style="text-align:center;white-space:nowrap">
+                <td class="arc-td mono" style="text-align:center;font-weight:700;color:#38bdf8;font-size:13px;white-space:nowrap;width:75px">${vlStr}</td>
+                <td class="arc-td" style="text-align:center;white-space:nowrap;width:85px">
                   <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="padding:3px 10px;font-size:11px;font-weight:700">GMGN ↗</a>
                 </td>
-                <td class="arc-td mono" style="font-weight:700;color:#fff;white-space:nowrap">${mcapStr}</td>
-                <td class="arc-td mono" style="text-align:center;font-weight:700;color:#38bdf8;font-size:13px;white-space:nowrap">${vlStr}</td>
+                <td class="arc-td mono" style="font-weight:700;color:#fff;white-space:nowrap;width:95px">${mcapStr}</td>
+                <td class="arc-td mono" style="text-align:center;white-space:nowrap;width:95px">
+                  <span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 7px;border-radius:6px;font-weight:700;font-size:11px">${t.count}x Muncul</span>
+                </td>
+                <td class="arc-td mono" style="min-width:240px;max-width:440px">
+                  ${timePillsHtml}
+                </td>
               </tr>`;
           });
 
@@ -2411,12 +2556,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   <tr>
                     <th style="width:36px;text-align:center">#</th>
                     <th style="min-width:180px">TOKEN</th>
-                    <th style="text-align:center;min-width:140px">STRATEGI</th>
-                    <th style="text-align:center;width:110px">FREKUENSI</th>
-                    <th style="min-width:240px">JAM SINYAL (WIB)</th>
-                    <th style="text-align:center;width:80px">AKSI</th>
-                    <th style="width:100px">MCAP</th>
-                    <th style="text-align:center;width:80px">V/L</th>
+                    <th style="text-align:center;width:130px">STRATEGI</th>
+                    <th style="text-align:center;width:75px">V/L</th>
+                    <th style="text-align:center;width:85px">AKSI</th>
+                    <th style="width:95px">MCAP</th>
+                    <th style="text-align:center;width:95px">FREKUENSI</th>
+                    <th style="min-width:240px;max-width:440px">JAM SINYAL (WIB)</th>
                   </tr>
                 </thead>
                 <tbody>${tRows}</tbody>
@@ -2429,6 +2574,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             const chainBadge = isRh
               ? `<span class="chain-pill rh" style="font-size:9px;padding:1px 4px;margin-left:4px">RH</span>`
               : `<span class="chain-pill sol" style="font-size:9px;padding:1px 4px;margin-left:4px">SOL</span>`;
+            const rankBadge = getRankBadge(idx);
             const mcapStr = formatUsd(t.mcap || 0);
             const vlStr = (t.vl || 0).toFixed(1) + "x";
             const avatarHtml = renderAvatar(t.symbol, t.logo, 38);
@@ -2440,10 +2586,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             else if (t.strategy_key === "break_ath") { stratCls = "state-ath"; stratIcon = "🚀"; }
             else if (t.strategy_key === "absorption") { stratCls = "state-absorption"; stratIcon = "📡"; }
 
+            const timePillsHtml = renderTimePills(t.timestamps_wib, t.summary_times, 3);
+
             cardsHtml += `
               <div class="token-card" style="border-left: 3px solid #3b82f6;">
                 <div class="card-row-top">
                   <div class="token-info-left">
+                    ${rankBadge}
                     ${avatarHtml}
                     <div class="token-name-block">
                       <div class="symbol-row" style="display:flex;align-items:center;gap:4px">
@@ -2456,22 +2605,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                     </div>
                   </div>
                   <div style="text-align:right">
-                    <span class="state-pill ${stratCls}" style="font-size:11px;font-weight:700">${stratIcon} ${t.strategy || t.strategy_key}</span>
-                    <div style="margin-top:4px"><span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${t.count}x Muncul</span></div>
+                    <span class="state-pill ${stratCls}">${stratIcon} ${t.strategy || t.strategy_key}</span>
+                    <div style="margin-top:4px"><span style="background:rgba(59,130,246,0.18);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">${t.count}x Muncul</span></div>
                   </div>
                 </div>
 
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;margin:10px 0">
-                  <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">🕒 Riwayat Sinyal 24 Jam Terakhir:</div>
-                  <div style="font-family:var(--font-mono);color:#fbbf24;font-size:13px;font-weight:700;word-break:break-word">🕒 ${t.summary_times || t.time_wib || ""}</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 10px;margin:8px 0">
+                  <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+                    <span>🕒 Riwayat Sinyal 24 Jam Terakhir:</span>
+                    <span style="color:#fbbf24;font-family:var(--font-mono);font-weight:700">${t.count}x Terdeteksi</span>
+                  </div>
+                  ${timePillsHtml}
                 </div>
 
-                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px;">
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 8px;">
                   <div class="metric-cell"><div class="m-label">MCAP</div><div class="m-val">${mcapStr}</div></div>
                   <div class="metric-cell"><div class="m-label">V/L TURNOVER</div><div class="m-val" style="color:#38bdf8">${vlStr}</div></div>
                 </div>
 
-                <div style="display:flex;gap:6px;margin-top:10px">
+                <div style="display:flex;gap:6px;margin-top:8px">
                   <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" style="flex:1;text-align:center;padding:7px;font-size:11px;font-weight:700">GMGN ↗</a>
                   <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-copy-inline" style="flex:1;text-align:center;padding:7px;font-size:11px;justify-content:center">${isRh ? "FOMO ↗" : "DexS ↗"}</a>
                   <button class="btn-copy-inline" onclick="copyCA('${t.address}', this)" style="padding:7px 10px;font-size:11px">Salin CA</button>
@@ -2568,8 +2720,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           }).join('');
           const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
           const histInfo = histLookup[(t.address || "").toLowerCase()];
+          const histShortTime = histInfo ? (histInfo.summary_times_short || histInfo.last_seen_wib || "") : "";
           const histBadge = (histInfo && histInfo.count > 1)
-            ? `<span style="display:inline-flex;align-items:center;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);padding:1px 6px;border-radius:6px;font-size:10px;font-weight:600;margin-left:6px;white-space:nowrap" title="Sinyal muncul ${histInfo.count}x: ${histInfo.summary_times}">🕒 ${histInfo.count}x (${histInfo.summary_times})</span>`
+            ? `<span class="badge-hist-compact" title="Sinyal muncul ${histInfo.count}x: ${escapeHtml(histInfo.summary_times)}">🕒 ${histInfo.count}x${histShortTime ? ' (' + escapeHtml(histShortTime) + ')' : ''}</span>`
             : "";
 
           tRows += `
@@ -2753,7 +2906,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
         const histInfoCard = histLookup[(t.address || "").toLowerCase()];
         const cardHistHtml = (histInfoCard && histInfoCard.count > 1)
-          ? `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:6px;padding:4px 8px;margin:6px 0;font-size:11px;color:#fbbf24;font-family:var(--font-mono)">🕒 <b>Sinyal 24h (${histInfoCard.count}x):</b> ${escapeHtml(histInfoCard.summary_times)}</div>`
+          ? `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:6px;padding:5px 8px;margin:6px 0;font-size:11px;color:#fbbf24;font-family:var(--font-mono);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px" title="Seluruh riwayat: ${escapeHtml(histInfoCard.summary_times)}">
+              <span>🕒 <b>Sinyal 24h:</b> ${escapeHtml(histInfoCard.summary_times_short || histInfoCard.summary_times)}</span>
+              <span style="background:rgba(251,191,36,0.18);padding:1px 6px;border-radius:4px;font-weight:700">${histInfoCard.count}x</span>
+            </div>`
           : "";
 
         html += `
@@ -2891,7 +3047,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const bHist = document.getElementById("badgeHistory");
         if (bHist) bHist.innerText = (data.counts && data.counts.history) || (data.signal_history ? data.signal_history.length : 0);
 
-        renderCards();
+        // Render Caching / Smart Diffing: Hindari render ulang DOM jika data tidak berubah
+        const currentFingerprint = `${data.scanned_timestamp || 0}_${data.scanning ? 1 : 0}_${(data.counts && data.counts.total) || 0}_${(data.counts && data.counts.history) || 0}_${activeCategory}_${activeChain}_${viewMode}_${searchQuery}`;
+        if (currentFingerprint !== lastRenderStateKey) {
+          lastRenderStateKey = currentFingerprint;
+          renderCards();
+        }
         updateCountdown();
 
       } catch (err) {
