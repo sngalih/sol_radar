@@ -726,6 +726,8 @@ def get_aggregated_signal_history(retention_sec: int = SIGNAL_RETENTION_SEC) -> 
                 time_strings.append(full_t)
 
         summary_times = ", ".join(time_strings) + " WIB" if time_strings else ""
+        time_strings_short = time_strings[-3:] if len(time_strings) > 3 else time_strings
+        summary_times_short = ", ".join(time_strings_short) + " WIB" if time_strings_short else ""
 
         aggregated.append({
             "address": last_evt.get("address", addr),
@@ -742,6 +744,7 @@ def get_aggregated_signal_history(retention_sec: int = SIGNAL_RETENTION_SEC) -> 
             "last_seen_wib": time_strings[-1] if time_strings else "",
             "timestamps_wib": time_strings,
             "summary_times": summary_times,
+            "summary_times_short": summary_times_short,
             "mcap": last_evt.get("mcap", 0.0),
             "vl": last_evt.get("vl", 0.0),
             "liq": last_evt.get("liq", 0.0),
@@ -806,7 +809,7 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
             count = it.get("count", 1)
             vl = it.get("vl", 0.0)
             mc_str = _usd(it.get("mcap", 0.0))
-            times_str = it.get("summary_times", "")
+            times_str = it.get("summary_times_short") or it.get("summary_times", "")
 
             lines.append(f"{badge} {sym_link} ({count}x) │ V/L {vl:.1f}x │ MC {mc_str}")
             lines.append(f"  🕒 {times_str}")
@@ -1760,7 +1763,8 @@ def generate_report(
             addr = str(t.get("address") or "").strip().lower()
             hist = hist_map.get(addr)
             if hist and hist.get("count", 1) > 1:
-                lines.append(f"  🕒 Sinyal: {hist['summary_times']} ({hist['count']}x)")
+                times_disp = hist.get("summary_times_short") or hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {times_disp} ({hist['count']}x)")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -1786,7 +1790,8 @@ def generate_report(
             c_addr = str(c.get("address") or "").strip().lower()
             c_hist = hist_map.get(c_addr)
             if c_hist and c_hist.get("count", 1) > 1:
-                lines.append(f"  🕒 Sinyal: {c_hist['summary_times']} ({c_hist['count']}x)")
+                c_times_disp = c_hist.get("summary_times_short") or c_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {c_times_disp} ({c_hist['count']}x)")
 
         if len(c_list) > top_limit:
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
@@ -1819,7 +1824,8 @@ def generate_report(
             m_addr = str(m.get("address") or "").strip().lower()
             m_hist = hist_map.get(m_addr)
             if m_hist and m_hist.get("count", 1) > 1:
-                lines.append(f"  🕒 Sinyal: {m_hist['summary_times']} ({m_hist['count']}x)")
+                m_times_disp = m_hist.get("summary_times_short") or m_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {m_times_disp} ({m_hist['count']}x)")
             lines.append("")
     else:
         lines.append("(Belum ada token memenuhi syarat Momentum)")
@@ -1844,7 +1850,8 @@ def generate_report(
             b_addr = str(b.get("address") or "").strip().lower()
             b_hist = hist_map.get(b_addr)
             if b_hist and b_hist.get("count", 1) > 1:
-                lines.append(f"  🕒 Sinyal: {b_hist['summary_times']} ({b_hist['count']}x)")
+                b_times_disp = b_hist.get("summary_times_short") or b_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {b_times_disp} ({b_hist['count']}x)")
             lines.append("")
 
     # 4. ABSORPTION RADAR
@@ -1863,7 +1870,8 @@ def generate_report(
             t_addr = str(t.get("address") or "").strip().lower()
             t_hist = hist_map.get(t_addr)
             if t_hist and t_hist.get("count", 1) > 1:
-                lines.append(f"  🕒 Sinyal: {t_hist['summary_times']} ({t_hist['count']}x)")
+                t_times_disp = t_hist.get("summary_times_short") or t_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {t_times_disp} ({t_hist['count']}x)")
             lines.append("")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
