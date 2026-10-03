@@ -1604,7 +1604,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     <!-- Controls Strip: Category Tabs + Quick Search -->
     <div class="controls-strip">
-      <div class="cat-tabs">
+              <div class="cat-tabs">
+          <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Hotkey: A">
+            <span>ALL SIGNALS</span>
+            <span id="badgeAll" class="badge-count">0</span>
+          </div>
         <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: S">
           <span>SLOW COOK</span>
           <span id="badgeSlow" class="badge-count">0</span>
@@ -1613,7 +1617,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span>30% DIP</span>
           <span id="badgeDip" class="badge-count">0</span>
         </div>
-        <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
+        <div class="cat-tab" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
           <span>🟢 SIAP LP</span>
           <span id="badgeSiap" class="badge-count">0</span>
         </div>
@@ -2275,7 +2279,40 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       // Source per active category
       let rawList = [];
-      if      (activeCategory === "dip")         rawList = globalState.dip_chop || [];
+      if (activeCategory === "all") {
+          const merged = [];
+          const seen = new Set();
+          
+          const mergeList = (list, tag, tagColor) => {
+              (list || []).forEach(t => {
+                  const addr = (t.address || "").toLowerCase();
+                  if (!seen.has(addr)) {
+                      seen.add(addr);
+                      const cloned = {...t, strat_tags: [{name: tag, color: tagColor}]};
+                      merged.push(cloned);
+                  } else {
+                      const existing = merged.find(x => (x.address||"").toLowerCase() === addr);
+                      if (existing && !existing.strat_tags.find(x => x.name === tag)) {
+                          existing.strat_tags.push({name: tag, color: tagColor});
+                      }
+                  }
+              });
+          };
+
+          mergeList(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
+          mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
+          mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
+          mergeList(globalState.cto_lp, "CTO", "#a855f7");
+          mergeList(globalState.momentum_5m, "5M", "#f59e0b");
+          mergeList(globalState.absorption, "Absorb", "#5d667a");
+          mergeList(globalState.break_ath, "ATH", "#14b8a6");
+          
+          rawList = merged;
+          // Update the badge count dynamically
+          const bAll = document.getElementById("badgeAll");
+          if (bAll) bAll.innerText = rawList.length;
+      }
+      else if (activeCategory === "dip")         rawList = globalState.dip_chop || [];
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
       else if (activeCategory === "cto")         rawList = globalState.cto_lp     || [];
@@ -2327,7 +2364,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const msgs = {
           slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
           dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
-          siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
+          all:         "Belum ada token di semua kategori sinyal.",
+            siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
           cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, V/L ≥ 0.5x, Buy% ≥ 46%, ATH Drop ≤ 85%).",
           momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
           absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x, Buy% ≥ 46%).",
@@ -2377,9 +2415,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                     <div>
                       <div style="display:flex;align-items:center">
                         <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:800;font-size:13.5px;color:#fff;text-decoration:none">${t.symbol || "?"}</a>
-                        ${chainBadge}
-                      </div>
-                      <div style="color:var(--text-muted);font-size:11px">${t.name || ""}</div>
+                        ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
+                  </div>
+                  <div style="color:var(--text-muted);font-size:11px">${t.name || ""}</div>
                     </div>
                   </div>
                 </td>
@@ -2448,9 +2486,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                     <div class="token-name-block">
                       <div class="symbol-row" style="display:flex;align-items:center;gap:4px">
                         <span class="token-symbol"><a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:none">${t.symbol || "?"}</a></span>
-                        ${chainBadge}
-                      </div>
-                      <div class="token-sub-row">
+                        ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
+                  </div>
+                  <div class="token-sub-row">
                         <span class="token-name">${t.name || ""}</span>
                       </div>
                     </div>
@@ -2583,8 +2621,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <div style="display:flex;align-items:center;gap:5px">
                   ${avatarHtml}
                   <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:700;font-size:13px;color:var(--text-main);text-decoration:none">${t.symbol || "?"}</a>
-                  ${chainBadge}
-                  ${narrHtml}
+                  ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
+                    ${narrHtml}
                   ${twitterHtml}
                   ${subRowHtml}
                   ${histBadge}
@@ -2772,7 +2810,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <div class="token-name-block">
                   <div class="symbol-row" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
                     <span class="token-symbol">${t.symbol || "?"}</span>
-                    ${chainBadge}
+                    ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
                     ${narrHtml}
                     ${twitterHtml}
                     <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
@@ -2918,7 +2956,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         return;
       }
       if (e.key === "Escape") closeModal();
-      else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
+              else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
+        else if (e.key === "a" || e.key === "A") setCategoryTab("all");
       else if (e.key === "1") setCategoryTab("siap");
       else if (e.key === "2") setCategoryTab("cto");
       else if (e.key === "3") setCategoryTab("momentum_5m");
