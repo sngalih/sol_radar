@@ -1635,6 +1635,7 @@ def generate_report(
     siap_list: list[dict] | None = None,
     cto_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
+    dip_list: list[dict] | None = None,
     absorption_list: list[dict] | None = None,
     gaps_list: list[dict] | None = None,
 ) -> str:
@@ -1827,6 +1828,33 @@ def generate_report(
             lines.append(f"<i>...dan {len(sc_list) - top_limit} pool Slow Cook lainnya</i>")
     else:
         lines.append("(Belum ada token memenuhi syarat Slow Cook)")
+
+    # 1d. 📉 30% DIP CHOP
+    lines.append("")
+    lines.append("<b>📉 30% DIP CHOP (Tight Range at Bottom)</b>")
+    d_list = dip_list or []
+    if d_list:
+        for d in d_list[:top_limit]:
+            sym = html.escape(str(d.get("symbol") or "?"))
+            sym_link = f'<a href="{d["url"]}">{sym}</a>'
+            vl = d.get("vl", 0.0)
+            mc_str = _usd(d['mcap'])
+            drop = d.get("ath_drawdown", 0.0)
+            chain = str(d.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Drop {drop:.1f}%")
+            
+            d_addr = str(d.get("address") or "").strip().lower()
+            d_hist = hist_map.get(d_addr)
+            if d_hist and d_hist.get("count", 1) > 1:
+                d_times_disp = d_hist.get("summary_times_short") or d_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {d_times_disp} ({d_hist['count']}x)")
+
+        if len(d_list) > top_limit:
+            lines.append(f"<i>...dan {len(d_list) - top_limit} pool 30% Dip lainnya</i>")
+    else:
+        lines.append("(Belum ada token memenuhi syarat 30% Dip Chop)")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -2110,6 +2138,20 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         slow_cook_lp = deduplicate_best_tokens(slow_cook_candidates)
         slow_cook_lp.sort(key=lambda x: -x.get("slow_cook_score", 0.0))
 
+
+        # 1d. 📉 30% DIP CHOP (Healthy Correction & Tight Consolidation)
+        dip_candidates = [
+            p for p in filtered
+            if -45.0 <= p.get("ath_drawdown", 0.0) <= -20.0
+            and abs(p.get("p1", 0.0)) <= 4.0
+            and abs(p.get("p5", 0.0)) <= 1.5
+            and p.get("er", 999.0) <= 10.0
+            and p.get("buy_ratio", 0.0) >= 48.0
+            and p.get("vl", 0.0) >= 0.4
+        ]
+        dip_chop = deduplicate_best_tokens(dip_candidates)
+        dip_chop.sort(key=lambda x: -x.get("vl", 0.0))
+
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
@@ -2224,6 +2266,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "siap_lp": siap_lp,
             "cto_lp": cto_lp,
             "slow_cook_lp": slow_cook_lp,
+            "dip_chop": dip_chop,
             "momentum_5m": momentum_5m,
             "absorption": absorption,
             "break_ath": break_ath,
@@ -2232,6 +2275,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 "siap": len(siap_lp),
                 "cto": len(cto_lp),
                 "slow_cook": len(slow_cook_lp),
+                "dip_chop": len(dip_chop),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
@@ -2282,6 +2326,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         siap_list=scan_res.get("siap_lp", []),
         cto_list=scan_res.get("cto_lp", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),
+        dip_list=scan_res.get("dip_chop", []),
         absorption_list=scan_res.get("absorption", []),
         gaps_list=scan_res.get("gaps", []),
     )

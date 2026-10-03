@@ -1609,6 +1609,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <b id="kpiSlow">0</b>
         <span class="chip-lbl">slow cook</span>
       </div>
+      <div class="stat-chip" title="30% Dip Chop">
+        <span class="chip-dot dot-blue"></span>
+        <b id="kpiDip">0</b>
+        <span class="chip-lbl">30% dip</span>
+      </div>
       <div class="stat-chip" title="Token Siap LP">
         <span class="chip-dot dot-green"></span>
         <b id="kpiSiap">0</b>
@@ -1650,6 +1655,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: S">
           <span>🍲 SLOW COOK</span>
           <span id="badgeSlow" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="dip" onclick="setCategoryTab('dip')" title="Hotkey: D">
+          <span>📉 30% DIP</span>
+          <span id="badgeDip" class="badge-count">0</span>
         </div>
         <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
           <span>🟢 SIAP LP</span>
@@ -2313,7 +2322,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       // Source per active category
       let rawList = [];
-      if      (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
+      if      (activeCategory === "dip")         rawList = globalState.dip_chop || [];
+      else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
       else if (activeCategory === "cto")         rawList = globalState.cto_lp     || [];
       else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
@@ -2363,6 +2373,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (!filtered.length) {
         const msgs = {
           slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
+          dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
           siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
           cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, V/L ≥ 0.5x, Buy% ≥ 46%, ATH Drop ≤ 85%).",
           momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
@@ -2914,6 +2925,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         }
 
         // KPI / Stat Chips
+        document.getElementById("kpiDip").innerText = data.counts.dip_chop || 0;
         document.getElementById("kpiSlow").innerText = data.counts.slow_cook || 0;
         document.getElementById("kpiSiap").innerText     = data.counts.siap || 0;
         const bCtoKpi = document.getElementById("kpiCto");
@@ -2928,6 +2940,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("kpiBath").innerText     = bathCount;
 
         // Category Badges
+        document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
         document.getElementById("badgeSlow").innerText = data.counts.slow_cook || 0;
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
         const bCto = document.getElementById("badgeCto");
