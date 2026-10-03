@@ -2358,7 +2358,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             const rankBadge = getRankBadge(idx);
             const mcapStr = formatUsd(t.mcap || 0);
             const vlStr = (t.vl || 0).toFixed(1) + "x";
-            const avatarHtml = renderAvatar(t.symbol, t.logo, 32);
+            const avatarHtml = "";
 
             let stratCls = "state-momentum", stratIcon = "⚡";
             if (t.strategy_key === "siap_lp") { stratCls = "state-chop"; stratIcon = "🟢"; }
@@ -2428,7 +2428,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             const rankBadge = getRankBadge(idx);
             const mcapStr = formatUsd(t.mcap || 0);
             const vlStr = (t.vl || 0).toFixed(1) + "x";
-            const avatarHtml = renderAvatar(t.symbol, t.logo, 38);
+            const avatarHtml = "";
             const dexsUrl = isRh ? `https://fomo.family/token/${t.address}` : `https://dexscreener.com/solana/${t.address}`;
 
             let stratCls = "state-momentum", stratIcon = "⚡";
@@ -2510,7 +2510,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
           const ageHtml = formatAge(t.age_hours);
           const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
-          const avatarHtml = renderAvatar(t.symbol, t.logo, 34);
+          const avatarHtml = "";
 
           // ER badge
           const erVal = t.er !== undefined ? t.er : 999;
@@ -2655,7 +2655,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
         const ageHtml = formatAge(t.age_hours);
         const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
-        const avatarHtml = renderAvatar(t.symbol, t.logo, 38);
+        const avatarHtml = "";
 
         // ER badge
         const erVal = t.er !== undefined ? t.er : 999;
@@ -2878,19 +2878,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         }
 
         // KPI / Stat Chips
-        document.getElementById("kpiDip").innerText = data.counts.dip_chop || 0;
-        document.getElementById("kpiSlow").innerText = data.counts.slow_cook || 0;
-        document.getElementById("kpiSiap").innerText     = data.counts.siap || 0;
-        const bCtoKpi = document.getElementById("kpiCto");
-        if (bCtoKpi) bCtoKpi.innerText = (data.counts && data.counts.cto) || (data.cto_lp ? data.cto_lp.length : 0);
-        const bM5Kpi = document.getElementById("kpiM5");
-        if (bM5Kpi) bM5Kpi.innerText = (data.counts && data.counts.momentum_5m) || (data.momentum_5m ? data.momentum_5m.length : 0);
-        document.getElementById("kpiAbsorb").innerText   = data.counts.absorption || 0;
         const topVl = (data.top_vl !== undefined && data.top_vl !== null) ? Number(data.top_vl).toFixed(1) + "x" : (data.top_yield ? `${Number(data.top_yield).toFixed(1)}x` : "0.0x");
-        document.getElementById("kpiTopYield").innerText = topVl;
-        document.getElementById("kpiTime").innerText     = data.scanned_at ? (data.scanned_at.includes("WIB") ? data.scanned_at : data.scanned_at + " WIB") : "--:-- WIB";
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
-        document.getElementById("kpiBath").innerText     = bathCount;
 
         // Category Badges
         document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
