@@ -274,10 +274,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
   <style>
     /* ===== DATA-PUBLIC OBSIDIAN PALETTE & DESIGN TOKENS ===== */
     :root {
-      --bg: #0b0e14;
-      --card-bg: #121722;
-      --card-inner: #0e121b;
-      --card-border: #1f2634;
+      --bg: #1e1e1e;
+      --card-bg: #252526;
+      --card-inner: #1e1e1e;
+      --card-border: #333333;
       --card-hover: #161c2a;
       --text-main: #e6e9f0;
       --text-sub: #8a93a8;
@@ -1577,13 +1577,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <!-- Segmented Chain Switcher (Tersinkronisasi 2-Arah dengan Telegram) -->
       <div class="chain-segmented" id="chainSegmented" title="Mode Rantai (Pusat Sinkronisasi Telegram)">
         <div class="chain-tab" id="tabChainRh" data-chain="RH" onclick="switchBackendChain('RH')">
-          <span>🔹 RH</span><span class="chain-count-badge" id="cntChainRh">0</span>
+          <span>RH</span><span class="chain-count-badge" id="cntChainRh">0</span>
         </div>
         <div class="chain-tab" id="tabChainSol" data-chain="SOL" onclick="switchBackendChain('SOL')">
-          <span>🔸 SOL</span><span class="chain-count-badge" id="cntChainSol">0</span>
+          <span>SOL</span><span class="chain-count-badge" id="cntChainSol">0</span>
         </div>
         <div class="chain-tab active" id="tabChainBoth" data-chain="BOTH" onclick="switchBackendChain('BOTH')">
-          <span>🔸🔹 DUAL</span><span class="chain-count-badge" id="cntChainAll">0</span>
+          <span>DUAL</span><span class="chain-count-badge" id="cntChainAll">0</span>
         </div>
       </div>
 
@@ -1602,62 +1602,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
   <!-- ===== MAIN CONTENT ===== -->
   <main class="container">
 
-    <!-- Inline Stat Chips (Ramping & Flat, Menggantikan Kotak KPI Raksasa) -->
-    <div class="stat-strip">
-      <div class="stat-chip" title="Slow Cook LP">
-        <span class="chip-dot dot-green"></span>
-        <b id="kpiSlow">0</b>
-        <span class="chip-lbl">slow cook</span>
-      </div>
-      <div class="stat-chip" title="30% Dip Chop">
-        <span class="chip-dot dot-blue"></span>
-        <b id="kpiDip">0</b>
-        <span class="chip-lbl">30% dip</span>
-      </div>
-      <div class="stat-chip" title="Token Siap LP">
-        <span class="chip-dot dot-green"></span>
-        <b id="kpiSiap">0</b>
-        <span class="chip-lbl">siap lp</span>
-      </div>
-      <div class="stat-chip" title="👑 CTO Revival">
-        <span class="chip-dot dot-purple"></span>
-        <b id="kpiCto">0</b>
-        <span class="chip-lbl">cto</span>
-      </div>
-      <div class="stat-chip" title="⚡ 5M Momentum">
-        <span class="chip-dot dot-amber"></span>
-        <b id="kpiM5">0</b>
-        <span class="chip-lbl">5m</span>
-      </div>
-      <div class="stat-chip" title="🚀 Break ATH">
-        <span class="chip-dot dot-teal"></span>
-        <b id="kpiBath">0</b>
-        <span class="chip-lbl">break ath</span>
-      </div>
-      <div class="stat-chip" title="📡 Absorption Radar">
-        <span class="chip-dot dot-dim"></span>
-        <b id="kpiAbsorb">0</b>
-        <span class="chip-lbl">absorb</span>
-      </div>
-      <div class="stat-chip" title="Turnover Likuiditas Tertinggi">
-        <span class="chip-lbl">top v/l:</span>
-        <b id="kpiTopYield" class="chip-val-teal">0.0x</b>
-      </div>
-      <div class="stat-chip stat-chip-time" title="Jam Terakhir Pindai (WIB)">
-        <span class="chip-lbl">🕒</span>
-        <span id="kpiTime" class="chip-val-time">--:-- WIB</span>
-      </div>
-    </div>
-
     <!-- Controls Strip: Category Tabs + Quick Search -->
     <div class="controls-strip">
       <div class="cat-tabs">
         <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: S">
-          <span>🍲 SLOW COOK</span>
+          <span>SLOW COOK</span>
           <span id="badgeSlow" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="dip" onclick="setCategoryTab('dip')" title="Hotkey: D">
-          <span>📉 30% DIP</span>
+          <span>30% DIP</span>
           <span id="badgeDip" class="badge-count">0</span>
         </div>
         <div class="cat-tab active" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
@@ -1665,7 +1618,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span id="badgeSiap" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="cto" onclick="setCategoryTab('cto')" title="Hotkey: 2">
-          <span>👑 CTO</span>
+          <span>CTO</span>
           <span id="badgeCto" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="momentum_5m" onclick="setCategoryTab('momentum_5m')" title="Hotkey: 3">
@@ -1677,7 +1630,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span id="badgeAbsorb" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 5">
-          <span>🚀 ATH</span>
+          <span>ATH</span>
           <span id="badgeBath" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 6">
@@ -1699,10 +1652,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         </div>
 
         <div class="view-toggle" title="Ubah Tampilan Daftar (Hotkey: V)">
-          <button id="btnViewCards" class="btn-view active" onclick="setViewMode('cards')">
+          <button id="btnViewCards" class="btn-view" onclick="setViewMode('cards')">
             <span>⊞</span> Cards
           </button>
-          <button id="btnViewTable" class="btn-view" onclick="setViewMode('table')">
+          <button id="btnViewTable" class="btn-view active" onclick="setViewMode('table')">
             <span>☰</span> Table
           </button>
         </div>
@@ -2385,7 +2338,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
           <div class="empty-box">
-            <div class="empty-icon">🔍</div>
+            <div class="empty-icon" style="display:none"></div>
             <div class="empty-title">Tidak Ada Token</div>
             <div class="empty-desc">${searchMsg}<br>Coba ubah filter Chain atau sesuaikan tuning di menu ⚙️.</div>
           </div>`;
