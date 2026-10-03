@@ -31,6 +31,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
+import slow_cook_scorer
+
 # ================= TIMEZONE WIB (UTC+7) =================
 WIB = timezone(timedelta(hours=7))
 
@@ -1632,6 +1634,7 @@ def generate_report(
     momentum_5m_candidates: list[dict] | None = None,
     siap_list: list[dict] | None = None,
     cto_list: list[dict] | None = None,
+    slow_cook_list: list[dict] | None = None,
     absorption_list: list[dict] | None = None,
     gaps_list: list[dict] | None = None,
 ) -> str:
@@ -1797,6 +1800,33 @@ def generate_report(
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
     else:
         lines.append("(Belum ada token memenuhi syarat CTO)")
+
+    # 1c. 🍲 SLOW COOK LP (Premium Mid-Long Term)
+    lines.append("")
+    lines.append("<b>🍲 SLOW COOK LP (Medium-Long Term Premium)</b>")
+    sc_list = slow_cook_list or []
+    if sc_list:
+        for sc in sc_list[:top_limit]:
+            sym = html.escape(str(sc.get("symbol") or "?"))
+            sym_link = f'<a href="{sc["url"]}">{sym}</a>'
+            vl = sc.get("vl", 0.0)
+            mc_str = _usd(sc['mcap'])
+            chain = str(sc.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            score = sc.get("slow_cook_score", 0)
+            
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Skor {score}/100")
+            
+            c_addr = str(sc.get("address") or "").strip().lower()
+            c_hist = hist_map.get(c_addr)
+            if c_hist and c_hist.get("count", 1) > 1:
+                c_times_disp = c_hist.get("summary_times_short") or c_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {c_times_disp} ({c_hist['count']}x)")
+
+        if len(sc_list) > top_limit:
+            lines.append(f"<i>...dan {len(sc_list) - top_limit} pool Slow Cook lainnya</i>")
+    else:
+        lines.append("(Belum ada token memenuhi syarat Slow Cook)")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -2067,6 +2097,19 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         cto_lp = deduplicate_best_tokens(cto_candidates)
         cto_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
+        # 1c. 🍲 SLOW COOK LP (Medium-Long Term Premium)
+        slow_cook_candidates = []
+        for p in filtered:
+            # We want minimum $1M MC and decent V/L for Slow Cook too
+            if p.get("vl", 0.0) >= min_vl and p.get("mcap", 0.0) >= 1_000_000.0:
+                is_passed, reason, score = slow_cook_scorer.evaluate_slow_cook(p)
+                p["slow_cook_score"] = score
+                p["slow_cook_reason"] = reason
+                if is_passed:
+                    slow_cook_candidates.append(p)
+        slow_cook_lp = deduplicate_best_tokens(slow_cook_candidates)
+        slow_cook_lp.sort(key=lambda x: -x.get("slow_cook_score", 0.0))
+
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
@@ -2180,6 +2223,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "scored_tokens": scored_tokens,
             "siap_lp": siap_lp,
             "cto_lp": cto_lp,
+            "slow_cook_lp": slow_cook_lp,
             "momentum_5m": momentum_5m,
             "absorption": absorption,
             "break_ath": break_ath,
@@ -2187,6 +2231,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "counts": {
                 "siap": len(siap_lp),
                 "cto": len(cto_lp),
+                "slow_cook": len(slow_cook_lp),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
@@ -2236,6 +2281,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
         siap_list=scan_res.get("siap_lp", []),
         cto_list=scan_res.get("cto_lp", []),
+        slow_cook_list=scan_res.get("slow_cook_lp", []),
         absorption_list=scan_res.get("absorption", []),
         gaps_list=scan_res.get("gaps", []),
     )
