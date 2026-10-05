@@ -1636,6 +1636,7 @@ def generate_report(
     cto_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
     dip_list: list[dict] | None = None,
+    smart_list: list[dict] | None = None,
     absorption_list: list[dict] | None = None,
     gaps_list: list[dict] | None = None,
 ) -> str:
@@ -1855,6 +1856,34 @@ def generate_report(
             lines.append(f"<i>...dan {len(d_list) - top_limit} pool 30% Dip lainnya</i>")
     else:
         lines.append("(Belum ada token memenuhi syarat 30% Dip Chop)")
+
+    # 1e. SMART LP (Smart Money Concentration)
+    lines.append("")
+    lines.append("<b>🧠 SMART LP (Smart Money)</b>")
+    sm_list = smart_list or []
+    if sm_list:
+        for sm in sm_list[:top_limit]:
+            sym = html.escape(str(sm.get("symbol") or "?"))
+            sym_link = f'<a href="{sm["url"]}">{sym}</a>'
+            vl = sm.get("vl", 0.0)
+            mc_str = _usd(sm['mcap'])
+            sd_count = int(sm.get("smart_degen_count", 0) or 0)
+            rn_count = int(sm.get("renowned_count", 0) or 0)
+            chain = str(sm.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ SM {sd_count} │ KOL {rn_count}")
+
+            sm_addr = str(sm.get("address") or "").strip().lower()
+            sm_hist = hist_map.get(sm_addr)
+            if sm_hist and sm_hist.get("count", 1) > 1:
+                sm_times_disp = sm_hist.get("summary_times_short") or sm_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {sm_times_disp} ({sm_hist['count']}x)")
+
+        if len(sm_list) > top_limit:
+            lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
+    else:
+        lines.append("(Belum ada token dengan konsentrasi smart wallet tinggi)")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -2152,6 +2181,22 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         dip_chop = deduplicate_best_tokens(dip_candidates)
         dip_chop.sort(key=lambda x: -x.get("vl", 0.0))
 
+        # 1e. 🧠 SMART LP (Smart Money Concentration)
+        smart_lp_candidates = [
+            p for p in filtered
+            if int(p.get("smart_degen_count", 0) or 0) >= 50
+            and int(p.get("renowned_count", 0) or 0) >= 5
+            and p.get("vl", 0.0) >= min_vl
+            and p.get("er", 999.0) <= max_er
+            and p.get("buy_ratio", 50.0) >= min_buy_ratio
+            and p.get("ath_drawdown", 0.0) >= max_ath_drawdown
+            and not p.get("is_honeypot")
+            and not p.get("is_wash")
+            and not p.get("is_rug_risk")
+        ]
+        smart_lp = deduplicate_best_tokens(smart_lp_candidates)
+        smart_lp.sort(key=lambda x: -int(x.get("smart_degen_count", 0) or 0))
+
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
@@ -2247,7 +2292,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption
+        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption + smart_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2267,6 +2312,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "cto_lp": cto_lp,
             "slow_cook_lp": slow_cook_lp,
             "dip_chop": dip_chop,
+            "smart_lp": smart_lp,
             "momentum_5m": momentum_5m,
             "absorption": absorption,
             "break_ath": break_ath,
@@ -2276,6 +2322,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 "cto": len(cto_lp),
                 "slow_cook": len(slow_cook_lp),
                 "dip_chop": len(dip_chop),
+                "smart_lp": len(smart_lp),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
@@ -2327,6 +2374,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         cto_list=scan_res.get("cto_lp", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),
         dip_list=scan_res.get("dip_chop", []),
+        smart_list=scan_res.get("smart_lp", []),
         absorption_list=scan_res.get("absorption", []),
         gaps_list=scan_res.get("gaps", []),
     )
