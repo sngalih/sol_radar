@@ -1863,11 +1863,11 @@ def generate_report(
 
     lines = [
         f"{mode_icon} {mode_label}",
-        "",
-        "<b>SIAP LP (Chop Sideways)</b>"
     ]
 
     if siap_lp:
+        lines.append("")
+        lines.append("<b>SIAP LP (Chop Sideways)</b>")
         for idx, t in enumerate(siap_lp[:top_limit]):
             sym = html.escape(str(t.get("symbol") or "?"))
             sym_link = f'<a href="{t["url"]}">{sym}</a>'
@@ -1887,14 +1887,16 @@ def generate_report(
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
-    else:
-        lines.append("(Belum ada pool memenuhi syarat Siap LP)")
 
     # 1b. 👑 CTO REVIVAL LP (Community Take Over)
-    lines.append("")
-    lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
     c_list = cto_list or []
+
     if c_list:
+
+        lines.append("")
+
+        lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
+
         for c in c_list[:top_limit]:
             sym = html.escape(str(c.get("symbol") or "?"))
             sym_link = f'<a href="{c["url"]}">{sym}</a>'
@@ -1914,14 +1916,16 @@ def generate_report(
 
         if len(c_list) > top_limit:
             lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
-    else:
-        lines.append("(Belum ada token memenuhi syarat CTO)")
 
     # 1c. 🍲 SLOW COOK LP (Premium Mid-Long Term)
-    lines.append("")
-    lines.append("<b>🍲 SLOW COOK LP (Medium-Long Term Premium)</b>")
     sc_list = slow_cook_list or []
+
     if sc_list:
+
+        lines.append("")
+
+        lines.append("<b>🍲 SLOW COOK LP (Medium-Long Term Premium)</b>")
+
         for sc in sc_list[:top_limit]:
             sym = html.escape(str(sc.get("symbol") or "?"))
             sym_link = f'<a href="{sc["url"]}">{sym}</a>'
@@ -1941,14 +1945,16 @@ def generate_report(
 
         if len(sc_list) > top_limit:
             lines.append(f"<i>...dan {len(sc_list) - top_limit} pool Slow Cook lainnya</i>")
-    else:
-        lines.append("(Belum ada token memenuhi syarat Slow Cook)")
 
     # 1d. 📉 30% DIP CHOP
-    lines.append("")
-    lines.append("<b>📉 30% DIP CHOP (Tight Range at Bottom)</b>")
     d_list = dip_list or []
+
     if d_list:
+
+        lines.append("")
+
+        lines.append("<b>📉 30% DIP CHOP (Tight Range at Bottom)</b>")
+
         for d in d_list[:top_limit]:
             sym = html.escape(str(d.get("symbol") or "?"))
             sym_link = f'<a href="{d["url"]}">{sym}</a>'
@@ -1968,14 +1974,16 @@ def generate_report(
 
         if len(d_list) > top_limit:
             lines.append(f"<i>...dan {len(d_list) - top_limit} pool 30% Dip lainnya</i>")
-    else:
-        lines.append("(Belum ada token memenuhi syarat 30% Dip Chop)")
 
     # 1e. SMART LP (Smart Money Concentration)
-    lines.append("")
-    lines.append("<b>🧠 SMART LP (Smart Money)</b>")
     sm_list = smart_list or []
+
     if sm_list:
+
+        lines.append("")
+
+        lines.append("<b>🧠 SMART LP (Smart Money)</b>")
+
         for sm in sm_list[:top_limit]:
             sym = html.escape(str(sm.get("symbol") or "?"))
             sym_link = f'<a href="{sm["url"]}">{sym}</a>'
@@ -1996,13 +2004,19 @@ def generate_report(
 
         if len(sm_list) > top_limit:
             lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
-    else:
-        lines.append("(Belum ada token dengan konsentrasi smart wallet tinggi)")
 
-    lines.append("")
-    lines.append("<b>📉→📈 FLIP LP (Supertrend Bull→Bear)</b>")
     fl_list = flip_list or []
+
+
     if fl_list:
+
+
+        lines.append("")
+
+
+        lines.append("<b>📉→📈 FLIP LP (Supertrend Bull→Bear)</b>")
+
+
         for fl in fl_list[:top_limit]:
             sym = html.escape(str(fl.get("symbol") or "?"))
             sym_link = f'<a href="{fl["url"]}">{sym}</a>'
@@ -2022,14 +2036,12 @@ def generate_report(
 
         if len(fl_list) > top_limit:
             lines.append(f"<i>...dan {len(fl_list) - top_limit} pool Flip LP lainnya</i>")
-    else:
-        lines.append("(Belum ada token yang memotong indikator Supertrend 10/3.0 ke bawah)")
 
     # 2. 5M MOMENTUM
-    lines.append("")
-    lines.append("<b>5M MOMENTUM</b>")
     m5_list = momentum_5m_candidates or []
     if m5_list:
+        lines.append("")
+        lines.append("<b>5M MOMENTUM</b>")
         for m in m5_list[:6]:
             sym = html.escape(str(m.get("symbol") or "?"))
             sym_link = f'<a href="{m["url"]}">{sym}</a>'
@@ -2054,8 +2066,6 @@ def generate_report(
                 m_times_disp = m_hist.get("summary_times_short") or m_hist.get("summary_times", "")
                 lines.append(f"  🕒 Sinyal: {m_times_disp} ({m_hist['count']}x)")
             lines.append("")
-    else:
-        lines.append("(Belum ada token memenuhi syarat Momentum)")
 
     # 3. BREAK ATH LP
     bath_list = break_ath_candidates or []
@@ -2082,9 +2092,9 @@ def generate_report(
             lines.append("")
 
     # 4. ABSORPTION RADAR
-    lines.append("")
-    lines.append("<b>ABSORPTION RADAR</b>")
     if absorption:
+        lines.append("")
+        lines.append("<b>ABSORPTION RADAR</b>")
         for t in absorption[:top_limit]:
             sym = html.escape(str(t.get("symbol") or "?"))
             sym_link = f'<a href="{t["url"]}">{sym}</a>'
@@ -2102,8 +2112,6 @@ def generate_report(
             lines.append("")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
-    else:
-        lines.append("(Belum ada sinyal absorption baru)")
 
     # 5. GAPS RADAR (Kompak 1 baris per token)
     if gaps:
