@@ -97,7 +97,7 @@ def load_persistent_filters() -> dict[str, Any]:
         "min_liq": 20000.0,
         "min_mcap": 1000000.0,
         "max_mcap": 500000000.0,
-        "min_age_hours": 24.0,
+        "min_age_hours": 12.0,
         "min_vl": 0.5,
         "max_5m": 15.0,
         "max_1h": 20.0,
@@ -136,7 +136,7 @@ def load_persistent_filters() -> dict[str, Any]:
                 if saved.get("min_mcap") == 500000.0:
                     saved["min_mcap"] = 1000000.0
                 if "min_age_hours" not in saved:
-                    saved["min_age_hours"] = 24.0
+                    saved["min_age_hours"] = 12.0
                 if "min_buy_ratio" not in saved:
                     saved["min_buy_ratio"] = 46.0
                 if "max_ath_drawdown" not in saved:
@@ -1721,7 +1721,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <span>Min Usia Token (Jam)</span>
             <span style="color:var(--sol-light)">Hard filter anti-sniper</span>
           </div>
-          <input type="number" step="1" id="f_min_age_hours" class="form-input" value="24">
+          <input type="number" step="1" id="f_min_age_hours" class="form-input" value="12">
         </div>
 
         <div class="form-group">
@@ -2195,7 +2195,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         chain_mode:          targetChain,
         min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 0.5,
         min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 1000000,
-        min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 24,
+        min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 12,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
         min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 0.5,
         min_buy_ratio:       parseFloat(document.getElementById("f_min_buy_ratio").value) || 46.0,

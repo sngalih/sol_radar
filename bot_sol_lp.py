@@ -132,7 +132,7 @@ DEFAULT_CONFIG = {
     "min_liq": 20000,           # TVL pool min $20k
     "min_mcap": 1000000.0,      # Market cap minimal $1M ($1,000,000)
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
-    "min_age_hours": 24.0,      # Usia minimal token 24 jam (hard filter anti-sniper)
+    "min_age_hours": 12.0,      # Usia minimal token 24 jam (hard filter anti-sniper)
     "min_fee_siap_lp": 0.50,    # Hanya tampilkan Siap LP jika fee/hour >= $0.50
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
     "min_fee_break_ath": 0.50,  # Hanya tampilkan Break ATH LP jika fee/hour >= $0.50
@@ -939,7 +939,7 @@ def score_break_ath_candidates(
     min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 1000000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
     min_ath = float(conf.get("break_ath_min_ath") or 1000000.0)
-    min_age_hours = float(conf.get("min_age_hours", 24.0))
+    min_age_hours = float(conf.get("min_age_hours", 12.0))
 
     candidates: list[dict] = []
     now = int(time.time())
@@ -1050,7 +1050,7 @@ def score_5m_momentum_candidates(
     min_vl = float(conf.get("min_vl", 0.5))
     min_mcap = float(conf.get("min_mcap", 1000000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_age_hours = float(conf.get("min_age_hours", 24.0))
+    min_age_hours = float(conf.get("min_age_hours", 12.0))
     max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
     min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
     max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
@@ -2012,7 +2012,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         api_key = conf.get("gmgn_api_key", GMGN_KEY)
         min_mcap = float(conf.get("min_mcap", 1000000.0))
         max_mcap = float(conf.get("max_mcap", 500000000.0))
-        min_age_hours = float(conf.get("min_age_hours", 24.0))
+        min_age_hours = float(conf.get("min_age_hours", 12.0))
         min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 0.50))
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
         min_liq = float(conf.get("min_liq", 20000.0))
