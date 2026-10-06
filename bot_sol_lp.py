@@ -60,6 +60,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BASE_DIR = Path(__file__).resolve().parent
 ENV_FILE = BASE_DIR / ".env"
+PRICE_HISTORY_FILE = BASE_DIR / "token-price-history.json"
 
 # GMGN API Setup with CookieJar to maintain session & prevent 429
 COOKIE_JAR = http.cookiejar.CookieJar()
@@ -154,6 +155,8 @@ DEFAULT_CONFIG = {
     "momentum_5m_min_liq": 10000.0,   # Min Liquidity >= $10k
     "momentum_5m_min_fee": 0.50,      # Min Fee run-rate >= $0.50/jam
     "top_n_display": 12,        # batas tampilan list token per kategori
+    "st_period": 10,            # Supertrend ATR period (default TradingView)
+    "st_multiplier": 3.0,       # Supertrend multiplier
 }
 
 
@@ -1028,6 +1031,116 @@ def score_break_ath_candidates(
     candidates.sort(key=lambda x: -x["vl"])
     return candidates
 
+# ================= SUPERTREND PRICE HISTORY =================
+
+def load_price_history() -> dict:
+    try:
+        if PRICE_HISTORY_FILE.exists():
+            with open(PRICE_HISTORY_FILE, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def save_price_history(history: dict) -> None:
+    try:
+        with open(PRICE_HISTORY_FILE, "w") as f:
+            json.dump(history, f)
+    except Exception as e:
+        print(f"[WARN] save_price_history error: {e}", file=sys.stderr)
+
+def update_price_history(scored_tokens: list, history: dict, max_snapshots: int = 30) -> dict:
+    now_ts = int(time.time())
+    stale_limit = now_ts - 3 * 3600  # buang token > 3 jam tidak muncul
+    
+    for t in scored_tokens:
+        addr = t.get("address", "")
+        price = float(t.get("price", 0.0) or 0.0)
+        if not addr or price <= 0:
+            continue
+        
+        if addr not in history:
+            history[addr] = {"symbol": t.get("symbol", "?"), "chain": t.get("chain", "SOL"), "snapshots": []}
+        
+        snaps = history[addr]["snapshots"]
+        # Hindari duplikasi di scan yang terlalu berdekatan (< 200 detik)
+        if snaps and now_ts - snaps[-1]["ts"] < 200:
+            continue
+        
+        snaps.append({
+            "ts": now_ts,
+            "price": price,
+            "vl": float(t.get("vl", 0.0) or 0.0),
+            "buy_ratio": float(t.get("buy_ratio", 50.0) or 50.0),
+        })
+        history[addr]["snapshots"] = snaps[-max_snapshots:]
+    
+    stale_addrs = [addr for addr, v in history.items()
+                   if not v["snapshots"] or v["snapshots"][-1]["ts"] < stale_limit]
+    for addr in stale_addrs:
+        del history[addr]
+    
+    return history
+
+def compute_supertrend(snapshots: list, period: int = 10, multiplier: float = 3.0) -> tuple:
+    n = len(snapshots)
+    if n < period + 1:
+        return None, False
+    
+    prices = [s["price"] for s in snapshots]
+    highs  = [max(prices[i], prices[i-1]) if i > 0 else prices[i] for i in range(n)]
+    lows   = [min(prices[i], prices[i-1]) if i > 0 else prices[i] for i in range(n)]
+    closes = prices
+    
+    trs = [max(highs[i] - lows[i],
+               abs(highs[i] - closes[i-1]),
+               abs(lows[i] - closes[i-1])) for i in range(1, n)]
+    
+    atrs: list = [None] * (period - 1)
+    atrs.append(sum(trs[:period]) / period)
+    for i in range(period, len(trs)):
+        atrs.append((atrs[-1] * (period - 1) + trs[i]) / period)
+    
+    directions: list = []
+    st_vals: list = []
+    
+    for i, atr in enumerate(atrs):
+        idx = i + 1 
+        if atr is None:
+            directions.append(None); st_vals.append(None); continue
+        
+        hl2 = (highs[idx] + lows[idx]) / 2.0
+        upper = hl2 + multiplier * atr
+        lower = hl2 - multiplier * atr
+        
+        if not st_vals or st_vals[-1] is None:
+            if closes[idx] >= hl2:
+                directions.append("bull"); st_vals.append(lower)
+            else:
+                directions.append("bear"); st_vals.append(upper)
+        else:
+            prev_dir = directions[-1]
+            prev_st  = st_vals[-1]
+            if prev_dir == "bull":
+                new_st = max(lower, prev_st)
+                if closes[idx] < new_st:
+                    directions.append("bear"); st_vals.append(upper)
+                else:
+                    directions.append("bull"); st_vals.append(new_st)
+            else:
+                new_st = min(upper, prev_st)
+                if closes[idx] > new_st:
+                    directions.append("bull"); st_vals.append(lower)
+                else:
+                    directions.append("bear"); st_vals.append(new_st)
+    
+    valid = [d for d in directions if d is not None]
+    if len(valid) < 2:
+        return valid[-1] if valid else None, False
+    
+    did_flip = (valid[-2] == "bull" and valid[-1] == "bear")
+    return valid[-1], did_flip
+
 
 # ================= 5M MOMENTUM SCORER =================
 
@@ -1637,6 +1750,7 @@ def generate_report(
     slow_cook_list: list[dict] | None = None,
     dip_list: list[dict] | None = None,
     smart_list: list[dict] | None = None,
+    flip_list: list[dict] | None = None,
     absorption_list: list[dict] | None = None,
     gaps_list: list[dict] | None = None,
 ) -> str:
@@ -1884,6 +1998,32 @@ def generate_report(
             lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
     else:
         lines.append("(Belum ada token dengan konsentrasi smart wallet tinggi)")
+
+    lines.append("")
+    lines.append("<b>📉→📈 FLIP LP (Supertrend Bull→Bear)</b>")
+    fl_list = flip_list or []
+    if fl_list:
+        for fl in fl_list[:top_limit]:
+            sym = html.escape(str(fl.get("symbol") or "?"))
+            sym_link = f'<a href="{fl["url"]}">{sym}</a>'
+            vl = fl.get("vl", 0.0)
+            mc_str = _usd(fl['mcap'])
+            buy_pct = fl.get("buy_ratio", 50.0)
+            chain = str(fl.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Buy% {buy_pct:.0f}% │ ST↘")
+
+            fl_addr = str(fl.get("address") or "").strip().lower()
+            fl_hist = hist_map.get(fl_addr)
+            if fl_hist and fl_hist.get("count", 1) > 1:
+                fl_times_disp = fl_hist.get("summary_times_short") or fl_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {fl_times_disp} ({fl_hist['count']}x)")
+
+        if len(fl_list) > top_limit:
+            lines.append(f"<i>...dan {len(fl_list) - top_limit} pool Flip LP lainnya</i>")
+    else:
+        lines.append("(Belum ada token yang memotong indikator Supertrend 10/3.0 ke bawah)")
 
     # 2. 5M MOMENTUM
     lines.append("")
@@ -2197,6 +2337,26 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         smart_lp = deduplicate_best_tokens(smart_lp_candidates)
         smart_lp.sort(key=lambda x: -int(x.get("smart_degen_count", 0) or 0))
 
+        # 1f. 📉→📈 FLIP LP (Supertrend Bull→Bear Reversal)
+        st_period = int(conf.get("st_period", 10))
+        st_mult = float(conf.get("st_multiplier", 3.0))
+        price_history = load_price_history()
+        price_history = update_price_history(scored_tokens, price_history)
+        save_price_history(price_history)
+
+        flip_candidates = []
+        for p in filtered:
+            addr = p.get("address", "")
+            snaps = price_history.get(addr, {}).get("snapshots", [])
+            direction, did_flip = compute_supertrend(snaps, period=st_period, multiplier=st_mult)
+            if did_flip and p.get("vl", 0.0) >= min_vl:
+                p["st_direction"] = direction
+                p["st_did_flip"] = True
+                flip_candidates.append(p)
+
+        flip_lp = deduplicate_best_tokens(flip_candidates)
+        flip_lp.sort(key=lambda x: -x.get("vl", 0.0))
+
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
@@ -2292,7 +2452,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption + smart_lp
+        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption + smart_lp + flip_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2313,6 +2473,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "slow_cook_lp": slow_cook_lp,
             "dip_chop": dip_chop,
             "smart_lp": smart_lp,
+            "flip_lp": flip_lp,
             "momentum_5m": momentum_5m,
             "absorption": absorption,
             "break_ath": break_ath,
@@ -2323,6 +2484,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 "slow_cook": len(slow_cook_lp),
                 "dip_chop": len(dip_chop),
                 "smart_lp": len(smart_lp),
+                "flip_lp": len(flip_lp),
                 "momentum_5m": len(momentum_5m),
                 "absorption": len(absorption),
                 "break_ath": len(break_ath),
@@ -2375,6 +2537,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         slow_cook_list=scan_res.get("slow_cook_lp", []),
         dip_list=scan_res.get("dip_chop", []),
         smart_list=scan_res.get("smart_lp", []),
+        flip_list=scan_res.get("flip_lp", []),
         absorption_list=scan_res.get("absorption", []),
         gaps_list=scan_res.get("gaps", []),
     )

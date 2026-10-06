@@ -70,6 +70,7 @@ app_state: dict[str, Any] = {
     "slow_cook_lp": [],
     "dip_chop": [],
     "smart_lp": [],
+    "flip_lp": [],
     "cto_lp": [],
     "momentum_5m": [],
     "absorption": [],
@@ -191,6 +192,7 @@ def perform_scan(force: bool = False) -> None:
         slow_cook_lp = res.get("slow_cook_lp", [])
         dip_chop = res.get("dip_chop", [])
         smart_lp = res.get("smart_lp", [])
+        flip_lp = res.get("flip_lp", [])
         cto_lp = res.get("cto_lp", [])
         momentum_5m = res.get("momentum_5m", [])
         absorption = res.get("absorption", [])
@@ -210,6 +212,7 @@ def perform_scan(force: bool = False) -> None:
             app_state["slow_cook_lp"] = slow_cook_lp
             app_state["dip_chop"] = dip_chop
             app_state["smart_lp"] = smart_lp
+            app_state["flip_lp"] = flip_lp
             app_state["cto_lp"] = cto_lp
             app_state["momentum_5m"] = momentum_5m
             app_state["absorption"] = absorption
@@ -1633,7 +1636,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="cat-tab" data-cat="smart" onclick="setCategoryTab('smart')" title="Hotkey: S">
             <span>🧠 SMART LP</span>
             <span id="badgeSmart" class="badge-count">0</span>
-          </div>
+        </div>
+        <div class="cat-tab" data-cat="flip" onclick="setCategoryTab('flip')" title="Hotkey: F">
+            <span>📉 FLIP LP</span>
+            <span id="badgeFlip" class="badge-count">0</span>
+        </div>
           <div class="cat-tab" data-cat="cto" onclick="setCategoryTab('cto')" title="Hotkey: 2">
           <span>CTO</span>
           <span id="badgeCto" class="badge-count">0</span>
@@ -2316,6 +2323,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
           mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
+          mergeList(globalState.flip_lp, "FLIP", "#f97316");
           mergeList(globalState.cto_lp, "CTO", "#a855f7");
           mergeList(globalState.momentum_5m, "5M", "#f59e0b");
           mergeList(globalState.absorption, "Absorb", "#5d667a");
@@ -2330,6 +2338,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
       else if (activeCategory === "smart")       rawList = globalState.smart_lp   || [];
+      else if (activeCategory === "flip")        rawList = globalState.flip_lp    || [];
       else if (activeCategory === "cto")         rawList = globalState.cto_lp     || [];
       else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
       else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
@@ -2940,6 +2949,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
         const bSmart = document.getElementById("badgeSmart");
         if (bSmart) bSmart.innerText = data.counts.smart_lp || 0;
+        const bFlip = document.getElementById("badgeFlip");
+        if (bFlip) bFlip.innerText = data.counts.flip_lp || 0;
         const bCto = document.getElementById("badgeCto");
         if (bCto) bCto.innerText = (data.counts && data.counts.cto) || (data.cto_lp ? data.cto_lp.length : 0);
         const bM5 = document.getElementById("badgeM5");
@@ -2976,6 +2987,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
         else if (e.key === "a" || e.key === "A") setCategoryTab("all");
       else if (e.key === "s" || e.key === "S") setCategoryTab("smart");
+      else if (e.key === "f" || e.key === "F") setCategoryTab("flip");
         else if (e.key === "1") setCategoryTab("siap");
       else if (e.key === "2") setCategoryTab("cto");
       else if (e.key === "3") setCategoryTab("momentum_5m");
@@ -3057,6 +3069,10 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "top_vl": app_state.get("top_vl", 0.0),
                     "filters": app_state["filters"],
                     "siap_lp": app_state["siap_lp"],
+                    "slow_cook_lp": app_state.get("slow_cook_lp", []),
+                    "dip_chop": app_state.get("dip_chop", []),
+                    "smart_lp": app_state.get("smart_lp", []),
+                    "flip_lp": app_state.get("flip_lp", []),
                     "cto_lp": app_state.get("cto_lp", []),
                     "momentum_5m": app_state.get("momentum_5m", []),
                     "absorption": app_state["absorption"],
