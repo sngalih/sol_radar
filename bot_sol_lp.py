@@ -1167,7 +1167,6 @@ def score_5m_momentum_candidates(
     max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
     min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
     max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
-    max_rug_ratio = float(conf.get("max_rug_ratio", 0.25))
     pos = float(conf.get("position_usd", 100.0))
 
     candidates: list[dict] = []
@@ -1235,7 +1234,6 @@ def score_5m_momentum_candidates(
         dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
         insider_rate = round(num(r, "rat_trader_amount_rate") * 100, 1)
         bundler_rate = num(r, "bundler_rate")
-        rug_ratio = num(r, "rug_ratio")
         is_wash = check_is_wash(r)
         is_honeypot = check_is_honeypot(r)
 
@@ -1243,7 +1241,7 @@ def score_5m_momentum_candidates(
             continue
         if top10_rate > 45.0 or dev_team_hold > 20.0 or insider_rate > 10.0:
             continue
-        if bundler_rate > max_bundler_rate or rug_ratio > max_rug_ratio:
+        if bundler_rate > max_bundler_rate:
             continue
 
         # Estimasi fee: fee 5m + run-rate fee/jam
@@ -1352,19 +1350,14 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     is_wash = check_is_wash(row)
     is_honeypot = check_is_honeypot(row)
 
-    rug_ratio = num(row, "rug_ratio")
     bundler_rate = num(row, "bundler_rate")
     holder_count = int(num(row, "holder_count", "holders"))
     renounced_mint = row.get("renounced_mint")
-    max_rug_ratio = float(conf.get("max_rug_ratio", 0.25))
     max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
     min_holders = int(conf.get("min_holders", 150))
 
     is_rug_risk = False
     rug_reasons: list[str] = []
-    if rug_ratio > max_rug_ratio:
-        is_rug_risk = True
-        rug_reasons.append(f"Dev Rug History ({rug_ratio * 100:.0f}%)")
     if bundler_rate > max_bundler_rate:
         is_rug_risk = True
         rug_reasons.append(f"Cabal Bundler ({bundler_rate * 100:.0f}%)")
@@ -1523,7 +1516,6 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "is_honeypot": is_honeypot,
         "is_wash": is_wash,
         "is_rug_risk": is_rug_risk,
-        "rug_ratio": rug_ratio,
         "bundler_rate": bundler_rate,
         "rug_reasons": rug_reasons,
         "is_cto": is_cto,

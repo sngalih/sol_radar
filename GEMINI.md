@@ -26,7 +26,6 @@
 - **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)
-  - `rug_ratio <= 25%` (Skor risiko riwayat rug dev GMGN)
   - `bundler_rate <= 55%` (Maksimal sniped supply bundle block 0)
   - `renounced_mint == 1` (Mint authority wajib dicabut pada rantai Solana)
   - `holder_count >= 100` (Distribusi pemegang token memadai)
