@@ -66,6 +66,7 @@ app_state: dict[str, Any] = {
     "scanned_timestamp": 0,
     "next_scan_timestamp": 0,
     "total_scanned": 0,
+    "runner_momentum": [],
     "siap_lp": [],
     "akashi_zone": [],
     "slow_cook_lp": [],
@@ -77,7 +78,7 @@ app_state: dict[str, Any] = {
     "break_ath": [],
     "gaps": [],
     "signal_history": [],
-    "counts": {"siap": 0, "akashi_zone": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
+    "counts": {"runner": 0, "siap": 0, "akashi_zone": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
     "top_yield": 0.0,
     "top_vl": 0.0,
     "filters": {},
@@ -188,6 +189,7 @@ def perform_scan(force: bool = False) -> None:
         # Panggil shared scan engine dari bot_sol_lp (memakai cache jika fresh < 50s)
         res = bot_sol_lp.execute_full_scan(conf, force=force)
 
+        runner_momentum = res.get("runner_momentum", [])
         siap_lp = res.get("siap_lp", [])
         akashi_zone = res.get("akashi_zone", [])
         slow_cook_lp = res.get("slow_cook_lp", [])
@@ -208,6 +210,7 @@ def perform_scan(force: bool = False) -> None:
             app_state["scanned_timestamp"] = res.get("scanned_timestamp", 0)
             app_state["next_scan_timestamp"] = res.get("next_scan_timestamp", 0)
             app_state["total_scanned"] = res.get("total_scanned", 0)
+            app_state["runner_momentum"] = runner_momentum
             app_state["siap_lp"] = siap_lp
             app_state["akashi_zone"] = akashi_zone
             app_state["slow_cook_lp"] = slow_cook_lp
@@ -729,6 +732,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: #ef4444;
     }
 
+    .cat-tab.active[data-cat="runner"] {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: #06b6d4;
+      color: #06b6d4;
+    }
+    .cat-tab.active[data-cat="runner"] .badge-count {
+      background: rgba(6, 182, 212, 0.3);
+      color: #06b6d4;
+    }
+
     /* Sub-Controls Bar (Tier 2) */
     .sub-controls-bar {
       display: flex;
@@ -1086,6 +1099,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--text-sub);
     }
     .state-chop       { background: var(--green-bg); color: var(--green); border-color: rgba(47, 217, 123, 0.3); }
+    .state-runner     { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.4); }
     .state-cto        { background: var(--purple-bg); color: var(--purple); border-color: rgba(216, 180, 254, 0.3); }
     .state-momentum   { background: var(--amber-bg); color: var(--amber); border-color: rgba(255, 194, 75, 0.3); }
     .state-ath        { background: var(--teal-bg); color: var(--teal); border-color: rgba(126, 224, 201, 0.3); }
@@ -1128,6 +1142,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .narr-ai    { background: var(--teal-bg);   color: var(--teal);   border: 1px solid rgba(126, 224, 201, 0.3); }
     .narr-smart { background: var(--amber-bg);  color: var(--amber);  border: 1px solid rgba(255, 194, 75, 0.3); }
     .narr-blue  { background: rgba(59, 130, 246, 0.1); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .narr-wave2 { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .narr-fresh { background: rgba(249, 115, 22, 0.15); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
 
     .social-link {
       display: inline-flex;
@@ -1215,6 +1231,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .token-card:hover { border-color: rgba(255, 255, 255, 0.15); }
     .token-card.sol-card { border-left: 3px solid var(--amber); }
     .token-card.rh-card  { border-left: 3px solid var(--teal); }
+    .token-card.runner-card { border-left: 3px solid #06b6d4; }
     .token-card.ath-card { border-left: 3px solid var(--teal); }
     .token-card.momentum-card { border-left: 3px solid var(--amber); }
     .token-card.cto-card { border-left: 3px solid var(--purple); }
@@ -1655,6 +1672,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Hotkey: A">
           <span>ALL SIGNALS</span>
           <span id="badgeAll" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="runner" onclick="setCategoryTab('runner')" title="Hotkey: R">
+          <span>🚀 RUNNER</span>
+          <span id="badgeRunner" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="akashi" onclick="setCategoryTab('akashi')" title="Hotkey: K">
           <span>🔴 AKASHI</span>
@@ -2148,7 +2169,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
       );
       const catLabels = {
-        all: "ALL SIGNALS", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
+        all: "ALL SIGNALS", runner: "🚀 RUNNER", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
         smart: "🧠 SMART LP", slow_cook: "🍲 SLOW COOK",
         dip: "📉 30% DIP", flip: "📉 FLIP LP", momentum_5m: "⚡ 5M",
         absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
@@ -2371,6 +2392,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               });
           };
 
+          mergeList(globalState.runner_momentum, "RUNNER", "#06b6d4");
           mergeList(globalState.akashi_zone, "AKASHI", "#dc2626");
           mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
@@ -2386,6 +2408,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const bAll = document.getElementById("badgeAll");
           if (bAll) bAll.innerText = rawList.length;
       }
+      else if (activeCategory === "runner")      rawList = globalState.runner_momentum || [];
       else if (activeCategory === "akashi")      rawList = globalState.akashi_zone || [];
       else if (activeCategory === "dip")         rawList = globalState.dip_chop || [];
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
@@ -2441,6 +2464,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
+          runner:      "Belum ada token memenuhi kriteria 🚀 Runner Momentum (Tier 1 Wave 2 atau Tier 2 Fresh Breakout).",
           slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
           dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
           all:         "Belum ada token di semua kategori sinyal.",
@@ -2653,20 +2677,24 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           // State Pill
           const mState = t.micro_state || "NEUTRAL";
           let spClass = "state-neutral", spIcon = "🎯";
-          if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+          if (activeCategory === "runner")      { spClass = "state-runner";     spIcon = "🚀"; }
+          else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
           else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
           else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
           else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
           else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
           else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
-          const spLabel = activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring")));
+          const spLabel = activeCategory === "runner" ? "Spot Runner 🚀" : (activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring"))));
 
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
-          // Sub-details if Momentum, ATH
+          // Sub-details if Runner, Momentum, ATH
           let subRowHtml = "";
-          if (activeCategory === "momentum_5m") {
+          if (activeCategory === "runner") {
+            const tierStr = t.runner_label || "🚀 Runner";
+            subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:8px;white-space:nowrap">${tierStr}</span>`;
+          } else if (activeCategory === "momentum_5m") {
             subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:8px;white-space:nowrap">⚡ V5: ${formatUsd(t.vol_5m || t.vol || 0)}</span>`;
           } else if (activeCategory === "break_ath") {
             subRowHtml = `<span style="color:var(--cyan-light);font-size:10px;margin-left:8px;white-space:nowrap">🚀 +${t.breakout_pct || 0}%</span>`;
@@ -2681,6 +2709,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             if (n.includes('AI')) cls = 'narr-ai';
             else if (n.includes('Smart')) cls = 'narr-smart';
             else if (n.includes('Bluechip')) cls = 'narr-blue';
+            else if (n.includes('Wave 2')) cls = 'narr-wave2';
+            else if (n.includes('Fresh')) cls = 'narr-fresh';
             return `<span class="narr-pill ${cls}">${n}</span>`;
           }).join('');
           const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
@@ -2755,7 +2785,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const chainBadge = isRh
           ? `<span class="chain-pill rh">RH</span>`
           : `<span class="chain-pill sol">SOL</span>`;
-        const cardClass = activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card"));
+        const cardClass = activeCategory === "runner" ? "runner-card" : (activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card")));
         const rankBadge = getRankBadge(idx);
         const rankClass = idx === 0 ? "rank-1" : "";
 
@@ -2795,22 +2825,33 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // State Pill
         const mState = t.micro_state || "NEUTRAL";
         let spClass = "state-neutral", spIcon = "🎯";
-        if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+        if (activeCategory === "runner")      { spClass = "state-runner";     spIcon = "🚀"; }
+        else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
         else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
         else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
         else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
         else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
         else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
 
-        const spLabel = activeCategory === "momentum_5m"
-          ? "5M Momentum ⚡"
-          : (activeCategory === "break_ath"
-            ? "Break ATH ✓"
-            : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring")));
+        const spLabel = activeCategory === "runner"
+          ? "Spot Runner 🚀"
+          : (activeCategory === "momentum_5m"
+            ? "5M Momentum ⚡"
+            : (activeCategory === "break_ath"
+              ? "Break ATH ✓"
+              : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"))));
 
-        // 5M Momentum / Break ATH Extra Banner
+        // Runner / 5M Momentum / Break ATH Extra Banner
         let athHtml = "";
-        if (activeCategory === "momentum_5m") {
+        if (activeCategory === "runner") {
+          const tierStr = t.runner_label || "🚀 Runner";
+          athHtml = `
+            <div class="ath-info-row" style="border-left: 2px solid #06b6d4; background: rgba(6, 182, 212, 0.08);">
+              <div class="ath-tag" style="color:#22d3ee"><span>🚀 Tier:</span> ${tierStr}</div>
+              <div class="ath-tag" style="color:var(--green-light)"><span>📈 5m / 1h:</span> ${p5Str} / ${p1Str}</div>
+              <div class="ath-tag"><span>💧 Liq:</span> ${liqStr}</div>
+            </div>`;
+        } else if (activeCategory === "momentum_5m") {
           const v5m = formatUsd(t.vol_5m || t.vol || 0);
           athHtml = `
             <div class="ath-info-row" style="border-left: 2px solid #eab308; background: rgba(234, 179, 8, 0.08);">
@@ -2836,6 +2877,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           if (n.includes('AI')) cls = 'narr-ai';
           else if (n.includes('Smart')) cls = 'narr-smart';
           else if (n.includes('Bluechip')) cls = 'narr-blue';
+          else if (n.includes('Wave 2')) cls = 'narr-wave2';
+          else if (n.includes('Fresh')) cls = 'narr-fresh';
           return `<span class="narr-pill ${cls}">${n}</span>`;
         }).join('');
         const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
@@ -2986,6 +3029,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
 
         // Category Badges
+        const bRunner = document.getElementById("badgeRunner");
+        if (bRunner) bRunner.innerText = (data.counts && data.counts.runner) || (data.runner_momentum ? data.runner_momentum.length : 0);
         const bAkashi = document.getElementById("badgeAkashi");
         if (bAkashi) bAkashi.innerText = (data.counts && data.counts.akashi_zone) || (data.akashi_zone ? data.akashi_zone.length : 0);
         document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
@@ -3027,6 +3072,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
       if (e.key === "Escape") closeModal();
       else if (e.key === "a" || e.key === "A") setCategoryTab("all");
+      else if (e.key === "r" || e.key === "R") setCategoryTab("runner");
       else if (e.key === "k" || e.key === "K") setCategoryTab("akashi");
       else if (e.key === "1") setCategoryTab("siap");
       else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
@@ -3112,6 +3158,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "top_yield": app_state["top_yield"],
                     "top_vl": app_state.get("top_vl", 0.0),
                     "filters": app_state["filters"],
+                    "runner_momentum": app_state.get("runner_momentum", []),
                     "siap_lp": app_state["siap_lp"],
                     "akashi_zone": app_state.get("akashi_zone", []),
                     "slow_cook_lp": app_state.get("slow_cook_lp", []),

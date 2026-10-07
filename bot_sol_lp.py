@@ -624,6 +624,7 @@ def record_signal_events(scan_results: dict[str, Any], scan_ts: int | None = Non
 
     # Kategori strategi aktif yang dicatat
     categories = [
+        ("runner_momentum", "RUNNER MOMENTUM", scan_results.get("runner_momentum", [])),
         ("akashi_zone", "AKASHI ZONE", scan_results.get("akashi_zone", [])),
         ("siap_lp", "SIAP LP", scan_results.get("siap_lp", [])),
         ("smart_lp", "SMART LP", scan_results.get("smart_lp", [])),
@@ -792,6 +793,7 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
         )
 
     categories = [
+        ("runner_momentum", "🚀 <b>RUNNER MOMENTUM</b>"),
         ("momentum_5m", "⚡ <b>5M MOMENTUM</b>"),
         ("siap_lp", "🟢 <b>SIAP LP (Chop Sideways)</b>"),
         ("break_ath", "🚀 <b>BREAK ATH LP</b>"),
@@ -1308,6 +1310,123 @@ def score_5m_momentum_candidates(
     return candidates
 
 
+# ================= RUNNER MOMENTUM SCORER (SPOT ENTRY) =================
+
+def score_runner_momentum_candidates(
+    tokens: list[dict],
+    conf: dict[str, Any],
+) -> list[dict]:
+    """Filter kandidat strategi 🚀 RUNNER MOMENTUM (Spot Entry):
+    Mendukung 2 Tier Karakter Token:
+    Tier 1 (🏛️ Wave 2 / Established Runner):
+      - MC: $1M <= mcap <= $10M
+      - Usia: age_hours >= 12.0
+      - Liq: liq >= $25k
+      - V/L: vl >= 1.0x
+      - Buy Ratio: buy_ratio >= 50.0%
+      - Drawdown: ath_drawdown >= -70.0%
+      - Downside guard: p5 >= -3.0% and p1 >= -8.0%
+      - Momentum catalyst: p5 > 0.0% OR micro_state in ("ABSORPTION", "REACCUMULATION") OR er <= 8.0
+      - Safety: dev_team_hold <= 10.0%, top10_rate <= 40.0%, not honeypot, not wash, not rug risk
+      - Tag: runner_tier = "wave2", runner_label = "🏛️ Wave 2"
+
+    Tier 2 (⚡ Fresh Pump / Pump.fun Breakout):
+      - MC: $50k <= mcap < $1M
+      - Usia: age_hours < 24.0
+      - Liq: liq >= $8k
+      - Vol 5m / 1h: vol >= $50k or vol_5m >= $20k
+      - V/L: vl >= 2.0x
+      - Buy Ratio: buy_ratio >= 52.0%
+      - Price momentum: p5 > 0.0% and p1 >= -3.0%
+      - Safety pump.fun: bundler_rate <= 0.55, dev_team_hold <= 15.0%, not honeypot, not wash
+        (jika SOL dan renounced_mint ada, renounced_mint != 0)
+      - Tag: runner_tier = "fresh", runner_label = "⚡ Fresh Pump"
+    """
+    candidates = []
+    seen = set()
+
+    for t in tokens:
+        addr = str(t.get("address") or "").strip()
+        if not addr or addr in seen or addr in QUOTE_MINTS:
+            continue
+        if str(t.get("symbol") or "").upper() in ("SOL", "WSOL", "USDC", "USDT"):
+            continue
+        if is_tokenized_stock(t):
+            continue
+        if t.get("is_honeypot") or t.get("is_wash"):
+            continue
+
+        mcap = float(t.get("mcap") or 0.0)
+        age_hours = float(t.get("age_hours") or 0.0)
+        liq = float(t.get("liq") or 0.0)
+        vl = float(t.get("vl") or 0.0)
+        p5 = float(t.get("p5") or 0.0)
+        p1 = float(t.get("p1") or 0.0)
+        buy_ratio = float(t.get("buy_ratio") or 50.0)
+        ath_drawdown = float(t.get("ath_drawdown") or 0.0)
+        er = float(t.get("er") or 999.0)
+        dev_hold = float(t.get("dev_team_hold") or 0.0)
+        top10 = float(t.get("top10_rate") or 0.0)
+        bundler = float(t.get("bundler_rate") or 0.0)
+        chain = str(t.get("chain") or "SOL").upper()
+        renounced_mint = t.get("renounced_mint")
+        vol = float(t.get("vol") or 0.0)
+        vol_5m = float(t.get("vol_5m") or (vol / 12.0) if vol else 0.0)
+        m_state = str(t.get("micro_state") or "")
+
+        matched_tier = None
+        tier_label = ""
+
+        # --- Check Tier 1: 🏛️ Established Runner ($1M - $10M) ---
+        if (
+            1000000.0 <= mcap <= 10000000.0
+            and age_hours >= 12.0
+            and liq >= 25000.0
+            and vl >= 1.0
+            and buy_ratio >= 50.0
+            and ath_drawdown >= -70.0
+            and p5 >= -3.0
+            and p1 >= -8.0
+            and dev_hold <= 10.0
+            and top10 <= 40.0
+            and not t.get("is_rug_risk")
+            and (p5 > 0.0 or m_state in ("ABSORPTION", "REACCUMULATION") or er <= 8.0)
+        ):
+            matched_tier = "wave2"
+            tier_label = "🏛️ Wave 2"
+
+        # --- Check Tier 2: ⚡ Fresh Breakout ($50k - $1M) ---
+        elif (
+            50000.0 <= mcap < 1000000.0
+            and age_hours < 24.0
+            and liq >= 8000.0
+            and (vol >= 50000.0 or vol_5m >= 20000.0)
+            and vl >= 2.0
+            and buy_ratio >= 52.0
+            and p5 > 0.0
+            and p1 >= -3.0
+            and bundler <= 0.55
+            and dev_hold <= 15.0
+            and not (chain == "SOL" and renounced_mint is not None and str(renounced_mint) == "0")
+        ):
+            matched_tier = "fresh"
+            tier_label = "⚡ Fresh Pump"
+
+        if matched_tier:
+            t_copy = dict(t)
+            t_copy["runner_tier"] = matched_tier
+            t_copy["runner_label"] = tier_label
+            narrs = list(t_copy.get("narratives") or [])
+            if tier_label not in narrs:
+                narrs.insert(0, tier_label)
+            t_copy["narratives"] = narrs
+            candidates.append(t_copy)
+            seen.add(addr)
+
+    deduped = deduplicate_best_tokens(candidates)
+    deduped.sort(key=lambda x: (-x.get("vl", 0.0), -x.get("p5", 0.0)))
+    return deduped
+
 
 # ================= METRICS & SCORING =================
 
@@ -1743,6 +1862,7 @@ def generate_report(
     sw_candidates: list[dict] | None = None,
     break_ath_candidates: list[dict] | None = None,
     momentum_5m_candidates: list[dict] | None = None,
+    runner_list: list[dict] | None = None,
     siap_list: list[dict] | None = None,
     akashi_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
@@ -1863,6 +1983,35 @@ def generate_report(
     lines = [
         f"{mode_icon} {mode_label}",
     ]
+
+    # 0. 🚀 RUNNER MOMENTUM (Spot Entry)
+    rn_list = runner_list or []
+    if rn_list:
+        lines.append("")
+        lines.append("<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>")
+        for rn in rn_list[:top_limit]:
+            sym = html.escape(str(rn.get("symbol") or "?"))
+            sym_link = f'<a href="{rn["url"]}">{sym}</a>'
+            vl = rn.get("vl", 0.0)
+            mc_str = _usd(rn['mcap'])
+            tier = rn.get("runner_label") or "🚀 Runner"
+            p5_val = rn.get("p5", 0.0)
+            p5_str = f" (+{p5_val:.0f}% 5m)" if p5_val > 0 else ""
+            chain = str(rn.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            other_narr = [f"[{tg}]" for tg in rn.get("narratives", []) if tg != tier]
+            narr_suffix = f" │ {' '.join(other_narr[:2])}" if other_narr else ""
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ [{tier}]{p5_str}{narr_suffix}")
+
+            rn_addr = str(rn.get("address") or "").strip().lower()
+            rn_hist = hist_map.get(rn_addr)
+            if rn_hist and rn_hist.get("count", 1) > 1:
+                rn_times_disp = rn_hist.get("summary_times_short") or rn_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {rn_times_disp} ({rn_hist['count']}x)")
+
+        if len(rn_list) > top_limit:
+            lines.append(f"<i>...dan {len(rn_list) - top_limit} token Runner lainnya</i>")
 
     if siap_lp:
         lines.append("")
@@ -2438,8 +2587,8 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
 
         # 5. 5M Momentum
         momentum_5m = []
+        raw_5m_list = []
         try:
-            raw_5m_list = []
             if chain_mode in ("BOTH", "SOL"):
                 r_sol = fetch_gmgn_trending_5m("sol", limit=100)
                 if r_sol:
@@ -2457,7 +2606,22 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_tokens = siap_lp + akashi_zone + momentum_5m + absorption + smart_lp + flip_lp
+        # 6. 🚀 RUNNER MOMENTUM (Spot Entry: Established Wave 2 + Fresh Breakouts)
+        all_runner_pool = list(scored_tokens)
+        seen_runner_addrs = {str(t.get("address") or "") for t in scored_tokens if t.get("address")}
+        for r in raw_5m_list:
+            r_addr = str(r.get("address") or "")
+            if r_addr and r_addr not in seen_runner_addrs:
+                try:
+                    sc = score_gmgn_token(r, conf)
+                    all_runner_pool.append(sc)
+                    seen_runner_addrs.add(r_addr)
+                except Exception:
+                    pass
+
+        runner_momentum = score_runner_momentum_candidates(all_runner_pool, conf)
+
+        all_active_tokens = siap_lp + akashi_zone + runner_momentum + momentum_5m + absorption + smart_lp + flip_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2473,6 +2637,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "total_scanned": len(scored_tokens),
             "chain_mode": chain_mode,
             "scored_tokens": scored_tokens,
+            "runner_momentum": runner_momentum,
             "siap_lp": siap_lp,
             "akashi_zone": akashi_zone,
             "slow_cook_lp": slow_cook_lp,
@@ -2484,6 +2649,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "break_ath": break_ath,
             "gaps": gaps,
             "counts": {
+                "runner": len(runner_momentum),
                 "siap": len(siap_lp),
                 "akashi_zone": len(akashi_zone),
                 "slow_cook": len(slow_cook_lp),
@@ -2500,7 +2666,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "top_vl": top_vl,
         }
 
-        # 6. Catat event sinyal ke dalam signal-history.json & sol-hp-cache.json
+        # 7. Catat event sinyal ke dalam signal-history.json & sol-hp-cache.json
         try:
             record_signal_events(result, scan_ts=int(now_epoch))
         except Exception as e_sig:
@@ -2516,7 +2682,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         elapsed = time.time() - t0
         print(
             f"[{get_wib_str()}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
-            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
+            f"Total: {len(scored_tokens)} | Runner: {len(runner_momentum)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
         return result
 
@@ -2537,6 +2703,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         source_name=source,
         break_ath_candidates=scan_res.get("break_ath", []),
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
+        runner_list=scan_res.get("runner_momentum", []),
         siap_list=scan_res.get("siap_lp", []),
         akashi_list=scan_res.get("akashi_zone", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),
@@ -2544,7 +2711,6 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         smart_list=scan_res.get("smart_lp", []),
         flip_list=scan_res.get("flip_lp", []),
         absorption_list=scan_res.get("absorption", []),
-        gaps_list=scan_res.get("gaps", []),
     )
 
     token = conf.get("telegram_bot_token") or ""

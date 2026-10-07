@@ -1,13 +1,16 @@
 # Robinhood Meme LP Terminal — Project Guidelines & Domain Rules
 
-## 1. Core LP Strategy: Chop Sideways LP & Akashi Zone LP
-- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming** dan **⚡ Akashi Zone LP**.
+## 1. Core LP Strategy: Chop Sideways LP, Akashi Zone LP & Spot Runner
+- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming**, **⚡ Akashi Zone LP**, dan **🚀 Runner Momentum (Spot Entry)**.
 - **Filosofi Inti**:
   - Jangan mengejar APR tinggi semata; cari meme coin yang **sudah pump → volume tetap tinggi → harga mulai chop/sideways**.
   - Volume ↑, Price → = Kandidat LP ideal.
   - Volume ↑↑, Price ↑↑↑ = Dilarang LP (sedang naik vertikal).
   - Price ↓↓↓ = Dilarang LP (sedang dump/crash bebas).
   - **⚡ Akashi Zone LP**: Retracement Fibonacci antara 0.236 dan 0.382 dari origin/low ke ATH dengan sideways konsolidasi stabil.
+  - **🚀 Runner Momentum (Spot Entry)**: Strategi khusus entry spot momentum multi-bagger dengan 2 tingkatan karakter:
+    - **🏛️ Tier 1 (Established Runner / Wave 2)**: MC $1M – $10M, usia ≥ 12h, konsolidasi re-akumulasi kuat, drawdown ATH ≥ -70%, buyer menopang (`Buy% ≥ 50%`, `V/L ≥ 1.0x`), siap meledak di wave 2.
+    - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $20k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint, dev hold ≤ 15%, bundler ≤ 55%).
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:
@@ -22,7 +25,8 @@
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
   - `min_mcap >= $1,000,000` ($1M USD Market Cap)
   - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
-  - Token dengan Market Cap < $1M atau Usia < 24 jam di-drop langsung dari pemindaian (Hard Filter Drop) dan tidak akan muncul di strategi mana pun termasuk Gaps Radar.
+  - Token dengan Market Cap < $1M atau Usia < 24 jam di-drop langsung dari pemindaian LP (Hard Filter Drop).
+  - **Pengecualian Khusus Spot Runner Tier 2**: Khusus strategi `🚀 Runner Momentum (Tier 2 Fresh Breakout)`, sistem mengevaluasi koin $50k – $1M & usia < 24h dari feed GMGN 1h dan 5m sebelum filter LP membuang koin muda, sementara seluruh strategi LP tetap terkunci di MC ≥ $1M & Usia ≥ 24h.
 - **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)
@@ -70,7 +74,7 @@
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
 - **Tampilan Ultra-Minimalis**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
-  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+  - Judul kategori ditebalkan: `<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ [👑 CTO]`).
@@ -109,7 +113,7 @@
   - Seluruh pencatatan waktu, tampilan jam pemindaian (`scanned_at`), dan format pelaporan di Telegram Bot maupun Web Dashboard **WAJIB** dikonversi ke zona waktu **WIB (UTC+7)** (`timezone(timedelta(hours=7))`).
   - Mengatasi inkonsistensi waktu server VPS yang umumnya menggunakan sistem jam UTC.
 - **Pencatatan Riwayat Sinyal 24 Jam (`signal-history.json`)**:
-  - Setiap pemindaian (interval 5 menit) mencatat token yang lolos strategi aktif: `5M Momentum`, `Siap LP`, `Akashi Zone`, `Break ATH`, dan `Absorption Radar`.
+  - Setiap pemindaian (interval 5 menit) mencatat token yang lolos strategi aktif: `Runner Momentum`, `5M Momentum`, `Siap LP`, `Akashi Zone`, `Break ATH`, dan `Absorption Radar`.
   - Rolling retention: Data yang berusia lebih dari 24 jam (86.400 detik) otomatis di-prune/dihapus secara berkala.
   - Penyimpanan persisten ganda: file `signal-history.json` dan key `"signal_history"` di `sol-hp-cache.json`.
   - Format agregasi mencakup frekuensi kemunculan (`count`) dan daftar jam kemunculan WIB (contoh: `09:05, 20:30, 23:20 WIB`).
