@@ -157,6 +157,9 @@ DEFAULT_CONFIG = {
     "top_n_display": 12,        # batas tampilan list token per kategori
     "st_period": 10,            # Supertrend ATR period (default TradingView)
     "st_multiplier": 3.0,       # Supertrend multiplier
+    "akashi_origin_mcap": 55000.0, # Origin pump.fun launch MCap
+    "akashi_fibo_low": 0.236,    # Batas bawah Akashi Zone (Fibo 0.236)
+    "akashi_fibo_high": 0.382,   # Batas atas Akashi Zone (Fibo 0.382)
 }
 
 
@@ -621,11 +624,16 @@ def record_signal_events(scan_results: dict[str, Any], scan_ts: int | None = Non
 
     # Kategori strategi aktif yang dicatat
     categories = [
-        ("momentum_5m", "5M MOMENTUM", scan_results.get("momentum_5m", [])),
+        ("akashi_zone", "AKASHI ZONE", scan_results.get("akashi_zone", [])),
         ("siap_lp", "SIAP LP", scan_results.get("siap_lp", [])),
+        ("smart_lp", "SMART LP", scan_results.get("smart_lp", [])),
         ("cto_lp", "CTO REVIVAL", scan_results.get("cto_lp", [])),
-        ("break_ath", "BREAK ATH", scan_results.get("break_ath", [])),
+        ("slow_cook_lp", "SLOW COOK", scan_results.get("slow_cook_lp", [])),
+        ("dip_chop", "30% DIP", scan_results.get("dip_chop", [])),
+        ("flip_lp", "FLIP LP", scan_results.get("flip_lp", [])),
+        ("momentum_5m", "5M MOMENTUM", scan_results.get("momentum_5m", [])),
         ("absorption", "ABSORPTION", scan_results.get("absorption", [])),
+        ("break_ath", "BREAK ATH", scan_results.get("break_ath", [])),
     ]
 
     # Set event yang sudah ada di scan_boundary ini untuk menghindari duplikat: (addr, strategy_key, scan_boundary)
@@ -1738,6 +1746,7 @@ def generate_report(
     break_ath_candidates: list[dict] | None = None,
     momentum_5m_candidates: list[dict] | None = None,
     siap_list: list[dict] | None = None,
+    akashi_list: list[dict] | None = None,
     cto_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
     dip_list: list[dict] | None = None,
@@ -1879,6 +1888,31 @@ def generate_report(
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
+
+    # 1a-2. 🔴 AKASHI ZONE (Fibonacci Retracement 0.236 - 0.382)
+    ak_list = akashi_list or []
+    if ak_list:
+        lines.append("")
+        lines.append("<b>🔴 AKASHI ZONE (Fibo 0.236 - 0.382)</b>")
+        for ak in ak_list[:top_limit]:
+            sym = html.escape(str(ak.get("symbol") or "?"))
+            sym_link = f'<a href="{ak["url"]}">{sym}</a>'
+            vl = ak.get("vl", 0.0)
+            mc_str = _usd(ak['mcap'])
+            f_ratio = ak.get("fibo_ratio", 0.0)
+            chain = str(ak.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} (Fibo {f_ratio:.3f})")
+
+            ak_addr = str(ak.get("address") or "").strip().lower()
+            ak_hist = hist_map.get(ak_addr)
+            if ak_hist and ak_hist.get("count", 1) > 1:
+                ak_times_disp = ak_hist.get("summary_times_short") or ak_hist.get("summary_times", "")
+                lines.append(f"  🕒 Sinyal: {ak_times_disp} ({ak_hist['count']}x)")
+
+        if len(ak_list) > top_limit:
+            lines.append(f"<i>...dan {len(ak_list) - top_limit} pool Akashi lainnya</i>")
 
     # 1b. 👑 CTO REVIVAL LP (Community Take Over)
     c_list = cto_list or []
@@ -2357,6 +2391,25 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         flip_lp = deduplicate_best_tokens(flip_candidates)
         flip_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
+        # 1g. 🔴 AKASHI ZONE (Fibonacci Retracement 0.236 - 0.382)
+        origin_mcap = float(conf.get("akashi_origin_mcap", 55000.0))
+        fibo_low = float(conf.get("akashi_fibo_low", 0.236))
+        fibo_high = float(conf.get("akashi_fibo_high", 0.382))
+
+        akashi_candidates = []
+        for p in filtered:
+            ath = float(p.get("ath_mcap", 0.0) or 0.0)
+            mc = float(p.get("mcap", 0.0) or 0.0)
+            if ath > origin_mcap and mc >= origin_mcap:
+                ratio = (mc - origin_mcap) / (ath - origin_mcap)
+                if fibo_low <= ratio <= fibo_high and p.get("vl", 0.0) >= min_vl:
+                    p_copy = dict(p)
+                    p_copy["fibo_ratio"] = round(ratio, 3)
+                    akashi_candidates.append(p_copy)
+
+        akashi_zone = deduplicate_best_tokens(akashi_candidates)
+        akashi_zone.sort(key=lambda x: -x.get("vl", 0.0))
+
         # 2. Absorption Radar
         siap_addrs = {p["address"] for p in siap_lp if p.get("address")}
         absorb_candidates = [
@@ -2452,7 +2505,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_tokens = siap_lp + cto_lp + momentum_5m + absorption + smart_lp + flip_lp
+        all_active_tokens = siap_lp + akashi_zone + cto_lp + momentum_5m + absorption + smart_lp + flip_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2469,6 +2522,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "chain_mode": chain_mode,
             "scored_tokens": scored_tokens,
             "siap_lp": siap_lp,
+            "akashi_zone": akashi_zone,
             "cto_lp": cto_lp,
             "slow_cook_lp": slow_cook_lp,
             "dip_chop": dip_chop,
@@ -2480,6 +2534,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "gaps": gaps,
             "counts": {
                 "siap": len(siap_lp),
+                "akashi_zone": len(akashi_zone),
                 "cto": len(cto_lp),
                 "slow_cook": len(slow_cook_lp),
                 "dip_chop": len(dip_chop),
@@ -2533,6 +2588,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         break_ath_candidates=scan_res.get("break_ath", []),
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
         siap_list=scan_res.get("siap_lp", []),
+        akashi_list=scan_res.get("akashi_zone", []),
         cto_list=scan_res.get("cto_lp", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),
         dip_list=scan_res.get("dip_chop", []),

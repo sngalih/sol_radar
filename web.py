@@ -67,6 +67,7 @@ app_state: dict[str, Any] = {
     "next_scan_timestamp": 0,
     "total_scanned": 0,
     "siap_lp": [],
+    "akashi_zone": [],
     "slow_cook_lp": [],
     "dip_chop": [],
     "smart_lp": [],
@@ -189,6 +190,7 @@ def perform_scan(force: bool = False) -> None:
         res = bot_sol_lp.execute_full_scan(conf, force=force)
 
         siap_lp = res.get("siap_lp", [])
+        akashi_zone = res.get("akashi_zone", [])
         slow_cook_lp = res.get("slow_cook_lp", [])
         dip_chop = res.get("dip_chop", [])
         smart_lp = res.get("smart_lp", [])
@@ -209,6 +211,7 @@ def perform_scan(force: bool = False) -> None:
             app_state["next_scan_timestamp"] = res.get("next_scan_timestamp", 0)
             app_state["total_scanned"] = res.get("total_scanned", 0)
             app_state["siap_lp"] = siap_lp
+            app_state["akashi_zone"] = akashi_zone
             app_state["slow_cook_lp"] = slow_cook_lp
             app_state["dip_chop"] = dip_chop
             app_state["smart_lp"] = smart_lp
@@ -620,14 +623,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     .cat-tabs {
       display: flex;
-      gap: 5px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 2px;
+      flex-wrap: wrap;
+      gap: 6px;
       align-items: center;
+      width: 100%;
     }
-    .cat-tabs::-webkit-scrollbar { display: none; }
 
     .cat-tab {
       background: var(--card-bg);
@@ -732,7 +732,61 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--amber);
     }
 
+    .cat-tab.active[data-cat="akashi"] {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+    .cat-tab.active[data-cat="akashi"] .badge-count {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    /* Sub-Controls Bar (Tier 2) */
+    .sub-controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      width: 100%;
+    }
+
+    .sub-controls-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+    .sub-ctrl-label {
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sub-ctrl-name {
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .sub-ctrl-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-sub);
+    }
+
     /* Controls Right: Search + View Switcher */
+    .sub-controls-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .controls-right {
       display: flex;
       align-items: center;
@@ -1530,18 +1584,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       }
 
       .controls-strip {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        align-items: stretch;
       }
-      .cat-tabs { flex: 1; margin-bottom: 0; }
-      .controls-right {
-        width: auto;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .search-wrap { width: 220px; }
+      .cat-tabs { width: 100%; margin-bottom: 0; }
+      .search-wrap { width: 280px; }
 
       .card-list {
         grid-template-columns: repeat(2, 1fr);
@@ -1566,7 +1613,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         grid-template-columns: repeat(3, 1fr);
         gap: 10px;
       }
-      .search-wrap { width: 260px; }
+      .search-wrap { width: 340px; }
     }
   </style>
 </head>
@@ -1614,36 +1661,41 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
   <!-- ===== MAIN CONTENT ===== -->
   <main class="container">
 
-    <!-- Controls Strip: Category Tabs + Quick Search -->
+    <!-- Controls Strip: Two-Tier Layout (Category Tabs + Sub-Controls) -->
     <div class="controls-strip">
-              <div class="cat-tabs">
-          <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Hotkey: A">
-            <span>ALL SIGNALS</span>
-            <span id="badgeAll" class="badge-count">0</span>
-          </div>
-        <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: S">
-          <span>SLOW COOK</span>
-          <span id="badgeSlow" class="badge-count">0</span>
+      <!-- Tier 1: Category Tabs (Full-Width Wrap, No Clipping) -->
+      <div class="cat-tabs" id="catTabsBar">
+        <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Hotkey: A">
+          <span>ALL SIGNALS</span>
+          <span id="badgeAll" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="dip" onclick="setCategoryTab('dip')" title="Hotkey: D">
-          <span>30% DIP</span>
-          <span id="badgeDip" class="badge-count">0</span>
+        <div class="cat-tab" data-cat="akashi" onclick="setCategoryTab('akashi')" title="Hotkey: K">
+          <span>🔴 AKASHI</span>
+          <span id="badgeAkashi" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
           <span>🟢 SIAP LP</span>
           <span id="badgeSiap" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="smart" onclick="setCategoryTab('smart')" title="Hotkey: S">
-            <span>🧠 SMART LP</span>
-            <span id="badgeSmart" class="badge-count">0</span>
+        <div class="cat-tab" data-cat="smart" onclick="setCategoryTab('smart')" title="Hotkey: M">
+          <span>🧠 SMART</span>
+          <span id="badgeSmart" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="cto" onclick="setCategoryTab('cto')" title="Hotkey: 2">
+          <span>👑 CTO</span>
+          <span id="badgeCto" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: O">
+          <span>🍲 SLOW COOK</span>
+          <span id="badgeSlow" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="dip" onclick="setCategoryTab('dip')" title="Hotkey: D">
+          <span>📉 30% DIP</span>
+          <span id="badgeDip" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="flip" onclick="setCategoryTab('flip')" title="Hotkey: F">
-            <span>📉 FLIP LP</span>
-            <span id="badgeFlip" class="badge-count">0</span>
-        </div>
-          <div class="cat-tab" data-cat="cto" onclick="setCategoryTab('cto')" title="Hotkey: 2">
-          <span>CTO</span>
-          <span id="badgeCto" class="badge-count">0</span>
+          <span>📉 FLIP</span>
+          <span id="badgeFlip" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="momentum_5m" onclick="setCategoryTab('momentum_5m')" title="Hotkey: 3">
           <span>⚡ 5M</span>
@@ -1654,7 +1706,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span id="badgeAbsorb" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 5">
-          <span>ATH</span>
+          <span>🚀 ATH</span>
           <span id="badgeBath" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 6">
@@ -1662,26 +1714,34 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span id="badgeGaps" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="history" onclick="setCategoryTab('history')" title="Hotkey: 7">
-          <span>📜 HISTORY (24H)</span>
+          <span>📜 HISTORY</span>
           <span id="badgeHistory" class="badge-count">0</span>
         </div>
       </div>
 
-      <!-- Controls Right: Quick Search + View Switcher -->
-      <div class="controls-right">
-        <div class="search-wrap">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="tokenSearch" class="search-input" placeholder="Cari simbol atau CA... ( / )" oninput="onSearchInput()">
-          <button id="searchClear" class="search-clear" onclick="clearSearch()">✕</button>
+      <!-- Tier 2: Sub-Controls Bar (Status Kategori Kiri + Quick Search & Mode Switcher Kanan) -->
+      <div class="sub-controls-bar">
+        <div class="sub-controls-left">
+          <span class="sub-ctrl-label">Active:</span>
+          <span id="activeCatLabel" class="sub-ctrl-name">ALL SIGNALS</span>
+          <span id="activeCatPill" class="sub-ctrl-pill">0 pool</span>
         </div>
 
-        <div class="view-toggle" title="Ubah Tampilan Daftar (Hotkey: V)">
-          <button id="btnViewCards" class="btn-view" onclick="setViewMode('cards')">
-            <span>⊞</span> Cards
-          </button>
-          <button id="btnViewTable" class="btn-view active" onclick="setViewMode('table')">
-            <span>☰</span> Table
-          </button>
+        <div class="sub-controls-right">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="tokenSearch" class="search-input" placeholder="Cari simbol atau CA... ( / )" oninput="onSearchInput()">
+            <button id="searchClear" class="search-clear" onclick="clearSearch()">✕</button>
+          </div>
+
+          <div class="view-toggle" title="Ubah Tampilan Daftar (Hotkey: V)">
+            <button id="btnViewCards" class="btn-view" onclick="setViewMode('cards')">
+              <span>⊞</span> Cards
+            </button>
+            <button id="btnViewTable" class="btn-view active" onclick="setViewMode('table')">
+              <span>☰</span> Table
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2104,6 +2164,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       document.querySelectorAll(".cat-tab").forEach(tab =>
         tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
       );
+      const catLabels = {
+        all: "ALL SIGNALS", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
+        smart: "🧠 SMART LP", cto: "👑 CTO", slow_cook: "🍲 SLOW COOK",
+        dip: "📉 30% DIP", flip: "📉 FLIP LP", momentum_5m: "⚡ 5M",
+        absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
+        history: "📜 HISTORY"
+      };
+      const labelEl = document.getElementById("activeCatLabel");
+      if (labelEl) labelEl.innerText = catLabels[cat] || cat.toUpperCase();
       lastRenderStateKey = "";
       renderCards();
     }
@@ -2319,12 +2388,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               });
           };
 
-          mergeList(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
-          mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
+          mergeList(globalState.akashi_zone, "AKASHI", "#dc2626");
           mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
-          mergeList(globalState.flip_lp, "FLIP", "#f97316");
           mergeList(globalState.cto_lp, "CTO", "#a855f7");
+          mergeList(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
+          mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
+          mergeList(globalState.flip_lp, "FLIP", "#f97316");
           mergeList(globalState.momentum_5m, "5M", "#f59e0b");
           mergeList(globalState.absorption, "Absorb", "#5d667a");
           mergeList(globalState.break_ath, "ATH", "#14b8a6");
@@ -2334,6 +2404,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const bAll = document.getElementById("badgeAll");
           if (bAll) bAll.innerText = rawList.length;
       }
+      else if (activeCategory === "akashi")      rawList = globalState.akashi_zone || [];
       else if (activeCategory === "dip")         rawList = globalState.dip_chop || [];
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
@@ -2345,6 +2416,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
       else if (activeCategory === "history")     rawList = globalState.signal_history || [];
       else                                       rawList = globalState.gaps        || [];
+
+      const pillEl = document.getElementById("activeCatPill");
+      if (pillEl) pillEl.innerText = `${rawList.length} pool`;
 
       // History lookup for recurring token badges
       const histLookup = {};
@@ -2944,6 +3018,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
 
         // Category Badges
+        const bAkashi = document.getElementById("badgeAkashi");
+        if (bAkashi) bAkashi.innerText = (data.counts && data.counts.akashi_zone) || (data.akashi_zone ? data.akashi_zone.length : 0);
         document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
         document.getElementById("badgeSlow").innerText = data.counts.slow_cook || 0;
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
@@ -2984,17 +3060,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         return;
       }
       if (e.key === "Escape") closeModal();
-              else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
-        else if (e.key === "a" || e.key === "A") setCategoryTab("all");
-      else if (e.key === "s" || e.key === "S") setCategoryTab("smart");
-      else if (e.key === "f" || e.key === "F") setCategoryTab("flip");
-        else if (e.key === "1") setCategoryTab("siap");
+      else if (e.key === "a" || e.key === "A") setCategoryTab("all");
+      else if (e.key === "k" || e.key === "K") setCategoryTab("akashi");
+      else if (e.key === "1") setCategoryTab("siap");
+      else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
       else if (e.key === "2") setCategoryTab("cto");
+      else if (e.key === "o" || e.key === "O") setCategoryTab("slow_cook");
+      else if (e.key === "d" || e.key === "D") setCategoryTab("dip");
+      else if (e.key === "f" || e.key === "F") setCategoryTab("flip");
       else if (e.key === "3") setCategoryTab("momentum_5m");
       else if (e.key === "4") setCategoryTab("absorption");
       else if (e.key === "5") setCategoryTab("break_ath");
       else if (e.key === "6") setCategoryTab("gaps");
       else if (e.key === "7") setCategoryTab("history");
+      else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
       else if (e.key === "/") {
         e.preventDefault();
         const inp = document.getElementById("tokenSearch");
@@ -3069,6 +3148,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "top_vl": app_state.get("top_vl", 0.0),
                     "filters": app_state["filters"],
                     "siap_lp": app_state["siap_lp"],
+                    "akashi_zone": app_state.get("akashi_zone", []),
                     "slow_cook_lp": app_state.get("slow_cook_lp", []),
                     "dip_chop": app_state.get("dip_chop", []),
                     "smart_lp": app_state.get("smart_lp", []),
