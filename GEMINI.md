@@ -1,13 +1,13 @@
 # Robinhood Meme LP Terminal — Project Guidelines & Domain Rules
 
-## 1. Core LP Strategy: Chop Sideways LP & CTO Revival LP
-- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming** dan **👑 CTO Revival LP**.
+## 1. Core LP Strategy: Chop Sideways LP & Akashi Zone LP
+- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming** dan **⚡ Akashi Zone LP**.
 - **Filosofi Inti**:
   - Jangan mengejar APR tinggi semata; cari meme coin yang **sudah pump → volume tetap tinggi → harga mulai chop/sideways**.
   - Volume ↑, Price → = Kandidat LP ideal.
   - Volume ↑↑, Price ↑↑↑ = Dilarang LP (sedang naik vertikal).
   - Price ↓↓↓ = Dilarang LP (sedang dump/crash bebas).
-  - **👑 CTO Revival LP**: Koin yang dev aslinya sudah rug/lepas tangan namun diambil alih oleh komunitas (`cto_flag == 1`), `dev_team_hold <= 20%`, bebas dari risiko dev dump, volume tetap aktif, dan harga mulai sideways.
+  - **⚡ Akashi Zone LP**: Retracement Fibonacci antara 0.236 dan 0.382 dari origin/low ke ATH dengan sideways konsolidasi stabil.
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:
@@ -18,7 +18,7 @@
   - `ath_drawdown >= -85.0%`: MCap saat ini tidak boleh drop lebih dari 85% dari All-Time High (menolak koin zombie / kuburan bagholder).
   - `max_1h <= 20.0%` & `max_5m <= 15.0%`: Pengetatan rentang volatilitas 1 jam simetris untuk konsolidasi sideways sejati.
   - **Asymmetric Downside Guard**: `p1 >= -8.0%` (penurunan 1 jam maks -8%) dan `p5 >= -4.0%` (penurunan 5 menit maks -4%). Menolak koin yang sedang meluncur bebas (*falling knife*).
-  - `min_vl >= 0.5x`: Standar rasio perputaran volume terhadap likuiditas (Turnover V/L) universal untuk SEMUA strategi (Siap LP, CTO Revival, 5M Momentum, Break ATH, Absorption, dan Gaps). Menggantikan filter ambang batas fee/jam arbitrer ($/h) demi objektivitas konsisten lintas timeframe dan pool.
+  - `min_vl >= 0.5x`: Standar rasio perputaran volume terhadap likuiditas (Turnover V/L) universal untuk SEMUA strategi (Siap LP, Akashi Zone, 5M Momentum, Break ATH, Absorption, dan Gaps). Menggantikan filter ambang batas fee/jam arbitrer ($/h) demi objektivitas konsisten lintas timeframe dan pool.
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
   - `min_mcap >= $1,000,000` ($1M USD Market Cap)
   - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
@@ -29,7 +29,7 @@
   - `bundler_rate <= 55%` (Maksimal sniped supply bundle block 0)
   - `renounced_mint == 1` (Mint authority wajib dicabut pada rantai Solana)
   - `holder_count >= 100` (Distribusi pemegang token memadai)
-  - `is_wash == False` & `is_honeypot == False` & `is_rug_risk == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, CTO Revival, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
+  - `is_wash == False` & `is_honeypot == False` & `is_rug_risk == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, Akashi Zone, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
 - **Narrative & Social Detection Engine**:
   - Deteksi otomatis tag narasi: `👑 CTO` (Community Take Over), `🤖 AI` (AI Agents), `🧠 Smart` (Smart Money Inflow), `💎 Bluechip` (High market cap & liquidity).
   - Integrasi tautan sosial (Twitter/X & Telegram) untuk verifikasi cepat komunitas.
@@ -70,7 +70,7 @@
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
 - **Tampilan Ultra-Minimalis**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
-  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>👑 CTO REVIVAL LP (Community Take Over)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+  - Judul kategori ditebalkan: `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ [👑 CTO]`).
@@ -109,7 +109,7 @@
   - Seluruh pencatatan waktu, tampilan jam pemindaian (`scanned_at`), dan format pelaporan di Telegram Bot maupun Web Dashboard **WAJIB** dikonversi ke zona waktu **WIB (UTC+7)** (`timezone(timedelta(hours=7))`).
   - Mengatasi inkonsistensi waktu server VPS yang umumnya menggunakan sistem jam UTC.
 - **Pencatatan Riwayat Sinyal 24 Jam (`signal-history.json`)**:
-  - Setiap pemindaian (interval 5 menit) mencatat token yang lolos strategi aktif: `5M Momentum`, `Siap LP`, `CTO Revival`, `Break ATH`, dan `Absorption Radar`.
+  - Setiap pemindaian (interval 5 menit) mencatat token yang lolos strategi aktif: `5M Momentum`, `Siap LP`, `Akashi Zone`, `Break ATH`, dan `Absorption Radar`.
   - Rolling retention: Data yang berusia lebih dari 24 jam (86.400 detik) otomatis di-prune/dihapus secara berkala.
   - Penyimpanan persisten ganda: file `signal-history.json` dan key `"signal_history"` di `sol-hp-cache.json`.
   - Format agregasi mencakup frekuensi kemunculan (`count`) dan daftar jam kemunculan WIB (contoh: `09:05, 20:30, 23:20 WIB`).

@@ -627,7 +627,6 @@ def record_signal_events(scan_results: dict[str, Any], scan_ts: int | None = Non
         ("akashi_zone", "AKASHI ZONE", scan_results.get("akashi_zone", [])),
         ("siap_lp", "SIAP LP", scan_results.get("siap_lp", [])),
         ("smart_lp", "SMART LP", scan_results.get("smart_lp", [])),
-        ("cto_lp", "CTO REVIVAL", scan_results.get("cto_lp", [])),
         ("slow_cook_lp", "SLOW COOK", scan_results.get("slow_cook_lp", [])),
         ("dip_chop", "30% DIP", scan_results.get("dip_chop", [])),
         ("flip_lp", "FLIP LP", scan_results.get("flip_lp", [])),
@@ -795,7 +794,6 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
     categories = [
         ("momentum_5m", "⚡ <b>5M MOMENTUM</b>"),
         ("siap_lp", "🟢 <b>SIAP LP (Chop Sideways)</b>"),
-        ("cto_lp", "👑 <b>CTO REVIVAL LP</b>"),
         ("break_ath", "🚀 <b>BREAK ATH LP</b>"),
         ("absorption", "📡 <b>ABSORPTION RADAR</b>"),
     ]
@@ -1747,7 +1745,6 @@ def generate_report(
     momentum_5m_candidates: list[dict] | None = None,
     siap_list: list[dict] | None = None,
     akashi_list: list[dict] | None = None,
-    cto_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
     dip_list: list[dict] | None = None,
     smart_list: list[dict] | None = None,
@@ -1759,8 +1756,8 @@ def generate_report(
     🟢 SIAP LP (Fee >= $1/h & MC >= $500k)
     • TOKEN ➔ Fee/h │ MC │ ER
 
-    👑 CTO REVIVAL LP (Community Take Over, Zero Dev Risk)
-    • TOKEN ➔ Fee/h │ MC │ Narasi
+    🔴 AKASHI ZONE (Fibo 0.236 - 0.382)
+    • TOKEN ➔ V/L │ MC │ Fibo Level
 
     ⚡ 5M MOMENTUM (5m Vol > $100k & Pump Up)
     • TOKEN ➔ Fee/h │ 5m Vol │ MC
@@ -1782,6 +1779,7 @@ def generate_report(
         max_mcap = float(conf.get("max_mcap", 500000000.0))
         min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 1.0))
         min_fee_absorb = float(conf.get("min_fee_absorb", 0.50))
+        min_vl = float(conf.get("min_vl", 0.5))
         do_filter_stocks = bool(conf.get("filter_stocks", True))
 
         # Filter dasar: Hanya token meme/kandidat dalam rentang Mcap (dan bukan SOL/USDC/USDT native)
@@ -1913,35 +1911,6 @@ def generate_report(
 
         if len(ak_list) > top_limit:
             lines.append(f"<i>...dan {len(ak_list) - top_limit} pool Akashi lainnya</i>")
-
-    # 1b. 👑 CTO REVIVAL LP (Community Take Over)
-    c_list = cto_list or []
-
-    if c_list:
-
-        lines.append("")
-
-        lines.append("<b>👑 CTO REVIVAL LP (Community Take Over)</b>")
-
-        for c in c_list[:top_limit]:
-            sym = html.escape(str(c.get("symbol") or "?"))
-            sym_link = f'<a href="{c["url"]}">{sym}</a>'
-            vl = c.get("vl", 0.0)
-            mc_str = _usd(c['mcap'])
-            chain = str(c.get("chain", "SOL")).upper()
-            badge = "🔹" if chain == "RH" else "🔸"
-            other_narr = [f"[{tg}]" for tg in c.get("narratives", []) if tg != "👑 CTO"]
-            narr_suffix = f" │ {' '.join(other_narr)}" if other_narr else ""
-
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_suffix}")
-            c_addr = str(c.get("address") or "").strip().lower()
-            c_hist = hist_map.get(c_addr)
-            if c_hist and c_hist.get("count", 1) > 1:
-                c_times_disp = c_hist.get("summary_times_short") or c_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {c_times_disp} ({c_hist['count']}x)")
-
-        if len(c_list) > top_limit:
-            lines.append(f"<i>...dan {len(c_list) - top_limit} pool CTO lainnya</i>")
 
     # 1c. 🍲 SLOW COOK LP (Premium Mid-Long Term)
     sc_list = slow_cook_list or []
@@ -2311,23 +2280,6 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         siap_lp = deduplicate_best_tokens(siap_candidates)
         siap_lp.sort(key=lambda x: -x.get("vl", 0.0))
 
-        # 1b. 👑 CTO REVIVAL LP (Community Take Over + Sideways + Dev Zero Risk)
-        cto_candidates = [
-            p for p in filtered
-            if p.get("is_cto")
-            and p.get("dev_team_hold", 0.0) <= 5.0
-            and p.get("buy_ratio", 50.0) >= min_buy_ratio
-            and p.get("ath_drawdown", 0.0) >= max_ath_drawdown
-            and p.get("p1", 0.0) >= max_drop_1h
-            and p.get("p5", 0.0) >= max_drop_5m
-            and abs(p.get("p5", 0.0)) <= max_5m * 1.2
-            and abs(p.get("p1", 0.0)) <= max_1h * 1.2
-            and p.get("er", 999.0) <= max_er * 1.2
-            and p.get("vl", 0.0) >= min_vl
-        ]
-        cto_lp = deduplicate_best_tokens(cto_candidates)
-        cto_lp.sort(key=lambda x: -x.get("vl", 0.0))
-
         # 1c. 🍲 SLOW COOK LP (Medium-Long Term Premium)
         slow_cook_candidates = []
         for p in filtered:
@@ -2505,7 +2457,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             print(f"[WARN] Fetch 5M Momentum error: {e_5m}", file=sys.stderr)
             momentum_5m = []
 
-        all_active_tokens = siap_lp + akashi_zone + cto_lp + momentum_5m + absorption + smart_lp + flip_lp
+        all_active_tokens = siap_lp + akashi_zone + momentum_5m + absorption + smart_lp + flip_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2523,7 +2475,6 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "scored_tokens": scored_tokens,
             "siap_lp": siap_lp,
             "akashi_zone": akashi_zone,
-            "cto_lp": cto_lp,
             "slow_cook_lp": slow_cook_lp,
             "dip_chop": dip_chop,
             "smart_lp": smart_lp,
@@ -2535,7 +2486,6 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "counts": {
                 "siap": len(siap_lp),
                 "akashi_zone": len(akashi_zone),
-                "cto": len(cto_lp),
                 "slow_cook": len(slow_cook_lp),
                 "dip_chop": len(dip_chop),
                 "smart_lp": len(smart_lp),
@@ -2566,7 +2516,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         elapsed = time.time() - t0
         print(
             f"[{get_wib_str()}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
-            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
+            f"Total: {len(scored_tokens)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
         return result
 
@@ -2589,7 +2539,6 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
         siap_list=scan_res.get("siap_lp", []),
         akashi_list=scan_res.get("akashi_zone", []),
-        cto_list=scan_res.get("cto_lp", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),
         dip_list=scan_res.get("dip_chop", []),
         smart_list=scan_res.get("smart_lp", []),

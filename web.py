@@ -72,13 +72,12 @@ app_state: dict[str, Any] = {
     "dip_chop": [],
     "smart_lp": [],
     "flip_lp": [],
-    "cto_lp": [],
     "momentum_5m": [],
     "absorption": [],
     "break_ath": [],
     "gaps": [],
     "signal_history": [],
-    "counts": {"siap": 0, "cto": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
+    "counts": {"siap": 0, "akashi_zone": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
     "top_yield": 0.0,
     "top_vl": 0.0,
     "filters": {},
@@ -195,7 +194,6 @@ def perform_scan(force: bool = False) -> None:
         dip_chop = res.get("dip_chop", [])
         smart_lp = res.get("smart_lp", [])
         flip_lp = res.get("flip_lp", [])
-        cto_lp = res.get("cto_lp", [])
         momentum_5m = res.get("momentum_5m", [])
         absorption = res.get("absorption", [])
         break_ath = res.get("break_ath", [])
@@ -216,7 +214,6 @@ def perform_scan(force: bool = False) -> None:
             app_state["dip_chop"] = dip_chop
             app_state["smart_lp"] = smart_lp
             app_state["flip_lp"] = flip_lp
-            app_state["cto_lp"] = cto_lp
             app_state["momentum_5m"] = momentum_5m
             app_state["absorption"] = absorption
             app_state["break_ath"] = break_ath
@@ -230,7 +227,7 @@ def perform_scan(force: bool = False) -> None:
 
         print(
             f"[{get_wib_str()}] [Web Sync] Selesai dalam {time.time() - t0:.2f}s | "
-            f"Total: {res.get('total_scanned', 0)} | Siap LP: {len(siap_lp)} | CTO: {len(cto_lp)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
+            f"Total: {res.get('total_scanned', 0)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
 
     except Exception as e:
@@ -670,16 +667,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .cat-tab.active .badge-count {
       background: rgba(47, 217, 123, 0.25);
       color: var(--green);
-    }
-
-    .cat-tab.active[data-cat="cto"] {
-      background: rgba(216, 180, 254, 0.1);
-      border-color: var(--purple);
-      color: var(--purple);
-    }
-    .cat-tab.active[data-cat="cto"] .badge-count {
-      background: rgba(216, 180, 254, 0.25);
-      color: var(--purple);
     }
 
     .cat-tab.active[data-cat="momentum_5m"] {
@@ -1681,10 +1668,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span>🧠 SMART</span>
           <span id="badgeSmart" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="cto" onclick="setCategoryTab('cto')" title="Hotkey: 2">
-          <span>👑 CTO</span>
-          <span id="badgeCto" class="badge-count">0</span>
-        </div>
         <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: O">
           <span>🍲 SLOW COOK</span>
           <span id="badgeSlow" class="badge-count">0</span>
@@ -2166,7 +2149,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       );
       const catLabels = {
         all: "ALL SIGNALS", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
-        smart: "🧠 SMART LP", cto: "👑 CTO", slow_cook: "🍲 SLOW COOK",
+        smart: "🧠 SMART LP", slow_cook: "🍲 SLOW COOK",
         dip: "📉 30% DIP", flip: "📉 FLIP LP", momentum_5m: "⚡ 5M",
         absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
         history: "📜 HISTORY"
@@ -2391,7 +2374,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           mergeList(globalState.akashi_zone, "AKASHI", "#dc2626");
           mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
-          mergeList(globalState.cto_lp, "CTO", "#a855f7");
           mergeList(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
           mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
           mergeList(globalState.flip_lp, "FLIP", "#f97316");
@@ -2410,7 +2392,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
       else if (activeCategory === "smart")       rawList = globalState.smart_lp   || [];
       else if (activeCategory === "flip")        rawList = globalState.flip_lp    || [];
-      else if (activeCategory === "cto")         rawList = globalState.cto_lp     || [];
       else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
       else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
       else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
@@ -2464,11 +2445,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
           all:         "Belum ada token di semua kategori sinyal.",
             siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
-          cto:         "Belum ada token memenuhi kriteria 👑 CTO Revival LP (CTO verified, V/L ≥ 0.5x, Buy% ≥ 46%, ATH Drop ≤ 85%).",
+          akashi:      "Belum ada token memenuhi kriteria 🔴 Akashi Zone (Fibo 0.236 - 0.382, V/L ≥ 0.5x, MC ≥ $1M).",
           momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
           absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x, Buy% ≥ 46%).",
           break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x).",
-          history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir (5M Momentum, Siap LP, CTO, Break ATH, Absorption).",
+          history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir (Akashi Zone, Siap LP, 5M Momentum, Break ATH, Absorption).",
           gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
@@ -2672,23 +2653,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           // State Pill
           const mState = t.micro_state || "NEUTRAL";
           let spClass = "state-neutral", spIcon = "🎯";
-          if (activeCategory === "cto")            { spClass = "state-cto";        spIcon = "👑"; }
-          else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+          if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
           else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
           else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
           else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
           else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
           else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
-          const spLabel = activeCategory === "cto" ? "CTO Revival 👑" : (activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring"))));
+          const spLabel = activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring")));
 
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
-          // Sub-details if CTO, Momentum, ATH
+          // Sub-details if Momentum, ATH
           let subRowHtml = "";
-          if (activeCategory === "cto") {
-            subRowHtml = `<span style="color:#d8b4fe;font-size:10px;margin-left:6px;white-space:nowrap">👑 Dev ${t.dev_team_hold || 0}%</span>`;
-          } else if (activeCategory === "momentum_5m") {
+          if (activeCategory === "momentum_5m") {
             subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:8px;white-space:nowrap">⚡ V5: ${formatUsd(t.vol_5m || t.vol || 0)}</span>`;
           } else if (activeCategory === "break_ath") {
             subRowHtml = `<span style="color:var(--cyan-light);font-size:10px;margin-left:8px;white-space:nowrap">🚀 +${t.breakout_pct || 0}%</span>`;
@@ -2777,7 +2755,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const chainBadge = isRh
           ? `<span class="chain-pill rh">RH</span>`
           : `<span class="chain-pill sol">SOL</span>`;
-        const cardClass = activeCategory === "cto" ? "cto-card" : (activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card")));
+        const cardClass = activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card"));
         const rankBadge = getRankBadge(idx);
         const rankClass = idx === 0 ? "rank-1" : "";
 
@@ -2817,32 +2795,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // State Pill
         const mState = t.micro_state || "NEUTRAL";
         let spClass = "state-neutral", spIcon = "🎯";
-        if (activeCategory === "cto")            { spClass = "state-cto";        spIcon = "👑"; }
-        else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
+        if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
         else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
         else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
         else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
         else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
         else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
 
-        const spLabel = activeCategory === "cto"
-          ? "CTO Revival 👑"
-          : (activeCategory === "momentum_5m"
-            ? "5M Momentum ⚡"
-            : (activeCategory === "break_ath"
-              ? "Break ATH ✓"
-              : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"))));
+        const spLabel = activeCategory === "momentum_5m"
+          ? "5M Momentum ⚡"
+          : (activeCategory === "break_ath"
+            ? "Break ATH ✓"
+            : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring")));
 
-        // CTO / 5M Momentum / Break ATH Extra Banner
+        // 5M Momentum / Break ATH Extra Banner
         let athHtml = "";
-        if (activeCategory === "cto") {
-          athHtml = `
-            <div class="ath-info-row" style="border-left: 2px solid #a855f7; background: rgba(168, 85, 247, 0.08);">
-              <div class="ath-tag" style="color:#d8b4fe"><span>👑 CTO:</span> Verified</div>
-              <div class="ath-tag" style="color:var(--green-light)"><span>🛡️ Dev Hold:</span> ${t.dev_team_hold || 0}%</div>
-              <div class="ath-tag"><span>👥 Holders:</span> ${formatTx(t.holder_count || 0)}</div>
-            </div>`;
-        } else if (activeCategory === "momentum_5m") {
+        if (activeCategory === "momentum_5m") {
           const v5m = formatUsd(t.vol_5m || t.vol || 0);
           athHtml = `
             <div class="ath-info-row" style="border-left: 2px solid #eab308; background: rgba(234, 179, 8, 0.08);">
@@ -3027,8 +2995,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         if (bSmart) bSmart.innerText = data.counts.smart_lp || 0;
         const bFlip = document.getElementById("badgeFlip");
         if (bFlip) bFlip.innerText = data.counts.flip_lp || 0;
-        const bCto = document.getElementById("badgeCto");
-        if (bCto) bCto.innerText = (data.counts && data.counts.cto) || (data.cto_lp ? data.cto_lp.length : 0);
         const bM5 = document.getElementById("badgeM5");
         if (bM5) bM5.innerText = (data.counts && data.counts.momentum_5m) || (data.momentum_5m ? data.momentum_5m.length : 0);
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
@@ -3064,7 +3030,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (e.key === "k" || e.key === "K") setCategoryTab("akashi");
       else if (e.key === "1") setCategoryTab("siap");
       else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
-      else if (e.key === "2") setCategoryTab("cto");
       else if (e.key === "o" || e.key === "O") setCategoryTab("slow_cook");
       else if (e.key === "d" || e.key === "D") setCategoryTab("dip");
       else if (e.key === "f" || e.key === "F") setCategoryTab("flip");
@@ -3153,7 +3118,6 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "dip_chop": app_state.get("dip_chop", []),
                     "smart_lp": app_state.get("smart_lp", []),
                     "flip_lp": app_state.get("flip_lp", []),
-                    "cto_lp": app_state.get("cto_lp", []),
                     "momentum_5m": app_state.get("momentum_5m", []),
                     "absorption": app_state["absorption"],
                     "break_ath": app_state.get("break_ath", []),
