@@ -131,16 +131,16 @@ DEFAULT_CONFIG = {
     "interval_sec": 300,        # 5 menit
     "position_usd": 100,        # modal posisi $100
     "min_liq": 20000,           # TVL pool min $20k
-    "min_mcap": 1000000.0,      # Market cap minimal $1M ($1,000,000)
+    "min_mcap": 500000.0,       # Market cap minimal $500k ($500,000)
     "max_mcap": 500000000.0,    # Filter token raksasa / native ($500M)
-    "min_age_hours": 12.0,      # Usia minimal token 24 jam (hard filter anti-sniper)
+    "min_age_hours": 12.0,      # Usia minimal token 12 jam (hard filter anti-sniper)
     "min_fee_siap_lp": 0.50,    # Hanya tampilkan Siap LP jika fee/hour >= $0.50
     "min_fee_absorb": 0.50,     # Hanya tampilkan Absorption Radar jika fee/hour >= $0.50
     "min_fee_break_ath": 0.50,  # Hanya tampilkan Break ATH LP jika fee/hour >= $0.50
     "break_ath_min_scans": 3,   # Minimal 3 scan berturut-turut (15 menit)
     "break_ath_min_buy": 50.0,  # Minimal buy ratio 50%
-    "break_ath_min_mcap": 1000000.0,  # Min Mcap $1M (sama dengan LP biasa)
-    "break_ath_min_ath": 1000000.0,   # Min ATH yang ditembus > $1M
+    "break_ath_min_mcap": 500000.0,   # Min Mcap $500k (sama dengan LP biasa)
+    "break_ath_min_ath": 500000.0,    # Min ATH yang ditembus > $500k
     "filter_stocks": True,      # Filter tokenized stocks/ETF Robinhood (META, NVDA, GOOGL, dll.)
     "min_vl": 0.5,              # V/L 24h min 0.5x (disesuaikan untuk koin MCap $1M+)
     "max_5m": 15.0,             # volatilitas 5m max 15%
@@ -251,8 +251,12 @@ def get_config() -> dict[str, Any]:
                                 val = 0.5
                             if k == "max_1h" and val == 80.0:
                                 val = 20.0
-                            if k == "min_mcap" and val == 500000.0:
-                                val = 1000000.0
+                            if k == "min_mcap" and val == 1000000.0:
+                                val = 500000.0
+                            if k == "min_age_hours" and val == 24.0:
+                                val = 12.0
+                            if k == "break_ath_min_mcap" and val == 1000000.0:
+                                val = 500000.0
                             conf[k if k != "position" else "position_usd"] = val
                     break
             except Exception:
@@ -947,9 +951,9 @@ def score_break_ath_candidates(
     min_vl = float(conf.get("min_vl", 0.5))
     min_liq = float(conf.get("min_liq", 20000.0))
     min_buy = float(conf.get("break_ath_min_buy", 50.0))
-    min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 1000000.0))
+    min_mcap = float(conf.get("break_ath_min_mcap") or conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
-    min_ath = float(conf.get("break_ath_min_ath") or 1000000.0)
+    min_ath = float(conf.get("break_ath_min_ath") or 500000.0)
     min_age_hours = float(conf.get("min_age_hours", 12.0))
 
     candidates: list[dict] = []
@@ -1169,7 +1173,7 @@ def score_5m_momentum_candidates(
     min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
     min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
     min_vl = float(conf.get("min_vl", 0.5))
-    min_mcap = float(conf.get("min_mcap", 1000000.0))
+    min_mcap = float(conf.get("min_mcap", 500000.0))
     max_mcap = float(conf.get("max_mcap", 500000000.0))
     min_age_hours = float(conf.get("min_age_hours", 12.0))
     max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
@@ -2302,7 +2306,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         t0 = time.time()
         source = conf.get("data_source", "GMGN").upper()
         api_key = conf.get("gmgn_api_key", GMGN_KEY)
-        min_mcap = float(conf.get("min_mcap", 1000000.0))
+        min_mcap = float(conf.get("min_mcap", 500000.0))
         max_mcap = float(conf.get("max_mcap", 500000000.0))
         min_age_hours = float(conf.get("min_age_hours", 12.0))
         min_fee_siap_lp = float(conf.get("min_fee_siap_lp", 0.50))

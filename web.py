@@ -97,7 +97,7 @@ def load_persistent_filters() -> dict[str, Any]:
         "momentum_5m_min_liq": 10000.0,
         "momentum_5m_min_fee": 0.50,
         "min_liq": 20000.0,
-        "min_mcap": 1000000.0,
+        "min_mcap": 500000.0,
         "max_mcap": 500000000.0,
         "min_age_hours": 12.0,
         "min_vl": 0.5,
@@ -135,10 +135,14 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["min_vl"] = 0.5
                 if saved.get("max_1h") == 80.0:
                     saved["max_1h"] = 20.0
-                if saved.get("min_mcap") == 500000.0:
-                    saved["min_mcap"] = 1000000.0
-                if "min_age_hours" not in saved:
+                if saved.get("min_mcap") == 1000000.0:
+                    saved["min_mcap"] = 500000.0
+                if saved.get("min_age_hours") == 24.0 or "min_age_hours" not in saved:
                     saved["min_age_hours"] = 12.0
+                if saved.get("break_ath_min_mcap") == 1000000.0:
+                    saved["break_ath_min_mcap"] = 500000.0
+                if saved.get("break_ath_min_ath") == 1000000.0:
+                    saved["break_ath_min_ath"] = 500000.0
                 if "min_buy_ratio" not in saved:
                     saved["min_buy_ratio"] = 46.0
                 if "max_ath_drawdown" not in saved:
@@ -1782,9 +1786,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="form-group">
           <div class="form-label">
             <span>Min Market Cap ($)</span>
-            <span>Hard filter min $1M</span>
+            <span>Hard filter min $500k</span>
           </div>
-          <input type="number" step="100000" id="f_min_mcap" class="form-input" value="1000000">
+          <input type="number" step="100000" id="f_min_mcap" class="form-input" value="500000">
         </div>
 
         <div class="form-group">
@@ -2234,7 +2238,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         showToast("Preset Standar dipilih", "⚖️");
       } else if (p === 'agresif') {
         document.getElementById("f_min_fee").value  = 0.3;
-        document.getElementById("f_min_mcap").value = 1000000;
+        document.getElementById("f_min_mcap").value = 500000;
         document.getElementById("f_min_age_hours").value = 12;
         document.getElementById("f_min_liq").value  = 15000;
         document.getElementById("f_min_vl").value   = 0.3;
@@ -2253,8 +2257,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     function resetDefaultFilters() {
       document.getElementById("f_chain_mode").value = "BOTH";
       document.getElementById("f_min_fee").value  = 0.5;
-      document.getElementById("f_min_mcap").value = 1000000;
-      document.getElementById("f_min_age_hours").value = 24;
+      document.getElementById("f_min_mcap").value = 500000;
+      document.getElementById("f_min_age_hours").value = 12;
       document.getElementById("f_min_liq").value  = 20000;
       document.getElementById("f_min_vl").value   = 0.5;
       document.getElementById("f_min_buy_ratio").value = 46.0;
@@ -2274,7 +2278,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const payload = {
         chain_mode:          targetChain,
         min_fee_siap_lp:     parseFloat(document.getElementById("f_min_fee").value)  || 0.5,
-        min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 1000000,
+        min_mcap:            parseFloat(document.getElementById("f_min_mcap").value) || 500000,
         min_age_hours:       parseFloat(document.getElementById("f_min_age_hours").value) || 12,
         min_liq:             parseFloat(document.getElementById("f_min_liq").value)  || 20000,
         min_vl:              parseFloat(document.getElementById("f_min_vl").value)   || 0.5,
@@ -2468,13 +2472,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
           dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
           all:         "Belum ada token di semua kategori sinyal.",
-            siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%).",
-          akashi:      "Belum ada token memenuhi kriteria 🔴 Akashi Zone (Fibo 0.236 - 0.382, V/L ≥ 0.5x, MC ≥ $1M).",
-          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $1M, Usia ≥ 24h).",
-          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x, Buy% ≥ 46%).",
-          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $1M, Usia ≥ 24h, V/L ≥ 0.5x).",
+            siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%, MC ≥ $500k, Usia ≥ 12h).",
+          akashi:      "Belum ada token memenuhi kriteria 🔴 Akashi Zone (Fibo 0.236 - 0.382, V/L ≥ 0.5x, MC ≥ $500k, Usia ≥ 12h).",
+          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $500k, Usia ≥ 12h).",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $500k, Usia ≥ 12h, V/L ≥ 0.5x, Buy% ≥ 46%).",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $500k, Usia ≥ 12h, V/L ≥ 0.5x).",
           history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir (Akashi Zone, Siap LP, 5M Momentum, Break ATH, Absorption).",
-          gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $1M & Usia ≥ 24h).",
+          gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $500k & Usia ≥ 12h).",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
@@ -3285,7 +3289,7 @@ def run_server() -> None:
     print(f"🔸 Solana        : Aktif (GMGN / Fallback Meteora)")
     print(f"🔹 Robinhood     : Aktif (GMGN Open API)")
     print(f"🎯 Strategi      : Chop Sideways LP Farming (100% Bot Parity)")
-    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp', 0.5)}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 1000000.0))} │ V/L ≥ {initial_filters.get('min_vl', 0.5)}x │ Buy% ≥ {initial_filters.get('min_buy_ratio', 46.0)}%")
+    print(f"⚙️ Parameter     : Min Fee ${initial_filters.get('min_fee_siap_lp', 0.5)}/h │ MC ≥ {bot_sol_lp._usd(initial_filters.get('min_mcap', 500000.0))} │ V/L ≥ {initial_filters.get('min_vl', 0.5)}x │ Buy% ≥ {initial_filters.get('min_buy_ratio', 46.0)}%")
     print(f"🌐 Akses Browser : http://localhost:{PORT} atau http://<IP_VPS>:{PORT}")
     print("=" * 60)
 

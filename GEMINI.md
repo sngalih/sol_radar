@@ -23,10 +23,10 @@
   - **Asymmetric Downside Guard**: `p1 >= -8.0%` (penurunan 1 jam maks -8%) dan `p5 >= -4.0%` (penurunan 5 menit maks -4%). Menolak koin yang sedang meluncur bebas (*falling knife*).
   - `min_vl >= 0.5x`: Standar rasio perputaran volume terhadap likuiditas (Turnover V/L) universal untuk SEMUA strategi (Siap LP, Akashi Zone, 5M Momentum, Break ATH, Absorption, dan Gaps). Menggantikan filter ambang batas fee/jam arbitrer ($/h) demi objektivitas konsisten lintas timeframe dan pool.
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
-  - `min_mcap >= $1,000,000` ($1M USD Market Cap)
-  - `min_age_hours >= 24.0` (Usia token minimal 24 jam sejak pembuatan / open trading)
-  - Token dengan Market Cap < $1M atau Usia < 24 jam di-drop langsung dari pemindaian LP (Hard Filter Drop).
-  - **Pengecualian Khusus Spot Runner Tier 2**: Khusus strategi `🚀 Runner Momentum (Tier 2 Fresh Breakout)`, sistem mengevaluasi koin $50k – $1M & usia < 24h dari feed GMGN 1h dan 5m sebelum filter LP membuang koin muda, sementara seluruh strategi LP tetap terkunci di MC ≥ $1M & Usia ≥ 24h.
+  - `min_mcap >= $500,000` ($500k USD Market Cap)
+  - `min_age_hours >= 12.0` (Usia token minimal 12 jam sejak pembuatan / open trading)
+  - Token dengan Market Cap < $500k atau Usia < 12 jam di-drop langsung dari pemindaian LP (Hard Filter Drop).
+  - **Pengecualian Khusus Spot Runner Tier 2**: Khusus strategi `🚀 Runner Momentum (Tier 2 Fresh Breakout)`, sistem mengevaluasi koin $50k – $1M & usia < 24h dari feed GMGN 1h dan 5m sebelum filter LP membuang koin muda, sementara seluruh strategi LP tetap terkunci di MC ≥ $500k & Usia ≥ 12h.
 - **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
   - `top10_rate <= 45%` (Whale risk)
   - `dev_team_hold <= 20%` (Dev dump risk)
