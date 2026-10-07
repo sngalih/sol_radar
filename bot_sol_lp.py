@@ -2003,10 +2003,7 @@ def generate_report(
             p5_str = f" (+{p5_val:.0f}% 5m)" if p5_val > 0 else ""
             chain = str(rn.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            other_narr = [f"[{tg}]" for tg in rn.get("narratives", []) if tg != tier]
-            narr_suffix = f" │ {' '.join(other_narr[:2])}" if other_narr else ""
-
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ [{tier}]{p5_str}{narr_suffix}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ [{tier}]{p5_str}")
 
             rn_addr = str(rn.get("address") or "").strip().lower()
             rn_hist = hist_map.get(rn_addr)
@@ -2027,10 +2024,8 @@ def generate_report(
             mc_str = _usd(t['mcap'])
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            narr_tags = [f"[{tg}]" for tg in t.get("narratives", [])]
-            narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
             addr = str(t.get("address") or "").strip().lower()
             hist = hist_map.get(addr)
             if hist and hist.get("count", 1) > 1:
@@ -2272,10 +2267,8 @@ def generate_report(
             vl = g.get("vl", 0.0)
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
-            narr_tags = [f"[{tg}]" for tg in g.get("narratives", [])]
-            narr_str = f" │ {' '.join(narr_tags)}" if narr_tags else ""
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{narr_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
 
     report_body = "\n".join(lines).strip()
     return f"{report_body}"
