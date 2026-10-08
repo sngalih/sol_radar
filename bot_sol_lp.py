@@ -1822,24 +1822,6 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     is_cto = (cto_flag == 1)
 
     narratives: list[str] = []
-    if is_cto:
-        narratives.append("👑 CTO")
-
-    sym_lower = symbol.lower()
-    name_lower = name.lower()
-    full_text = f"{sym_lower} {name_lower}"
-
-    ai_keywords = (" ai", "ai ", "agent", "acc", "gpt", "llm", "bot", "neural", "deep", "compute")
-    if any(kw in full_text for kw in ai_keywords) or sym_lower.startswith("ai") or sym_lower.endswith("ai"):
-        narratives.append("🤖 AI")
-
-    smart_degen_count = int(num(row, "smart_degen_count"))
-    if smart_degen_count >= 30:
-        narratives.append("🧠 Smart")
-
-    bluechip_pct = num(row, "bluechip_owner_percentage")
-    if bluechip_pct >= 0.02:
-        narratives.append("💎 Bluechip")
 
     twitter_username = str(row.get("twitter_username") or "").strip()
     twitter_url = f"https://x.com/{twitter_username}" if twitter_username else ""

@@ -2738,22 +2738,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             subRowHtml = `<span style="color:var(--red);font-size:10px;margin-left:8px;white-space:nowrap">❌ ${gapShort}</span>`;
           }
 
-          // Narrative badges & social link
-          const narrHtml = (t.narratives || []).map(n => {
-            let cls = 'narr-cto';
-            if (n.includes('AI')) cls = 'narr-ai';
-            else if (n.includes('Smart')) cls = 'narr-smart';
-            else if (n.includes('Bluechip')) cls = 'narr-blue';
-            else if (n.includes('Wave 2')) cls = 'narr-wave2';
-            else if (n.includes('Fresh')) cls = 'narr-fresh';
-            return `<span class="narr-pill ${cls}">${n}</span>`;
-          }).join('');
+          // Social link
           const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
           const histInfo = histLookup[(t.address || "").toLowerCase()];
           const histShortTime = histInfo ? (histInfo.summary_times_short || histInfo.last_seen_wib || "") : "";
           const histBadge = (histInfo && histInfo.count > 1)
-            ? `<span class="badge-hist-compact" title="Sinyal muncul ${histInfo.count}x: ${escapeHtml(histInfo.summary_times)}">🕒 ${histInfo.count}x${histShortTime ? ' (' + escapeHtml(histShortTime) + ')' : ''}</span>`
-            : "";
+            ? `<span class="badge-hist-compact" style="margin-left:0" title="Sinyal muncul ${histInfo.count}x: ${escapeHtml(histInfo.summary_times)}">🕒 ${histInfo.count}x${histShortTime ? ' (' + escapeHtml(histShortTime) + ')' : ''}</span>`
+            : (histInfo && histInfo.count === 1
+                ? `<span class="badge-hist-compact" style="margin-left:0;background:rgba(255,255,255,0.04);color:var(--text-sub);border-color:rgba(255,255,255,0.1)" title="Baru muncul 1x: ${escapeHtml(histInfo.summary_times)}">1x (${escapeHtml(histInfo.last_seen_wib || histShortTime)})</span>`
+                : '<span style="color:var(--text-dim);font-size:11px">—</span>');
 
           tRows += `
             <tr class="arc-tr ${rankClass}">
@@ -2763,10 +2756,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   ${avatarHtml}
                   <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:700;font-size:13px;color:var(--text-main);text-decoration:none">${t.symbol || "?"}</a>
                   ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
-                    ${narrHtml}
                   ${twitterHtml}
                   ${subRowHtml}
-                  ${histBadge}
                 </div>
               </td>
               <td class="arc-td mono" style="text-align:center;font-weight:700;color:var(--teal);font-size:12.5px;white-space:nowrap">${vlStr}</td>
@@ -2786,6 +2777,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               <td class="arc-td" style="white-space:nowrap">
                 <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100">${sGrade} ${sScore}</span>
               </td>
+              <td class="arc-td mono" style="text-align:center;white-space:nowrap">
+                ${histBadge}
+              </td>
             </tr>`;
         });
 
@@ -2804,6 +2798,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   <th>1H / 5M</th>
                   <th>BUY %</th>
                   <th>SAFE</th>
+                  <th style="text-align:center;white-space:nowrap">LAST SINYAL</th>
                 </tr>
               </thead>
               <tbody>${tRows}</tbody>
@@ -2919,16 +2914,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>`;
         }
 
-        // Narrative badges & social link
-        const narrHtml = (t.narratives || []).map(n => {
-          let cls = 'narr-cto';
-          if (n.includes('AI')) cls = 'narr-ai';
-          else if (n.includes('Smart')) cls = 'narr-smart';
-          else if (n.includes('Bluechip')) cls = 'narr-blue';
-          else if (n.includes('Wave 2')) cls = 'narr-wave2';
-          else if (n.includes('Fresh')) cls = 'narr-fresh';
-          return `<span class="narr-pill ${cls}">${n}</span>`;
-        }).join('');
+        // Social link
         const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
 
         // Gaps Reason Pills
@@ -2968,7 +2954,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   <div class="symbol-row" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
                     <span class="token-symbol">${t.symbol || "?"}</span>
                     ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
-                    ${narrHtml}
                     ${twitterHtml}
                     <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
                       <span>${caShort}</span> <span>⧉</span>

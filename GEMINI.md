@@ -58,7 +58,7 @@
   - Tabel utama hanya berisi koin yang **100% lolos kriteria (CHOP)**.
   - Koin yang belum lolos kriteria harus masuk ke panel **Belum Kriteria (Gaps)** beserta label alasan spesifik.
   - **Desktop Screen Resolution**: Layar laptop pengguna adalah `1920 x 1200`. Variabel `--container-max` di `web.py` diatur ke `1840px` agar tabel penuh dan tidak terpotong horizontal scrollbar.
-  - **Susunan Kolom Tabel (Table Mode)**: Urutan kolom wajib: `#` │ `TOKEN` │ `V/L` │ `AKSI` │ `MCAP` │ `LIQ` │ `ER` │ `1H / 5M` │ `BUY %` │ `SAFE`. Kolom `FEE/H` dan CA/VENUE dihapus agar tabel bersih, padat, dan tombol AKSI (GMGN) berada langsung di kolom ke-4.
+  - **Susunan Kolom Tabel (Table Mode)**: Urutan kolom wajib: `#` │ `TOKEN` │ `V/L` │ `AKSI` │ `MCAP` │ `LIQ` │ `ER` │ `1H / 5M` │ `BUY %` │ `SAFE` │ `LAST SINYAL`. Kolom `FEE/H` dan CA/VENUE dihapus agar tabel bersih, padat, tombol AKSI (GMGN) berada langsung di kolom ke-4, dan kolom `LAST SINYAL` berada di paling kanan untuk menampilkan riwayat sinyal tanpa memadati kolom TOKEN.
 
 ## 4. VPS Deployment Invariants
 - **Path Folder VPS**: Proyek berada di `~/sol_radar` (BUKAN `~/LP`).
@@ -80,7 +80,7 @@
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`).
-  - **DILARANG menampilkan tag narasi di chat Telegram** seperti `[👑 CTO]`, `[🧠 Smart]`, `[💎 Bluechip]`, atau `[🤖 AI]`. Tag narasi hanya ditampilkan di Web Dashboard agar tampilan chat tetap padat dan bersih.
+  - **DILARANG menampilkan tag narasi di chat Telegram maupun Web Dashboard** seperti `[👑 CTO]`, `[🧠 Smart]`, `[💎 Bluechip]`, atau `[🤖 AI]`. Seluruh tag narasi dihapus agar tampilan chat Telegram maupun antarmuka Web Dashboard tetap padat, bersih, dan fokus pada data esensial.
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
