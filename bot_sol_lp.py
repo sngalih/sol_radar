@@ -160,6 +160,11 @@ DEFAULT_CONFIG = {
     "akashi_origin_mcap": 55000.0, # Origin pump.fun launch MCap
     "akashi_fibo_low": 0.236,    # Batas bawah Akashi Zone (Fibo 0.236)
     "akashi_fibo_high": 0.382,   # Batas atas Akashi Zone (Fibo 0.382)
+    "max_bundler_rate": 0.55,   # Maksimal sniped bundle rate block 0 (55%)
+    "max_dev_hold": 20.0,       # Maksimal dev team hold (20% untuk LP)
+    "max_top10": 45.0,          # Maksimal top 10 whale hold (45% untuk LP)
+    "max_insider": 15.0,        # Maksimal insider rat trader (15%)
+    "min_holders": 150,         # Minimal holders untuk LP & Tier 1 (150)
 }
 
 
@@ -1371,9 +1376,21 @@ def score_runner_momentum_candidates(
         er = float(t.get("er") or 999.0)
         dev_hold = float(t.get("dev_team_hold") or 0.0)
         top10 = float(t.get("top10_rate") or 0.0)
+        insider = float(t.get("insider_rate") or 0.0)
         bundler = float(t.get("bundler_rate") or 0.0)
         chain = str(t.get("chain") or "SOL").upper()
         renounced_mint = t.get("renounced_mint")
+        renounced_freeze = t.get("renounced_freeze_account")
+        freeze_auth = t.get("freeze_authority")
+        freezable = t.get("freezable")
+        is_freeze_bad = (
+            chain == "SOL"
+            and (
+                (renounced_freeze is not None and str(renounced_freeze) == "0")
+                or (freeze_auth is not None and str(freeze_auth) not in ("0", "None", "", "null") and freeze_auth is not False)
+                or (freezable is True or str(freezable).lower() in ("true", "1"))
+            )
+        )
         vol = float(t.get("vol") or 0.0)
         vol_5m = float(t.get("vol_5m") or (vol / 12.0) if vol else 0.0)
         m_state = str(t.get("micro_state") or "")
@@ -1393,6 +1410,8 @@ def score_runner_momentum_candidates(
             and p1 >= -8.0
             and dev_hold <= 10.0
             and top10 <= 40.0
+            and insider <= 10.0
+            and not is_freeze_bad
             and not t.get("is_rug_risk")
             and (p5 > 0.0 or m_state in ("ABSORPTION", "REACCUMULATION") or er <= 8.0)
         ):
@@ -1410,7 +1429,9 @@ def score_runner_momentum_candidates(
             and p5 > 0.0
             and p1 >= -3.0
             and bundler <= 0.55
-            and dev_hold <= 15.0
+            and dev_hold <= 10.0
+            and insider <= 15.0
+            and not is_freeze_bad
             and not (chain == "SOL" and renounced_mint is not None and str(renounced_mint) == "0")
         ):
             matched_tier = "fresh"
@@ -1482,8 +1503,23 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     bundler_rate = num(row, "bundler_rate")
     holder_count = int(num(row, "holder_count", "holders"))
     renounced_mint = row.get("renounced_mint")
+    renounced_freeze = row.get("renounced_freeze_account")
+    freeze_auth = row.get("freeze_authority")
+    freezable = row.get("freezable")
     max_bundler_rate = float(conf.get("max_bundler_rate", 0.55))
     min_holders = int(conf.get("min_holders", 150))
+    max_dev_hold = float(conf.get("max_dev_hold", 20.0))
+    max_top10 = float(conf.get("max_top10", 45.0))
+    max_insider = float(conf.get("max_insider", 15.0))
+
+    is_freeze_bad = (
+        chain == "SOL"
+        and (
+            (renounced_freeze is not None and str(renounced_freeze) == "0")
+            or (freeze_auth is not None and str(freeze_auth) not in ("0", "None", "", "null") and freeze_auth is not False)
+            or (freezable is True or str(freezable).lower() in ("true", "1"))
+        )
+    )
 
     is_rug_risk = False
     rug_reasons: list[str] = []
@@ -1493,9 +1529,21 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     if chain == "SOL" and renounced_mint is not None and str(renounced_mint) == "0":
         is_rug_risk = True
         rug_reasons.append("Mint Not Renounced")
+    if is_freeze_bad:
+        is_rug_risk = True
+        rug_reasons.append("Freeze Auth Active")
     if 0 < holder_count < min_holders:
         is_rug_risk = True
         rug_reasons.append(f"Holders Rendah ({holder_count})")
+    if dev_team_hold > max_dev_hold:
+        is_rug_risk = True
+        rug_reasons.append(f"Dev Hold ({dev_team_hold:.1f}% > {max_dev_hold:.0f}%)")
+    if top10_rate > max_top10:
+        is_rug_risk = True
+        rug_reasons.append(f"Top 10 Whale ({top10_rate:.1f}% > {max_top10:.0f}%)")
+    if insider_rate > max_insider:
+        is_rug_risk = True
+        rug_reasons.append(f"Insider ({insider_rate:.1f}% > {max_insider:.0f}%)")
 
     # ── Narrative Classification ─────────────────────────────────────────────
     cto_flag = int(num(row, "cto_flag"))

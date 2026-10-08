@@ -10,7 +10,7 @@
   - **⚡ Akashi Zone LP**: Retracement Fibonacci antara 0.236 dan 0.382 dari origin/low ke ATH dengan sideways konsolidasi stabil.
   - **🚀 Runner Momentum (Spot Entry)**: Strategi khusus entry spot momentum multi-bagger dengan 2 tingkatan karakter:
     - **🏛️ Tier 1 (Established Runner / Wave 2)**: MC $1M – $10M, usia ≥ 12h, konsolidasi re-akumulasi kuat, drawdown ATH ≥ -70%, buyer menopang (`Buy% ≥ 50%`, `V/L ≥ 1.0x`), siap meledak di wave 2.
-    - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $20k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint, dev hold ≤ 15%, bundler ≤ 55%).
+    - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $20k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint & freeze, dev hold ≤ 10%, insider ≤ 15%, bundler ≤ 55%).
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:
@@ -28,11 +28,12 @@
   - Token dengan Market Cap < $500k atau Usia < 12 jam di-drop langsung dari pemindaian LP (Hard Filter Drop).
   - **Pengecualian Khusus Spot Runner Tier 2**: Khusus strategi `🚀 Runner Momentum (Tier 2 Fresh Breakout)`, sistem mengevaluasi koin $50k – $1M & usia < 24h dari feed GMGN 1h dan 5m sebelum filter LP membuang koin muda, sementara seluruh strategi LP tetap terkunci di MC ≥ $500k & Usia ≥ 12h.
 - **On-Chain Safety & Anti-Rug Multi-Layer Filters**:
-  - `top10_rate <= 45%` (Whale risk)
-  - `dev_team_hold <= 20%` (Dev dump risk)
+  - `top10_rate <= 45%` (Whale risk: Hard Filter di LP, <= 40% di Runner Tier 1)
+  - `dev_team_hold <= 20%` (Dev dump risk: Hard Filter di LP, <= 10% di Runner Tier 1 & Tier 2)
+  - `insider_rate <= 15%` (Rat trader/insider risk: Hard Filter di LP & Tier 2, <= 10% di Tier 1)
   - `bundler_rate <= 55%` (Maksimal sniped supply bundle block 0)
-  - `renounced_mint == 1` (Mint authority wajib dicabut pada rantai Solana)
-  - `holder_count >= 100` (Distribusi pemegang token memadai)
+  - `renounced_mint == 1` & `renounced_freeze == 1` (Mint & Freeze authority wajib dicabut pada rantai Solana)
+  - `holder_count >= 150` (Distribusi pemegang token memadai untuk LP & Tier 1)
   - `is_wash == False` & `is_honeypot == False` & `is_rug_risk == False` (**Hard Filter Mutlak** untuk SEMUA strategi: Siap LP, Akashi Zone, 5M Momentum, Break ATH, Absorption Radar, dan Gaps Radar tanpa pengecualian)
 - **Narrative & Social Detection Engine**:
   - Deteksi otomatis tag narasi: `👑 CTO` (Community Take Over), `🤖 AI` (AI Agents), `🧠 Smart` (Smart Money Inflow), `💎 Bluechip` (High market cap & liquidity).

@@ -109,6 +109,11 @@ def load_persistent_filters() -> dict[str, Any]:
         "max_ath_drawdown": -85.0,
         "max_er": 20.0,
         "min_absorb_score": 65.0,
+        "max_top10": 45.0,
+        "max_dev_hold": 20.0,
+        "max_insider": 15.0,
+        "max_bundler_rate": 0.55,
+        "min_holders": 150,
         "interval_sec": 300,
         "chain_mode": "RH",
     }
