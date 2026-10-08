@@ -85,7 +85,7 @@
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
   - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token agar tampilan daftar GAPS sangat padat (compact).
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
-  - **Batasan Riwayat Sinyal 3 Terakhir di Chat**: Pada baris jam riwayat token (`🕒 Sinyal:` atau menu `/history`), batasi hanya menampilkan **maksimal 3 sinyal terakhir ke belakang** (contoh: `🕒 Sinyal: 08:15, 08:20, 08:25 WIB (41x)`). Dashboard Web tetap menampilkan seluruh 24 jam penuh.
+  - **DILARANG Menampilkan Baris Riwayat Sinyal (`🕒 Sinyal:`) di Pesan Rutin**: Pada laporan pemindaian berkala 5 menit di Telegram, baris riwayat jam sinyal (`🕒 Sinyal: ... (Nx)`) **DILARANG DITAMPILKAN** agar seluruh daftar token murni dan strictly 1 baris per token. Riwayat 24 jam tetap dicatat di backend dan disajikan penuh pada Web Dashboard (Tab 7 `📜 HISTORY`) serta menu on-demand `/history`.
 
 ## 6. Sinkronisasi Waktu Pemindaian (Scan Timing Synchronization)
 - **Jadwal Jam Dinding Kelipatan 5 Menit**:

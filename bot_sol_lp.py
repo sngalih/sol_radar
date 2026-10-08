@@ -2027,7 +2027,6 @@ def generate_report(
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
     top_limit = conf.get("top_n_display", 10)
-    hist_map = get_token_signal_history_map()
 
     mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
     mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
@@ -2053,12 +2052,6 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ [{tier}]{p5_str}")
 
-            rn_addr = str(rn.get("address") or "").strip().lower()
-            rn_hist = hist_map.get(rn_addr)
-            if rn_hist and rn_hist.get("count", 1) > 1:
-                rn_times_disp = rn_hist.get("summary_times_short") or rn_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {rn_times_disp} ({rn_hist['count']}x)")
-
         if len(rn_list) > top_limit:
             lines.append(f"<i>...dan {len(rn_list) - top_limit} token Runner lainnya</i>")
 
@@ -2074,11 +2067,6 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
-            addr = str(t.get("address") or "").strip().lower()
-            hist = hist_map.get(addr)
-            if hist and hist.get("count", 1) > 1:
-                times_disp = hist.get("summary_times_short") or hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {times_disp} ({hist['count']}x)")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -2098,12 +2086,6 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} (Fibo {f_ratio:.3f})")
-
-            ak_addr = str(ak.get("address") or "").strip().lower()
-            ak_hist = hist_map.get(ak_addr)
-            if ak_hist and ak_hist.get("count", 1) > 1:
-                ak_times_disp = ak_hist.get("summary_times_short") or ak_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {ak_times_disp} ({ak_hist['count']}x)")
 
         if len(ak_list) > top_limit:
             lines.append(f"<i>...dan {len(ak_list) - top_limit} pool Akashi lainnya</i>")
@@ -2127,12 +2109,6 @@ def generate_report(
             score = sc.get("slow_cook_score", 0)
             
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Skor {score}/100")
-            
-            c_addr = str(sc.get("address") or "").strip().lower()
-            c_hist = hist_map.get(c_addr)
-            if c_hist and c_hist.get("count", 1) > 1:
-                c_times_disp = c_hist.get("summary_times_short") or c_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {c_times_disp} ({c_hist['count']}x)")
 
         if len(sc_list) > top_limit:
             lines.append(f"<i>...dan {len(sc_list) - top_limit} pool Slow Cook lainnya</i>")
@@ -2156,12 +2132,6 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
             
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Drop {drop:.1f}%")
-            
-            d_addr = str(d.get("address") or "").strip().lower()
-            d_hist = hist_map.get(d_addr)
-            if d_hist and d_hist.get("count", 1) > 1:
-                d_times_disp = d_hist.get("summary_times_short") or d_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {d_times_disp} ({d_hist['count']}x)")
 
         if len(d_list) > top_limit:
             lines.append(f"<i>...dan {len(d_list) - top_limit} pool 30% Dip lainnya</i>")
@@ -2186,12 +2156,6 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ SM {sd_count} │ KOL {rn_count}")
-
-            sm_addr = str(sm.get("address") or "").strip().lower()
-            sm_hist = hist_map.get(sm_addr)
-            if sm_hist and sm_hist.get("count", 1) > 1:
-                sm_times_disp = sm_hist.get("summary_times_short") or sm_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {sm_times_disp} ({sm_hist['count']}x)")
 
         if len(sm_list) > top_limit:
             lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
@@ -2219,12 +2183,6 @@ def generate_report(
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Buy% {buy_pct:.0f}% │ ST↘")
 
-            fl_addr = str(fl.get("address") or "").strip().lower()
-            fl_hist = hist_map.get(fl_addr)
-            if fl_hist and fl_hist.get("count", 1) > 1:
-                fl_times_disp = fl_hist.get("summary_times_short") or fl_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {fl_times_disp} ({fl_hist['count']}x)")
-
         if len(fl_list) > top_limit:
             lines.append(f"<i>...dan {len(fl_list) - top_limit} pool Flip LP lainnya</i>")
 
@@ -2251,11 +2209,6 @@ def generate_report(
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
             lines.append(f"  ⚡ 5m {p5_str} │ 🌊 Vol5m {vol5_str} │ {tx_str}")
-            m_addr = str(m.get("address") or "").strip().lower()
-            m_hist = hist_map.get(m_addr)
-            if m_hist and m_hist.get("count", 1) > 1:
-                m_times_disp = m_hist.get("summary_times_short") or m_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {m_times_disp} ({m_hist['count']}x)")
             lines.append("")
 
     # 3. BREAK ATH LP
@@ -2275,11 +2228,6 @@ def generate_report(
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
             lines.append(f"  ⏱ {dur_str} │ 🌊 Vol {_usd(b.get('vol', 0.0))} │ 🟢 {b_ratio}% Buy")
-            b_addr = str(b.get("address") or "").strip().lower()
-            b_hist = hist_map.get(b_addr)
-            if b_hist and b_hist.get("count", 1) > 1:
-                b_times_disp = b_hist.get("summary_times_short") or b_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {b_times_disp} ({b_hist['count']}x)")
             lines.append("")
 
     # 4. ABSORPTION RADAR
@@ -2295,12 +2243,6 @@ def generate_report(
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
 
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ {mc_str} │ {status}")
-            t_addr = str(t.get("address") or "").strip().lower()
-            t_hist = hist_map.get(t_addr)
-            if t_hist and t_hist.get("count", 1) > 1:
-                t_times_disp = t_hist.get("summary_times_short") or t_hist.get("summary_times", "")
-                lines.append(f"  🕒 Sinyal: {t_times_disp} ({t_hist['count']}x)")
-            lines.append("")
         if len(absorption) > top_limit:
             lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
 
