@@ -67,6 +67,7 @@ app_state: dict[str, Any] = {
     "next_scan_timestamp": 0,
     "total_scanned": 0,
     "runner_momentum": [],
+    "bonus_stage": [],
     "siap_lp": [],
     "akashi_zone": [],
     "slow_cook_lp": [],
@@ -78,7 +79,7 @@ app_state: dict[str, Any] = {
     "break_ath": [],
     "gaps": [],
     "signal_history": [],
-    "counts": {"runner": 0, "siap": 0, "akashi_zone": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
+    "counts": {"runner": 0, "bonus_stage": 0, "siap": 0, "akashi_zone": 0, "momentum_5m": 0, "absorption": 0, "break_ath": 0, "gaps": 0, "history": 0, "total": 0},
     "top_yield": 0.0,
     "top_vl": 0.0,
     "filters": {},
@@ -199,6 +200,7 @@ def perform_scan(force: bool = False) -> None:
         res = bot_sol_lp.execute_full_scan(conf, force=force)
 
         runner_momentum = res.get("runner_momentum", [])
+        bonus_stage = res.get("bonus_stage", [])
         siap_lp = res.get("siap_lp", [])
         akashi_zone = res.get("akashi_zone", [])
         slow_cook_lp = res.get("slow_cook_lp", [])
@@ -220,6 +222,7 @@ def perform_scan(force: bool = False) -> None:
             app_state["next_scan_timestamp"] = res.get("next_scan_timestamp", 0)
             app_state["total_scanned"] = res.get("total_scanned", 0)
             app_state["runner_momentum"] = runner_momentum
+            app_state["bonus_stage"] = bonus_stage
             app_state["siap_lp"] = siap_lp
             app_state["akashi_zone"] = akashi_zone
             app_state["slow_cook_lp"] = slow_cook_lp
@@ -711,6 +714,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--teal);
     }
 
+    .cat-tab.active[data-cat="bonus_stage"] {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: #a855f7;
+      color: #c084fc;
+    }
+    .cat-tab.active[data-cat="bonus_stage"] .badge-count {
+      background: rgba(168, 85, 247, 0.25);
+      color: #c084fc;
+    }
+
     .cat-tab.active[data-cat="gaps"] {
       background: rgba(255, 107, 134, 0.1);
       border-color: var(--rose);
@@ -1109,6 +1122,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
     .state-chop       { background: var(--green-bg); color: var(--green); border-color: rgba(47, 217, 123, 0.3); }
     .state-runner     { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.4); }
+    .state-bonus      { background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.4); }
     .state-cto        { background: var(--purple-bg); color: var(--purple); border-color: rgba(216, 180, 254, 0.3); }
     .state-momentum   { background: var(--amber-bg); color: var(--amber); border-color: rgba(255, 194, 75, 0.3); }
     .state-ath        { background: var(--teal-bg); color: var(--teal); border-color: rgba(126, 224, 201, 0.3); }
@@ -1241,6 +1255,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .token-card.sol-card { border-left: 3px solid var(--amber); }
     .token-card.rh-card  { border-left: 3px solid var(--teal); }
     .token-card.runner-card { border-left: 3px solid #06b6d4; }
+    .token-card.bonus-card  { border-left: 3px solid #a855f7; }
     .token-card.ath-card { border-left: 3px solid var(--teal); }
     .token-card.momentum-card { border-left: 3px solid var(--amber); }
     .token-card.cto-card { border-left: 3px solid var(--purple); }
@@ -1685,6 +1700,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="cat-tab" data-cat="runner" onclick="setCategoryTab('runner')" title="Hotkey: R">
           <span>🚀 RUNNER</span>
           <span id="badgeRunner" class="badge-count">0</span>
+        </div>
+        <div class="cat-tab" data-cat="bonus_stage" onclick="setCategoryTab('bonus_stage')" title="Hotkey: B">
+          <span>🎮 BONUS</span>
+          <span id="badgeBonus" class="badge-count">0</span>
         </div>
         <div class="cat-tab" data-cat="akashi" onclick="setCategoryTab('akashi')" title="Hotkey: K">
           <span>🔴 AKASHI</span>
@@ -2178,7 +2197,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
       );
       const catLabels = {
-        all: "ALL SIGNALS", runner: "🚀 RUNNER", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
+        all: "ALL SIGNALS", runner: "🚀 RUNNER", bonus_stage: "🎮 BONUS STAGE", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
         smart: "🧠 SMART LP", slow_cook: "🍲 SLOW COOK",
         dip: "📉 30% DIP", flip: "📉 FLIP LP", momentum_5m: "⚡ 5M",
         absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
@@ -2402,6 +2421,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           };
 
           mergeList(globalState.runner_momentum, "RUNNER", "#06b6d4");
+          mergeList(globalState.bonus_stage, "BONUS", "#8b5cf6");
           mergeList(globalState.akashi_zone, "AKASHI", "#dc2626");
           mergeList(globalState.siap_lp, "Siap LP", "#2fd97b");
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
@@ -2418,6 +2438,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           if (bAll) bAll.innerText = rawList.length;
       }
       else if (activeCategory === "runner")      rawList = globalState.runner_momentum || [];
+      else if (activeCategory === "bonus_stage") rawList = globalState.bonus_stage || [];
       else if (activeCategory === "akashi")      rawList = globalState.akashi_zone || [];
       else if (activeCategory === "dip")         rawList = globalState.dip_chop || [];
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
@@ -2474,6 +2495,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (!filtered.length) {
         const msgs = {
           runner:      "Belum ada token memenuhi kriteria 🚀 Runner Momentum (Tier 1 Wave 2 atau Tier 2 Fresh Breakout).",
+          bonus_stage: "Belum ada token memenuhi kriteria 🎮 Bonus Stage (New ATH > $250k, Usia < 48h, Supertrend 15m Retrace).",
           slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
           dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
           all:         "Belum ada token di semua kategori sinyal.",
@@ -2687,22 +2709,26 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const mState = t.micro_state || "NEUTRAL";
           let spClass = "state-neutral", spIcon = "🎯";
           if (activeCategory === "runner")      { spClass = "state-runner";     spIcon = "🚀"; }
+          else if (activeCategory === "bonus_stage") { spClass = "state-bonus"; spIcon = "🎮"; }
           else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
           else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
           else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
           else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
           else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
           else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
-          const spLabel = activeCategory === "runner" ? "Spot Runner 🚀" : (activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring"))));
+          const spLabel = activeCategory === "runner" ? "Spot Runner 🚀" : (activeCategory === "bonus_stage" ? "Bonus Stage 🎮" : (activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring")))));
 
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
 
-          // Sub-details if Runner, Momentum, ATH
+          // Sub-details if Runner, Bonus, Momentum, ATH
           let subRowHtml = "";
           if (activeCategory === "runner") {
             const tierStr = t.runner_label || "🚀 Runner";
             subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:8px;white-space:nowrap">${tierStr}</span>`;
+          } else if (activeCategory === "bonus_stage") {
+            const dist = (t.st_retrace_pct !== undefined) ? (t.st_retrace_pct >= 0 ? `+${t.st_retrace_pct}%` : `${t.st_retrace_pct}%`) : "";
+            subRowHtml = `<span style="color:#c084fc;font-size:10px;margin-left:8px;white-space:nowrap">🎮 ST ${dist}</span>`;
           } else if (activeCategory === "momentum_5m") {
             subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:8px;white-space:nowrap">⚡ V5: ${formatUsd(t.vol_5m || t.vol || 0)}</span>`;
           } else if (activeCategory === "break_ath") {
@@ -2794,7 +2820,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const chainBadge = isRh
           ? `<span class="chain-pill rh">RH</span>`
           : `<span class="chain-pill sol">SOL</span>`;
-        const cardClass = activeCategory === "runner" ? "runner-card" : (activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card")));
+        const cardClass = activeCategory === "runner" ? "runner-card" : (activeCategory === "bonus_stage" ? "bonus-card" : (activeCategory === "momentum_5m" ? "momentum-card" : (activeCategory === "break_ath" ? "ath-card" : (isRh ? "rh-card" : "sol-card"))));
         const rankBadge = getRankBadge(idx);
         const rankClass = idx === 0 ? "rank-1" : "";
 
@@ -2835,6 +2861,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const mState = t.micro_state || "NEUTRAL";
         let spClass = "state-neutral", spIcon = "🎯";
         if (activeCategory === "runner")      { spClass = "state-runner";     spIcon = "🚀"; }
+        else if (activeCategory === "bonus_stage") { spClass = "state-bonus"; spIcon = "🎮"; }
         else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
         else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
         else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
@@ -2844,13 +2871,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
         const spLabel = activeCategory === "runner"
           ? "Spot Runner 🚀"
-          : (activeCategory === "momentum_5m"
-            ? "5M Momentum ⚡"
-            : (activeCategory === "break_ath"
-              ? "Break ATH ✓"
-              : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring"))));
+          : (activeCategory === "bonus_stage"
+            ? "Bonus Stage 🎮"
+            : (activeCategory === "momentum_5m"
+              ? "5M Momentum ⚡"
+              : (activeCategory === "break_ath"
+                ? "Break ATH ✓"
+                : (t.status_label || (t.is_chop ? "Chopping Sideways" : "Monitoring")))));
 
-        // Runner / 5M Momentum / Break ATH Extra Banner
+        // Runner / Bonus Stage / 5M Momentum / Break ATH Extra Banner
         let athHtml = "";
         if (activeCategory === "runner") {
           const tierStr = t.runner_label || "🚀 Runner";
@@ -2859,6 +2888,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               <div class="ath-tag" style="color:#22d3ee"><span>🚀 Tier:</span> ${tierStr}</div>
               <div class="ath-tag" style="color:var(--green-light)"><span>📈 5m / 1h:</span> ${p5Str} / ${p1Str}</div>
               <div class="ath-tag"><span>💧 Liq:</span> ${liqStr}</div>
+            </div>`;
+        } else if (activeCategory === "bonus_stage") {
+          const dist = (t.st_retrace_pct !== undefined) ? (t.st_retrace_pct >= 0 ? `+${t.st_retrace_pct}%` : `${t.st_retrace_pct}%`) : "—";
+          const athMcap = t.ath_mcap ? formatUsd(t.ath_mcap) : "—";
+          const stVal = t.st_val ? formatPrice(t.st_val) : "—";
+          athHtml = `
+            <div class="ath-info-row" style="border-left: 2px solid #a855f7; background: rgba(168, 85, 247, 0.08);">
+              <div class="ath-tag" style="color:#c084fc"><span>🎮 15m ST Retrace:</span> ${dist}</div>
+              <div class="ath-tag" style="color:var(--amber)"><span>🏆 New ATH:</span> ${athMcap}</div>
+              <div class="ath-tag"><span>🛡️ ST Line:</span> ${stVal}</div>
             </div>`;
         } else if (activeCategory === "momentum_5m") {
           const v5m = formatUsd(t.vol_5m || t.vol || 0);
@@ -3040,6 +3079,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         // Category Badges
         const bRunner = document.getElementById("badgeRunner");
         if (bRunner) bRunner.innerText = (data.counts && data.counts.runner) || (data.runner_momentum ? data.runner_momentum.length : 0);
+        const bBonus = document.getElementById("badgeBonus");
+        if (bBonus) bBonus.innerText = (data.counts && data.counts.bonus_stage) || (data.bonus_stage ? data.bonus_stage.length : 0);
         const bAkashi = document.getElementById("badgeAkashi");
         if (bAkashi) bAkashi.innerText = (data.counts && data.counts.akashi_zone) || (data.akashi_zone ? data.akashi_zone.length : 0);
         document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
@@ -3082,6 +3123,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       if (e.key === "Escape") closeModal();
       else if (e.key === "a" || e.key === "A") setCategoryTab("all");
       else if (e.key === "r" || e.key === "R") setCategoryTab("runner");
+      else if (e.key === "b" || e.key === "B") setCategoryTab("bonus_stage");
       else if (e.key === "k" || e.key === "K") setCategoryTab("akashi");
       else if (e.key === "1") setCategoryTab("siap");
       else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
@@ -3168,6 +3210,7 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "top_vl": app_state.get("top_vl", 0.0),
                     "filters": app_state["filters"],
                     "runner_momentum": app_state.get("runner_momentum", []),
+                    "bonus_stage": app_state.get("bonus_stage", []),
                     "siap_lp": app_state["siap_lp"],
                     "akashi_zone": app_state.get("akashi_zone", []),
                     "slow_cook_lp": app_state.get("slow_cook_lp", []),

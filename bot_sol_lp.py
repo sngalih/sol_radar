@@ -165,6 +165,20 @@ DEFAULT_CONFIG = {
     "max_top10": 45.0,          # Maksimal top 10 whale hold (45% untuk LP)
     "max_insider": 15.0,        # Maksimal insider rat trader (15%)
     "min_holders": 150,         # Minimal holders untuk LP & Tier 1 (150)
+    "bonus_stage_min_ath": 250000.0,      # Min New ATH Market Cap $250k
+    "bonus_stage_max_age_hours": 48.0,    # Usia token < 2 hari
+    "bonus_stage_min_vl": 1.0,            # Turnover V/L min 1.0x
+    "bonus_stage_max_retrace_dist": 3.5,  # Retrace zone (0% s/d +3.5% di atas garis ST 15m)
+    "bonus_stage_st_period": 10,          # Supertrend ATR period 15m
+    "bonus_stage_st_multiplier": 3.0,     # Supertrend multiplier 15m
+    "bonus_stage_max_dev_hold": 10.0,     # Dev hold max 10%
+    "bonus_stage_max_top10": 35.0,        # Top 10 whale hold max 35%
+    "bonus_stage_max_top70_sniper": 15.0, # Sniper hold rate di top 70 max 15%
+    "bonus_stage_max_insider": 12.0,      # Insider rate max 12%
+    "bonus_stage_max_bundler": 0.50,      # Bundler max 50%
+    "bonus_stage_min_holders": 150,       # Minimal 150 holders
+    "bonus_stage_min_vol": 50000.0,       # Min volume $50k
+    "bonus_stage_min_buy": 48.0,          # Min buy ratio 48%
 }
 
 
@@ -246,7 +260,12 @@ def get_config() -> dict[str, Any]:
                         "min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position",
                         "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol",
                         "momentum_5m_min_liq", "momentum_5m_min_fee", "min_mcap", "max_mcap",
-                        "min_age_hours", "max_drop_1h", "max_drop_5m", "min_buy_ratio", "max_ath_drawdown"
+                        "min_age_hours", "max_drop_1h", "max_drop_5m", "min_buy_ratio", "max_ath_drawdown",
+                        "bonus_stage_min_ath", "bonus_stage_max_age_hours", "bonus_stage_min_vl",
+                        "bonus_stage_max_retrace_dist", "bonus_stage_st_period", "bonus_stage_st_multiplier",
+                        "bonus_stage_max_dev_hold", "bonus_stage_max_top10", "bonus_stage_max_top70_sniper",
+                        "bonus_stage_max_insider", "bonus_stage_max_bundler", "bonus_stage_min_holders",
+                        "bonus_stage_min_vol", "bonus_stage_min_buy"
                     ]:
                         if k in data:
                             val = float(data[k])
@@ -455,6 +474,103 @@ def fetch_dexscreener_batch(token_addrs: list[str]) -> dict[str, dict]:
     return out
 
 
+# ================= GECKOTERMINAL 15M OHLCV & SUPERTREND (Bonus Stage) =================
+
+GECKO_15M_CACHE: dict[str, dict] = {}  # { pool_addr: { "ohlcv": list, "ts": float } }
+
+def fetch_geckoterminal_15m_ohlcv(pool_addr: str) -> list:
+    """Mengambil 30 candle 15m terakhir dari GeckoTerminal API dengan in-memory cache 90 detik."""
+    if not pool_addr:
+        return []
+    now = time.time()
+    cached = GECKO_15M_CACHE.get(pool_addr)
+    if cached and (now - cached.get("ts", 0)) < 90:
+        return cached.get("ohlcv", [])
+
+    url = f"https://api.geckoterminal.com/api/v2/networks/solana/pools/{pool_addr}/ohlcv/minute?aggregate=15&limit=30"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as res:
+            data = json.loads(res.read().decode())
+            ohlcv = data.get("data", {}).get("attributes", {}).get("ohlcv_list", [])
+            if isinstance(ohlcv, list) and ohlcv:
+                GECKO_15M_CACHE[pool_addr] = {"ohlcv": ohlcv, "ts": now}
+                return ohlcv
+    except Exception:
+        pass
+    return []
+
+
+def compute_supertrend_15m(ohlcv_list: list, period: int = 10, multiplier: float = 3.0) -> tuple[str | None, float | None, float]:
+    """Menghitung TradingView Supertrend 15m dari data candlestick GeckoTerminal [ts, o, h, l, c, v].
+    Mengembalikan (direction ('bull'/'bear'), supertrend_value, distance_pct).
+    """
+    if not ohlcv_list or len(ohlcv_list) < period + 1:
+        return None, None, 0.0
+
+    # Candle GeckoTerminal berurutan newest first -> balik ke kronologis
+    candles = list(reversed(ohlcv_list))
+    n = len(candles)
+
+    trs = [
+        max(
+            float(candles[i][2]) - float(candles[i][3]),
+            abs(float(candles[i][2]) - float(candles[i - 1][4])),
+            abs(float(candles[i][3]) - float(candles[i - 1][4])),
+        )
+        for i in range(1, n)
+    ]
+
+    atrs = [None] * (period - 1)
+    atrs.append(sum(trs[:period]) / period)
+    for i in range(period, len(trs)):
+        atrs.append((atrs[-1] * (period - 1) + trs[i]) / period)
+
+    dir_trend = None
+    st_val = None
+
+    for i, atr in enumerate(atrs):
+        if atr is None:
+            continue
+        idx = i + 1
+        h = float(candles[idx][2])
+        l = float(candles[idx][3])
+        c = float(candles[idx][4])
+        hl2 = (h + l) / 2.0
+        upper = hl2 + multiplier * atr
+        lower = hl2 - multiplier * atr
+
+        if st_val is None:
+            if c >= hl2:
+                dir_trend, st_val = "bull", lower
+            else:
+                dir_trend, st_val = "bear", upper
+        else:
+            if dir_trend == "bull":
+                lower = max(lower, st_val)
+                if c < lower:
+                    dir_trend, st_val = "bear", upper
+                else:
+                    st_val = lower
+            else:
+                upper = min(upper, st_val)
+                if c > upper:
+                    dir_trend, st_val = "bull", lower
+                else:
+                    st_val = upper
+
+    last_close = float(candles[-1][4]) if candles else 0.0
+    dist_pct = ((last_close - st_val) / st_val * 100.0) if (st_val and st_val > 0) else 0.0
+    return dir_trend, st_val, round(dist_pct, 2)
+
+
+
 # ================= ATH CACHE FUNCTIONS (Break ATH LP) =================
 
 def load_ath_cache() -> None:
@@ -634,6 +750,7 @@ def record_signal_events(scan_results: dict[str, Any], scan_ts: int | None = Non
     # Kategori strategi aktif yang dicatat
     categories = [
         ("runner_momentum", "RUNNER MOMENTUM", scan_results.get("runner_momentum", [])),
+        ("bonus_stage", "BONUS STAGE", scan_results.get("bonus_stage", [])),
         ("akashi_zone", "AKASHI ZONE", scan_results.get("akashi_zone", [])),
         ("siap_lp", "SIAP LP", scan_results.get("siap_lp", [])),
         ("smart_lp", "SMART LP", scan_results.get("smart_lp", [])),
@@ -803,6 +920,7 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
 
     categories = [
         ("runner_momentum", "🚀 <b>RUNNER MOMENTUM</b>"),
+        ("bonus_stage", "🎮 <b>BONUS STAGE</b>"),
         ("momentum_5m", "⚡ <b>5M MOMENTUM</b>"),
         ("siap_lp", "🟢 <b>SIAP LP (Chop Sideways)</b>"),
         ("break_ath", "🚀 <b>BREAK ATH LP</b>"),
@@ -1453,6 +1571,159 @@ def score_runner_momentum_candidates(
     return deduped
 
 
+# ================= BONUS STAGE SCORER (15M SUPERTREND RETRACE) =================
+
+def score_bonus_stage_candidates(
+    tokens: list[dict],
+    conf: dict[str, Any],
+    dex_data: dict[str, dict] | None = None,
+) -> list[dict]:
+    """Filter kandidat strategi 🎮 BONUS STAGE (15M Supertrend Retrace):
+    1. Hard Filter Screening:
+       - ATH MC >= $250k (ath_mcap >= 250,000)
+       - Token Age < 2 hari (age_hours <= 48.0)
+       - Good Volume: V/L >= 1.0x, vol >= $50,000, buy_ratio >= 48.0%
+       - Healthy Distribution (Top 75 avg buy normal & Anti-Rug):
+         top70_sniper <= 15.0%, top10 <= 35.0%, dev_hold <= 10.0%, insider <= 12.0%,
+         bundler <= 50.0%, renounced_mint == 1, renounced_freeze == 1, min 150 holders,
+         no wash, no honeypot, no rug risk.
+       - TIDAK ADA batasan drawdown dari New ATH (koreksi berapapun diperbolehkan selama tren 15m ST Bullish & retrace).
+    2. Sinyal Retrace Supertrend 15m:
+       - Trend 15m Supertrend wajib BULLISH (direction == 'bull')
+       - Retrace Zone: Harga berada di atas garis ST dengan jarak 0.0% s/d +3.5% (atau candle low menguji garis ST support).
+    """
+    min_ath = float(conf.get("bonus_stage_min_ath", 250000.0))
+    max_age_hours = float(conf.get("bonus_stage_max_age_hours", 48.0))
+    min_vl = float(conf.get("bonus_stage_min_vl", 1.0))
+    min_vol = float(conf.get("bonus_stage_min_vol", 50000.0))
+    min_buy_ratio = float(conf.get("bonus_stage_min_buy", 48.0))
+    max_retrace_dist = float(conf.get("bonus_stage_max_retrace_dist", 3.5))
+    max_dev_hold = float(conf.get("bonus_stage_max_dev_hold", 10.0))
+    max_top10 = float(conf.get("bonus_stage_max_top10", 35.0))
+    max_top70_sniper = float(conf.get("bonus_stage_max_top70_sniper", 15.0))
+    max_insider = float(conf.get("bonus_stage_max_insider", 12.0))
+    max_bundler = float(conf.get("bonus_stage_max_bundler", 0.50))
+    min_holders = int(conf.get("bonus_stage_min_holders", 150))
+    st_period = int(conf.get("bonus_stage_st_period", 10))
+    st_multiplier = float(conf.get("bonus_stage_st_multiplier", 3.0))
+
+    dex_map = dict(dex_data) if dex_data else {}
+    candidates: list[dict] = []
+    seen: set[str] = set()
+
+    # Kumpulkan kandidat yang lolos screening awal
+    pre_candidates = []
+    for t in tokens:
+        addr = str(t.get("address") or "").strip().lower()
+        if not addr or addr in seen or addr in QUOTE_MINTS or is_tokenized_stock(t):
+            continue
+
+        ath_mcap = float(t.get("ath_mcap", 0.0) or 0.0)
+        age_hours = float(t.get("age_hours", 9999.0) or 9999.0)
+        vl = float(t.get("vl", 0.0) or 0.0)
+        vol = float(t.get("vol", 0.0) or 0.0)
+        vol_5m = float(t.get("vol_5m", 0.0) or 0.0)
+        buy_ratio = float(t.get("buy_ratio", 50.0) or 50.0)
+        top10 = float(t.get("top10_rate", 100.0) or 100.0)
+        dev_hold = float(t.get("dev_team_hold", 100.0) or 100.0)
+        insider = float(t.get("insider_rate", 100.0) or 100.0)
+        bundler = float(t.get("bundler_rate", 1.0) or 1.0)
+        top70_sniper = float(t.get("top70_sniper_hold_rate", 0.0) or 0.0)
+        holders = int(t.get("holders", 0) or 0)
+
+        # Hard Filter Screening
+        if ath_mcap < min_ath:
+            continue
+        if age_hours > max_age_hours:
+            continue
+        if vl < min_vl:
+            continue
+        if vol < min_vol and (vol_5m * 12.0) < min_vol:
+            continue
+        if buy_ratio < min_buy_ratio:
+            continue
+        if dev_hold > max_dev_hold:
+            continue
+        if top10 > max_top10:
+            continue
+        if insider > max_insider:
+            continue
+        if bundler > max_bundler:
+            continue
+        if top70_sniper > max_top70_sniper:
+            continue
+        if holders > 0 and holders < min_holders:
+            continue
+        if t.get("is_rug_risk") or t.get("is_wash") or t.get("is_honeypot"):
+            continue
+
+        pre_candidates.append(t)
+
+    if not pre_candidates:
+        return []
+
+    # Ambil data pairAddress untuk kandidat yang belum ada di dex_map
+    missing_addrs = [c.get("address") for c in pre_candidates if c.get("address") not in dex_map]
+    if missing_addrs:
+        try:
+            extra_dex = fetch_dexscreener_batch(missing_addrs)
+            dex_map.update(extra_dex)
+        except Exception:
+            pass
+
+    # Evaluasi Supertrend 15m untuk setiap kandidat
+    for t in pre_candidates:
+        addr = str(t.get("address") or "")
+        pair_info = dex_map.get(addr) or {}
+        pair_addr = pair_info.get("pairAddress") or t.get("pair_address")
+
+        if not pair_addr:
+            continue
+
+        ohlcv = fetch_geckoterminal_15m_ohlcv(pair_addr)
+        if not ohlcv or len(ohlcv) < st_period + 1:
+            continue
+
+        direction, st_val, dist_pct = compute_supertrend_15m(ohlcv, period=st_period, multiplier=st_multiplier)
+
+        # 1. Tren wajib BULLISH
+        if direction != "bull" or st_val is None or st_val <= 0:
+            continue
+
+        price = float(t.get("price") or 0.0)
+        if price <= 0:
+            price = float(ohlcv[0][4]) if ohlcv else 0.0
+
+        # Ambil low candle terakhir untuk deteksi wick test support
+        last_candle_low = float(ohlcv[0][3]) if ohlcv else price
+
+        # 2. Sinyal Retrace: Harga berada di area support ST (0% s/d +max_retrace_dist%)
+        # ATAU low candle menguji garis support ST dan harga close bertahan di atasnya
+        is_retrace = (
+            (0.0 <= dist_pct <= max_retrace_dist)
+            or (last_candle_low <= st_val * 1.01 and price >= st_val)
+        )
+
+        if not is_retrace:
+            continue
+
+        t_copy = dict(t)
+        t_copy["strategy_key"] = "bonus_stage"
+        t_copy["st_trend"] = "bull"
+        t_copy["st_val"] = st_val
+        t_copy["st_retrace_pct"] = dist_pct
+        t_copy["pair_address"] = pair_addr
+        t_copy["status_label"] = f"Bonus Stage ({dist_pct:+.1f}%)"
+
+        candidates.append(t_copy)
+        seen.add(addr.lower())
+
+    deduped = deduplicate_best_tokens(candidates)
+    deduped.sort(key=lambda x: (-x.get("vl", 0.0), x.get("st_retrace_pct", 999.0)))
+    return deduped
+
+
+
 # ================= METRICS & SCORING =================
 
 def _usd(n: float) -> str:
@@ -1499,6 +1770,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     insider_rate = round(num(row, "rat_trader_amount_rate") * 100, 1)
     is_wash = check_is_wash(row)
     is_honeypot = check_is_honeypot(row)
+    top70_sniper_hold_rate = round(num(row, "top70_sniper_hold_rate") * 100, 2)
 
     bundler_rate = num(row, "bundler_rate")
     holder_count = int(num(row, "holder_count", "holders"))
@@ -1712,6 +1984,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "top10_rate": top10_rate,
         "dev_team_hold": dev_team_hold,
         "insider_rate": insider_rate,
+        "top70_sniper_hold_rate": top70_sniper_hold_rate,
         "buys": buys,
         "sells": sells,
         "holders": holder_count,
@@ -1915,6 +2188,7 @@ def generate_report(
     break_ath_candidates: list[dict] | None = None,
     momentum_5m_candidates: list[dict] | None = None,
     runner_list: list[dict] | None = None,
+    bonus_list: list[dict] | None = None,
     siap_list: list[dict] | None = None,
     akashi_list: list[dict] | None = None,
     slow_cook_list: list[dict] | None = None,
@@ -2054,6 +2328,25 @@ def generate_report(
 
         if len(rn_list) > top_limit:
             lines.append(f"<i>...dan {len(rn_list) - top_limit} token Runner lainnya</i>")
+
+    # 0b. 🎮 BONUS STAGE (15M Supertrend Retrace)
+    b_list = bonus_list or []
+    if b_list:
+        lines.append("")
+        lines.append("<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>")
+        for b in b_list[:top_limit]:
+            sym = html.escape(str(b.get("symbol") or "?"))
+            sym_link = f'<a href="{b.get("url") or b.get("gmgn", "#")}">{sym}</a>'
+            vl = float(b.get("vl", 0.0) or 0.0)
+            mc_str = _usd(b.get("mcap", 0.0))
+            dist_pct = float(b.get("st_retrace_pct", 0.0) or 0.0)
+            ath_str = _usd(b.get("ath_mcap", 0.0))
+            chain = str(b.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ ST {dist_pct:+.1f}% (ATH {ath_str})")
+
+        if len(b_list) > top_limit:
+            lines.append(f"<i>...dan {len(b_list) - top_limit} token Bonus Stage lainnya</i>")
 
     if siap_lp:
         lines.append("")
@@ -2608,7 +2901,10 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
 
         runner_momentum = score_runner_momentum_candidates(all_runner_pool, conf)
 
-        all_active_tokens = siap_lp + akashi_zone + runner_momentum + momentum_5m + absorption + smart_lp + flip_lp
+        # 7. 🎮 BONUS STAGE (15M Supertrend Retrace)
+        bonus_stage = score_bonus_stage_candidates(all_runner_pool, conf)
+
+        all_active_tokens = siap_lp + akashi_zone + runner_momentum + bonus_stage + momentum_5m + absorption + smart_lp + flip_lp
         top_yield = max([p.get("fee_hour", 0.0) for p in all_active_tokens], default=0.0)
         top_vl = max([float(p.get("vl", 0.0) or 0.0) for p in all_active_tokens], default=0.0)
 
@@ -2625,6 +2921,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "chain_mode": chain_mode,
             "scored_tokens": scored_tokens,
             "runner_momentum": runner_momentum,
+            "bonus_stage": bonus_stage,
             "siap_lp": siap_lp,
             "akashi_zone": akashi_zone,
             "slow_cook_lp": slow_cook_lp,
@@ -2637,6 +2934,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             "gaps": gaps,
             "counts": {
                 "runner": len(runner_momentum),
+                "bonus_stage": len(bonus_stage),
                 "siap": len(siap_lp),
                 "akashi_zone": len(akashi_zone),
                 "slow_cook": len(slow_cook_lp),
@@ -2669,7 +2967,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         elapsed = time.time() - t0
         print(
             f"[{get_wib_str()}] [Engine Scan] Selesai dalam {elapsed:.2f}s | "
-            f"Total: {len(scored_tokens)} | Runner: {len(runner_momentum)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
+            f"Total: {len(scored_tokens)} | Runner: {len(runner_momentum)} | Bonus: {len(bonus_stage)} | Siap LP: {len(siap_lp)} | Akashi: {len(akashi_zone)} | 5M: {len(momentum_5m)} | Absorption: {len(absorption)} | History 24h: {len(signal_history)}"
         )
         return result
 
@@ -2691,6 +2989,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         break_ath_candidates=scan_res.get("break_ath", []),
         momentum_5m_candidates=scan_res.get("momentum_5m", []),
         runner_list=scan_res.get("runner_momentum", []),
+        bonus_list=scan_res.get("bonus_stage", []),
         siap_list=scan_res.get("siap_lp", []),
         akashi_list=scan_res.get("akashi_zone", []),
         slow_cook_list=scan_res.get("slow_cook_lp", []),

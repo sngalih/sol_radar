@@ -1,13 +1,14 @@
 # Robinhood Meme LP Terminal — Project Guidelines & Domain Rules
 
 ## 1. Core LP Strategy: Chop Sideways LP, Akashi Zone LP & Spot Runner
-- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming**, **⚡ Akashi Zone LP**, dan **🚀 Runner Momentum (Spot Entry)**.
+- **Fokus Utama**: Strategi utama: **Chop Sideways LP Farming**, **⚡ Akashi Zone LP**, **🚀 Runner Momentum (Spot Entry)**, dan **🎮 Bonus Stage (15M Supertrend Retrace)**.
 - **Filosofi Inti**:
   - Jangan mengejar APR tinggi semata; cari meme coin yang **sudah pump → volume tetap tinggi → harga mulai chop/sideways**.
   - Volume ↑, Price → = Kandidat LP ideal.
   - Volume ↑↑, Price ↑↑↑ = Dilarang LP (sedang naik vertikal).
   - Price ↓↓↓ = Dilarang LP (sedang dump/crash bebas).
   - **⚡ Akashi Zone LP**: Retracement Fibonacci antara 0.236 dan 0.382 dari origin/low ke ATH dengan sideways konsolidasi stabil.
+  - **🎮 Bonus Stage (15M Supertrend Retrace)**: Strategi spot/momentum wave lanjutan setelah token mencetak New ATH > $250k MC dengan usia < 48 jam dan distribusi pemegang sehat (`top70_sniper ≤ 15%`, `dev_hold ≤ 10%`, `top10 ≤ 35%`, `insider ≤ 12%`, `V/L ≥ 1.0x`). Sinyal terpicu saat Supertrend 15m berstatus **BULLISH** dan harga melakukan retrace menguji dynamic support Supertrend 15m (jarak `0.0% s/d +3.5%` di atas garis ST 15m atau wick test support), tanpa batasan ATH drawdown.
   - **🚀 Runner Momentum (Spot Entry)**: Strategi khusus entry spot momentum multi-bagger dengan 2 tingkatan karakter:
     - **🏛️ Tier 1 (Established Runner / Wave 2)**: MC $1M – $10M, usia ≥ 12h, konsolidasi re-akumulasi kuat, drawdown ATH ≥ -70%, buyer menopang (`Buy% ≥ 50%`, `V/L ≥ 1.0x`), siap meledak di wave 2.
     - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $20k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint & freeze, dev hold ≤ 10%, insider ≤ 15%, bundler ≤ 55%).
@@ -75,7 +76,7 @@
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
 - **Tampilan Ultra-Minimalis**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
-  - Judul kategori ditebalkan: `<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+  - Judul kategori ditebalkan: `<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>`, `<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`).
