@@ -20,6 +20,7 @@ import html
 import http.cookiejar
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -1823,6 +1824,9 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
 
     narratives: list[str] = []
 
+    smart_degen_count = int(num(row, "smart_degen_count"))
+    bluechip_pct = num(row, "bluechip_owner_percentage")
+
     twitter_username = str(row.get("twitter_username") or "").strip()
     twitter_url = f"https://x.com/{twitter_username}" if twitter_username else ""
     telegram_url = str(row.get("telegram") or "").strip()
@@ -1976,17 +1980,16 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
 
 # ================= TELEGRAM COMMUNICATION =================
 
-def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dict[str, Any] | None = None) -> tuple[bool, str]:
-    """Kirim pesan Telegram via HTTP REST API (HTML parse mode) dengan opsional reply_markup."""
-    if not token or not chat_id:
-        return False, "Token atau Chat ID belum diisi"
+def send_telegram_raw(token: str, chat_id: str, text: str, reply_markup: dict[str, Any] | None = None, parse_mode: str = "HTML") -> tuple[bool, str]:
+    """Mengirim pesan tunggal via Telegram API dengan fallback otomatis tanpa HTML jika entitas parsing gagal."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body: dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+    if parse_mode:
+        body["parse_mode"] = parse_mode
     if reply_markup is not None:
         body["reply_markup"] = reply_markup
     payload = json.dumps(body).encode("utf-8")
@@ -2002,9 +2005,56 @@ def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dic
             return (True, "") if data.get("ok") else (False, str(data.get("description", "Unknown error")))
     except urllib.error.HTTPError as e:
         body_err = e.read().decode("utf-8", "replace")[:250]
+        # Fallback: jika parse_mode HTML error karena entitas, coba kirim tanpa parse_mode
+        if parse_mode and ("can't parse entities" in body_err.lower() or "bad request" in body_err.lower()):
+            clean_text = re.sub(r"<[^>]+>", "", text)
+            return send_telegram_raw(token, chat_id, clean_text, reply_markup=reply_markup, parse_mode="")
         return False, f"HTTP {e.code}: {body_err}"
     except Exception as e:
         return False, str(e)
+
+
+def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dict[str, Any] | None = None) -> tuple[bool, str]:
+    """Kirim pesan Telegram via HTTP REST API (HTML parse mode) dengan opsional reply_markup.
+    Mendukung auto-chunking jika teks melebihi 4000 karakter dan fallback HTML entity error.
+    """
+    if not token or not chat_id:
+        return False, "Token atau Chat ID belum diisi"
+    if not text:
+        return False, "Pesan kosong"
+
+    # Jika panjang teks wajar (<= 4000 karakter), kirim langsung
+    if len(text) <= 4000:
+        return send_telegram_raw(token, chat_id, text, reply_markup=reply_markup)
+
+    # Auto-chunking jika melebihi batas 4000 karakter Telegram
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_len = 0
+
+    for line in text.split("\n"):
+        line_len = len(line) + 1
+        if current_len + line_len > 3900 and current_chunk:
+            chunks.append("\n".join(current_chunk))
+            current_chunk = [line]
+            current_len = line_len
+        else:
+            current_chunk.append(line)
+            current_len += line_len
+
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+
+    last_idx = len(chunks) - 1
+    for idx, ch in enumerate(chunks):
+        markup = reply_markup if idx == last_idx else None
+        ok, err = send_telegram_raw(token, chat_id, ch, reply_markup=markup)
+        if not ok:
+            return False, err
+        if idx < last_idx:
+            time.sleep(0.5)
+
+    return True, ""
 
 
 def edit_telegram_message(token: str, chat_id: str, message_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> tuple[bool, str]:
@@ -2162,6 +2212,13 @@ def deduplicate_best_tokens(tokens: list[dict[str, Any]]) -> list[dict[str, Any]
     return list(best_map.values())
 
 
+def _tlink(item: dict) -> str:
+    """Helper untuk menghasilkan link HTML token yang aman dan bersih."""
+    s = html.escape(str(item.get("symbol") or "?"))
+    u = html.escape(str(item.get("url") or item.get("gmgn") or "#"), quote=True)
+    return f'<a href="{u}">{s}</a>'
+
+
 def generate_report(
     tokens: list[dict[str, Any]],
     conf: dict[str, Any],
@@ -2297,11 +2354,10 @@ def generate_report(
         lines.append("")
         lines.append("<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>")
         for rn in rn_list[:top_limit]:
-            sym = html.escape(str(rn.get("symbol") or "?"))
-            sym_link = f'<a href="{rn["url"]}">{sym}</a>'
+            sym_link = _tlink(rn)
             vl = rn.get("vl", 0.0)
-            mc_str = _usd(rn['mcap'])
-            tier = rn.get("runner_label") or "🚀 Runner"
+            mc_str = _usd(rn.get('mcap', 0.0))
+            tier = html.escape(str(rn.get("runner_label") or "🚀 Runner"))
             p5_val = rn.get("p5", 0.0)
             p5_str = f" (+{p5_val:.0f}% 5m)" if p5_val > 0 else ""
             chain = str(rn.get("chain", "SOL")).upper()
@@ -2317,8 +2373,7 @@ def generate_report(
         lines.append("")
         lines.append("<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>")
         for b in b_list[:top_limit]:
-            sym = html.escape(str(b.get("symbol") or "?"))
-            sym_link = f'<a href="{b.get("url") or b.get("gmgn", "#")}">{sym}</a>'
+            sym_link = _tlink(b)
             vl = float(b.get("vl", 0.0) or 0.0)
             mc_str = _usd(b.get("mcap", 0.0))
             dist_pct = float(b.get("st_retrace_pct", 0.0) or 0.0)
@@ -2334,10 +2389,9 @@ def generate_report(
         lines.append("")
         lines.append("<b>SIAP LP (Chop Sideways)</b>")
         for idx, t in enumerate(siap_lp[:top_limit]):
-            sym = html.escape(str(t.get("symbol") or "?"))
-            sym_link = f'<a href="{t["url"]}">{sym}</a>'
+            sym_link = _tlink(t)
             vl = t.get("vl", 0.0)
-            mc_str = _usd(t['mcap'])
+            mc_str = _usd(t.get('mcap', 0.0))
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
 
@@ -2352,10 +2406,9 @@ def generate_report(
         lines.append("")
         lines.append("<b>🔴 AKASHI ZONE (Fibo 0.236 - 0.382)</b>")
         for ak in ak_list[:top_limit]:
-            sym = html.escape(str(ak.get("symbol") or "?"))
-            sym_link = f'<a href="{ak["url"]}">{sym}</a>'
+            sym_link = _tlink(ak)
             vl = ak.get("vl", 0.0)
-            mc_str = _usd(ak['mcap'])
+            mc_str = _usd(ak.get('mcap', 0.0))
             f_ratio = ak.get("fibo_ratio", 0.0)
             chain = str(ak.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
@@ -2367,22 +2420,16 @@ def generate_report(
 
     # 1c. 🍲 SLOW COOK LP (Premium Mid-Long Term)
     sc_list = slow_cook_list or []
-
     if sc_list:
-
         lines.append("")
-
         lines.append("<b>🍲 SLOW COOK LP (Medium-Long Term Premium)</b>")
-
         for sc in sc_list[:top_limit]:
-            sym = html.escape(str(sc.get("symbol") or "?"))
-            sym_link = f'<a href="{sc["url"]}">{sym}</a>'
+            sym_link = _tlink(sc)
             vl = sc.get("vl", 0.0)
-            mc_str = _usd(sc['mcap'])
+            mc_str = _usd(sc.get('mcap', 0.0))
             chain = str(sc.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
             score = sc.get("slow_cook_score", 0)
-            
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Skor {score}/100")
 
         if len(sc_list) > top_limit:
@@ -2390,22 +2437,16 @@ def generate_report(
 
     # 1d. 📉 30% DIP CHOP
     d_list = dip_list or []
-
     if d_list:
-
         lines.append("")
-
         lines.append("<b>📉 30% DIP CHOP (Tight Range at Bottom)</b>")
-
         for d in d_list[:top_limit]:
-            sym = html.escape(str(d.get("symbol") or "?"))
-            sym_link = f'<a href="{d["url"]}">{sym}</a>'
+            sym_link = _tlink(d)
             vl = d.get("vl", 0.0)
-            mc_str = _usd(d['mcap'])
+            mc_str = _usd(d.get('mcap', 0.0))
             drop = d.get("ath_drawdown", 0.0)
             chain = str(d.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Drop {drop:.1f}%")
 
         if len(d_list) > top_limit:
@@ -2413,49 +2454,33 @@ def generate_report(
 
     # 1e. SMART LP (Smart Money Concentration)
     sm_list = smart_list or []
-
     if sm_list:
-
         lines.append("")
-
         lines.append("<b>🧠 SMART LP (Smart Money)</b>")
-
         for sm in sm_list[:top_limit]:
-            sym = html.escape(str(sm.get("symbol") or "?"))
-            sym_link = f'<a href="{sm["url"]}">{sym}</a>'
+            sym_link = _tlink(sm)
             vl = sm.get("vl", 0.0)
-            mc_str = _usd(sm['mcap'])
+            mc_str = _usd(sm.get('mcap', 0.0))
             sd_count = int(sm.get("smart_degen_count", 0) or 0)
             rn_count = int(sm.get("renowned_count", 0) or 0)
             chain = str(sm.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ SM {sd_count} │ KOL {rn_count}")
 
         if len(sm_list) > top_limit:
             lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
 
     fl_list = flip_list or []
-
-
     if fl_list:
-
-
         lines.append("")
-
-
         lines.append("<b>📉→📈 FLIP LP (Supertrend Bull→Bear)</b>")
-
-
         for fl in fl_list[:top_limit]:
-            sym = html.escape(str(fl.get("symbol") or "?"))
-            sym_link = f'<a href="{fl["url"]}">{sym}</a>'
+            sym_link = _tlink(fl)
             vl = fl.get("vl", 0.0)
-            mc_str = _usd(fl['mcap'])
+            mc_str = _usd(fl.get('mcap', 0.0))
             buy_pct = fl.get("buy_ratio", 50.0)
             chain = str(fl.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-
             lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Buy% {buy_pct:.0f}% │ ST↘")
 
         if len(fl_list) > top_limit:
@@ -2467,8 +2492,7 @@ def generate_report(
         lines.append("")
         lines.append("<b>5M MOMENTUM</b>")
         for m in m5_list[:6]:
-            sym = html.escape(str(m.get("symbol") or "?"))
-            sym_link = f'<a href="{m["url"]}">{sym}</a>'
+            sym_link = _tlink(m)
             vl = m.get("vl", 0.0)
             mc_str = _usd(m.get("mcap", 0.0))
             vol5_str = _usd(m.get("vol_5m", 0.0))
@@ -2492,16 +2516,15 @@ def generate_report(
         lines.append("")
         lines.append("<b>BREAK ATH LP</b>")
         for b in bath_list[:6]:
-            sym = html.escape(str(b.get("symbol") or "?"))
-            sym_link = f'<a href="{b["url"]}">{sym}</a>'
+            sym_link = _tlink(b)
             vl = b.get("vl", 0.0)
-            mc_str   = _usd(b['mcap'])
-            dur_str  = f"{b['duration_mins']}m"
+            mc_str   = _usd(b.get('mcap', 0.0))
+            dur_str  = f"{b.get('duration_mins', 0)}m"
             badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🔸"
-            pct_sign = "+" if b["breakout_pct"] >= 0 else ""
+            pct_sign = "+" if b.get("breakout_pct", 0) >= 0 else ""
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b['breakout_pct']:.0f}%)")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b.get('breakout_pct', 0):.0f}%)")
             lines.append(f"  ⏱ {dur_str} │ 🌊 Vol {_usd(b.get('vol', 0.0))} │ 🟢 {b_ratio}% Buy")
             lines.append("")
 
@@ -2510,10 +2533,9 @@ def generate_report(
         lines.append("")
         lines.append("<b>ABSORPTION RADAR</b>")
         for t in absorption[:top_limit]:
-            sym = html.escape(str(t.get("symbol") or "?"))
-            sym_link = f'<a href="{t["url"]}">{sym}</a>'
+            sym_link = _tlink(t)
             vl = t.get("vl", 0.0)
-            mc_str = f"MC {_usd(t['mcap'])}"
+            mc_str = f"MC {_usd(t.get('mcap', 0.0))}"
             status = html.escape(str(t.get("status_label", "")).strip())
             badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
 
@@ -2526,9 +2548,7 @@ def generate_report(
         lines.append("")
         lines.append("<b>GAPS RADAR</b>")
         for g in gaps[:5]:
-            sym = html.escape(str(g.get("symbol") or "?"))
-            url = g.get("url") or f"https://gmgn.ai/sol/token/{g.get('address','')}"
-            sym_link = f'<a href="{url}">{sym}</a>'
+            sym_link = _tlink(g)
             vl = g.get("vl", 0.0)
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
@@ -3236,8 +3256,11 @@ def main() -> None:
         t_poll = threading.Thread(target=telegram_poller_thread, args=(conf,), daemon=True)
         t_poll.start()
 
-    # Jalankan scan pertama segera saat bot dinyalakan
-    run_single_scan(conf, dry_run=not has_token)
+    # Jalankan scan pertama segera saat bot dinyalakan (dengan exception guard)
+    try:
+        run_single_scan(conf, dry_run=not has_token)
+    except Exception as e_init:
+        print(f"[{get_wib_str()}] [ERROR] Initial scan failed: {e_init}", file=sys.stderr)
 
     # Loop penjadwalan tersinkronisasi kelipatan jam 5 menit (:00, :05, :10, dst)
     while True:
@@ -3255,6 +3278,9 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\n[!] Bot dihentikan oleh pengguna.")
             break
+        except Exception as e_loop:
+            print(f"[{get_wib_str()}] [ERROR] Scheduled scan failed: {e_loop}", file=sys.stderr)
+            time.sleep(5)
 
 
 if __name__ == "__main__":
