@@ -73,7 +73,6 @@ app_state: dict[str, Any] = {
     "slow_cook_lp": [],
     "dip_chop": [],
     "smart_lp": [],
-    "flip_lp": [],
     "momentum_5m": [],
     "absorption": [],
     "break_ath": [],
@@ -206,7 +205,6 @@ def perform_scan(force: bool = False) -> None:
         slow_cook_lp = res.get("slow_cook_lp", [])
         dip_chop = res.get("dip_chop", [])
         smart_lp = res.get("smart_lp", [])
-        flip_lp = res.get("flip_lp", [])
         momentum_5m = res.get("momentum_5m", [])
         absorption = res.get("absorption", [])
         break_ath = res.get("break_ath", [])
@@ -228,7 +226,6 @@ def perform_scan(force: bool = False) -> None:
             app_state["slow_cook_lp"] = slow_cook_lp
             app_state["dip_chop"] = dip_chop
             app_state["smart_lp"] = smart_lp
-            app_state["flip_lp"] = flip_lp
             app_state["momentum_5m"] = momentum_5m
             app_state["absorption"] = absorption
             app_state["break_ath"] = break_ath
@@ -1725,10 +1722,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <span>📉 30% DIP</span>
           <span id="badgeDip" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="flip" onclick="setCategoryTab('flip')" title="Hotkey: F">
-          <span>📉 FLIP</span>
-          <span id="badgeFlip" class="badge-count">0</span>
-        </div>
         <div class="cat-tab" data-cat="momentum_5m" onclick="setCategoryTab('momentum_5m')" title="Hotkey: 3">
           <span>⚡ 5M</span>
           <span id="badgeM5" class="badge-count">0</span>
@@ -2199,7 +2192,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       const catLabels = {
         all: "ALL SIGNALS", runner: "🚀 RUNNER", bonus_stage: "🎮 BONUS STAGE", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
         smart: "🧠 SMART LP", slow_cook: "🍲 SLOW COOK",
-        dip: "📉 30% DIP", flip: "📉 FLIP LP", momentum_5m: "⚡ 5M",
+        dip: "📉 30% DIP", momentum_5m: "⚡ 5M",
         absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
         history: "📜 HISTORY"
       };
@@ -2427,7 +2420,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           mergeList(globalState.smart_lp, "SMART", "#f43f5e");
           mergeList(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
           mergeList(globalState.dip_chop, "30% Dip", "#3b82f6");
-          mergeList(globalState.flip_lp, "FLIP", "#f97316");
           mergeList(globalState.momentum_5m, "5M", "#f59e0b");
           mergeList(globalState.absorption, "Absorb", "#5d667a");
           mergeList(globalState.break_ath, "ATH", "#14b8a6");
@@ -2444,7 +2436,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
       else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
       else if (activeCategory === "smart")       rawList = globalState.smart_lp   || [];
-      else if (activeCategory === "flip")        rawList = globalState.flip_lp    || [];
       else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
       else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
       else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
@@ -3073,8 +3064,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
         const bSmart = document.getElementById("badgeSmart");
         if (bSmart) bSmart.innerText = data.counts.smart_lp || 0;
-        const bFlip = document.getElementById("badgeFlip");
-        if (bFlip) bFlip.innerText = data.counts.flip_lp || 0;
         const bM5 = document.getElementById("badgeM5");
         if (bM5) bM5.innerText = (data.counts && data.counts.momentum_5m) || (data.momentum_5m ? data.momentum_5m.length : 0);
         document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
@@ -3114,7 +3103,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
       else if (e.key === "o" || e.key === "O") setCategoryTab("slow_cook");
       else if (e.key === "d" || e.key === "D") setCategoryTab("dip");
-      else if (e.key === "f" || e.key === "F") setCategoryTab("flip");
       else if (e.key === "3") setCategoryTab("momentum_5m");
       else if (e.key === "4") setCategoryTab("absorption");
       else if (e.key === "5") setCategoryTab("break_ath");
@@ -3201,7 +3189,6 @@ class MobileDashboardHandler(BaseHTTPRequestHandler):
                     "slow_cook_lp": app_state.get("slow_cook_lp", []),
                     "dip_chop": app_state.get("dip_chop", []),
                     "smart_lp": app_state.get("smart_lp", []),
-                    "flip_lp": app_state.get("flip_lp", []),
                     "momentum_5m": app_state.get("momentum_5m", []),
                     "absorption": app_state["absorption"],
                     "break_ath": app_state.get("break_ath", []),
