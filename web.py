@@ -2717,7 +2717,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           let subRowHtml = "";
           if (activeCategory === "runner") {
             const tierStr = t.runner_label || "🚀 Runner";
-            subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:8px;white-space:nowrap">${tierStr}</span>`;
+            const v5mStr = formatUsd(t.vol_5m || (t.vol ? t.vol / 12 : 0));
+            subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:8px;white-space:nowrap">${tierStr} · Vol5m: ${v5mStr}</span>`;
           } else if (activeCategory === "bonus_stage") {
             const dist = (t.st_retrace_pct !== undefined) ? (t.st_retrace_pct >= 0 ? `+${t.st_retrace_pct}%` : `${t.st_retrace_pct}%`) : "";
             subRowHtml = `<span style="color:#c084fc;font-size:10px;margin-left:8px;white-space:nowrap">🎮 ST ${dist}</span>`;
@@ -2870,9 +2871,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         let athHtml = "";
         if (activeCategory === "runner") {
           const tierStr = t.runner_label || "🚀 Runner";
+          const v5mStr = formatUsd(t.vol_5m || (t.vol ? t.vol / 12 : 0));
           athHtml = `
             <div class="ath-info-row" style="border-left: 2px solid #06b6d4; background: rgba(6, 182, 212, 0.08);">
               <div class="ath-tag" style="color:#22d3ee"><span>🚀 Tier:</span> ${tierStr}</div>
+              <div class="ath-tag" style="color:#fde047"><span>⚡ Vol 5m:</span> ${v5mStr}</div>
               <div class="ath-tag" style="color:var(--green-light)"><span>📈 5m / 1h:</span> ${p5Str} / ${p1Str}</div>
               <div class="ath-tag"><span>💧 Liq:</span> ${liqStr}</div>
             </div>`;

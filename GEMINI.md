@@ -12,6 +12,7 @@
   - **🚀 Runner Momentum (Spot Entry)**: Strategi khusus entry spot momentum multi-bagger dengan 2 tingkatan karakter:
     - **🏛️ Tier 1 (Established Runner / Wave 2)**: MC $1M – $10M, usia ≥ 12h, konsolidasi re-akumulasi kuat, drawdown ATH ≥ -70%, buyer menopang (`Buy% ≥ 50%`, `V/L ≥ 1.0x`), siap meledak di wave 2.
     - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $200k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint & freeze, dev hold ≤ 10%, insider ≤ 15%, bundler ≤ 55%).
+    - **Format Alert Runner**: `🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ Vol5m $XXXk │ [🏛️ Wave 2 / ⚡ Fresh Pump] (+XX% 5m)`.
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:

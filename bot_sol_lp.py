@@ -1449,6 +1449,7 @@ def score_runner_momentum_candidates(
             t_copy = dict(t)
             t_copy["runner_tier"] = matched_tier
             t_copy["runner_label"] = tier_label
+            t_copy["vol_5m"] = vol_5m
             narrs = list(t_copy.get("narratives") or [])
             if tier_label not in narrs:
                 narrs.insert(0, tier_label)
@@ -2245,12 +2246,14 @@ def generate_report(
             sym_link = _tlink(rn)
             vl = rn.get("vl", 0.0)
             mc_str = _usd(rn.get('mcap', 0.0))
+            vol5_val = float(rn.get("vol_5m", 0.0) or 0.0)
+            vol5_str = _usd(vol5_val)
             tier = html.escape(str(rn.get("runner_label") or "🚀 Runner"))
             p5_val = rn.get("p5", 0.0)
             p5_str = f" (+{p5_val:.0f}% 5m)" if p5_val > 0 else ""
             chain = str(rn.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ [{tier}]{p5_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Vol5m {vol5_str} │ [{tier}]{p5_str}")
 
         if len(rn_list) > top_limit:
             lines.append(f"<i>...dan {len(rn_list) - top_limit} token Runner lainnya</i>")
@@ -2741,6 +2744,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             momentum_5m = []
 
         # 6. 🚀 RUNNER MOMENTUM (Spot Entry: Established Wave 2 + Fresh Breakouts)
+        raw_5m_vol_map = {str(r.get("address") or ""): num(r, "volume") for r in raw_5m_list if r.get("address")}
         all_runner_pool = list(scored_tokens)
         seen_runner_addrs = {str(t.get("address") or "") for t in scored_tokens if t.get("address")}
         for r in raw_5m_list:
@@ -2748,10 +2752,19 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             if r_addr and r_addr not in seen_runner_addrs:
                 try:
                     sc = score_gmgn_token(r, conf)
+                    sc["vol_5m"] = num(r, "volume")
+                    sc["vol"] = sc["vol_5m"] * 12.0
                     all_runner_pool.append(sc)
                     seen_runner_addrs.add(r_addr)
                 except Exception:
                     pass
+
+        for t in all_runner_pool:
+            t_addr = str(t.get("address") or "")
+            if t_addr in raw_5m_vol_map:
+                t["vol_5m"] = raw_5m_vol_map[t_addr]
+            elif not t.get("vol_5m"):
+                t["vol_5m"] = round(float(t.get("vol") or 0.0) / 12.0, 2)
 
         runner_momentum = score_runner_momentum_candidates(all_runner_pool, conf)
 
