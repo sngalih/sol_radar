@@ -919,8 +919,9 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
         )
 
     categories = [
-        ("runner_momentum", "🚀 <b>RUNNER MOMENTUM</b>"),
+        ("runner_momentum", "<b>RUNNER</b>"),
         ("bonus_stage", "🎮 <b>BONUS STAGE</b>"),
+        ("akashi_zone", "<b>AKASHI ZONE</b>"),
         ("momentum_5m", "⚡ <b>5M MOMENTUM</b>"),
         ("siap_lp", "🟢 <b>SIAP LP (Chop Sideways)</b>"),
         ("break_ath", "🚀 <b>BREAK ATH LP</b>"),
@@ -2241,7 +2242,7 @@ def generate_report(
     rn_list = runner_list or []
     if rn_list:
         lines.append("")
-        lines.append("<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>")
+        lines.append("<b>RUNNER</b>")
         for rn in rn_list[:top_limit]:
             sym_link = _tlink(rn)
             vl = rn.get("vl", 0.0)
@@ -2295,7 +2296,7 @@ def generate_report(
     ak_list = akashi_list or []
     if ak_list:
         lines.append("")
-        lines.append("<b>🔴 AKASHI ZONE (Fibo 0.236 - 0.382)</b>")
+        lines.append("<b>AKASHI ZONE</b>")
         for ak in ak_list[:top_limit]:
             sym_link = _tlink(ak)
             vl = ak.get("vl", 0.0)

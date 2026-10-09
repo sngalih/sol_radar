@@ -77,7 +77,7 @@
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
 - **Tampilan Ultra-Minimalis**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
-  - Judul kategori ditebalkan: `<b>🚀 RUNNER MOMENTUM (Spot Entry)</b>`, `<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>⚡ AKASHI ZONE LP (Fibonacci 0.236-0.382)</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+  - Judul kategori ditebalkan: `<b>RUNNER</b>`, `<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>AKASHI ZONE</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
 - **Format Token Bersih**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`).
