@@ -11,7 +11,7 @@
   - **🎮 Bonus Stage (15M Supertrend Retrace)**: Strategi spot/momentum wave lanjutan setelah token mencetak New ATH > $250k MC dengan usia < 48 jam dan distribusi pemegang sehat (`top70_sniper ≤ 15%`, `dev_hold ≤ 10%`, `top10 ≤ 35%`, `insider ≤ 12%`, `V/L ≥ 1.0x`). Sinyal terpicu saat Supertrend 15m berstatus **BULLISH** dan harga melakukan retrace menguji dynamic support Supertrend 15m (jarak `0.0% s/d +3.5%` di atas garis ST 15m atau wick test support), tanpa batasan ATH drawdown.
   - **🚀 Runner Momentum (Spot Entry)**: Strategi khusus entry spot momentum multi-bagger dengan 2 tingkatan karakter:
     - **🏛️ Tier 1 (Established Runner / Wave 2)**: MC $1M – $10M, usia ≥ 12h, konsolidasi re-akumulasi kuat, drawdown ATH ≥ -70%, buyer menopang (`Buy% ≥ 50%`, `V/L ≥ 1.0x`), siap meledak di wave 2.
-    - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $20k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint & freeze, dev hold ≤ 10%, insider ≤ 15%, bundler ≤ 55%).
+    - **⚡ Tier 2 (Fresh Breakout / Pump.fun)**: MC $50k – $1M, usia < 24h, baru lulus bonding curve pump.fun, volume 5m masif (`Vol 5m ≥ $200k`, `V/L ≥ 2.0x`), candle pump up (`p5 > 0%`, `Buy% ≥ 52%`), anti-rug aman (renounced mint & freeze, dev hold ≤ 10%, insider ≤ 15%, bundler ≤ 55%).
 
 ## 2. Indikator & Metrik Wajib
 - **Efficiency Ratio (ER)**:

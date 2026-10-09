@@ -93,7 +93,8 @@ def load_persistent_filters() -> dict[str, Any]:
         "position_usd": 100.0,
         "min_fee_siap_lp": 0.50,
         "min_fee_break_ath": 0.50,
-        "momentum_5m_min_vol": 100000.0,
+        "momentum_5m_min_vol": 200000.0,
+        "runner_t2_min_vol_5m": 200000.0,
         "momentum_5m_min_liq": 10000.0,
         "momentum_5m_min_fee": 0.50,
         "min_liq": 20000.0,
@@ -1886,9 +1887,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="form-group">
           <div class="form-label">
             <span>Min 5m Volume ($)</span>
-            <span style="color:#fde047">Default $100k</span>
+            <span style="color:#fde047">Default $200k</span>
           </div>
-          <input type="number" step="10000" id="f_m5_vol" class="form-input" value="100000">
+          <input type="number" step="10000" id="f_m5_vol" class="form-input" value="200000">
         </div>
 
         <div class="form-group">
@@ -2284,7 +2285,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       document.getElementById("f_max_5m").value   = 15.0;
       document.getElementById("f_max_1h").value   = 20.0;
       document.getElementById("f_max_er").value   = 20.0;
-      document.getElementById("f_m5_vol").value   = 100000;
+      document.getElementById("f_m5_vol").value   = 200000;
       document.getElementById("f_m5_liq").value   = 10000;
       document.getElementById("f_position").value = 100.0;
       document.getElementById("f_interval").value = 300;
@@ -2306,7 +2307,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         max_5m:              parseFloat(document.getElementById("f_max_5m").value)   || 15.0,
         max_1h:              parseFloat(document.getElementById("f_max_1h").value)   || 20.0,
         max_er:              parseFloat(document.getElementById("f_max_er").value)   || 20.0,
-        momentum_5m_min_vol: parseFloat(document.getElementById("f_m5_vol").value)  || 100000.0,
+        momentum_5m_min_vol: parseFloat(document.getElementById("f_m5_vol").value)  || 200000.0,
         momentum_5m_min_liq: parseFloat(document.getElementById("f_m5_liq").value)  || 10000.0,
         position_usd:        parseFloat(document.getElementById("f_position").value) || 100.0,
         interval_sec:        parseInt(document.getElementById("f_interval").value)   || 300,

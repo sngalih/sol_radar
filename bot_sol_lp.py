@@ -151,7 +151,8 @@ DEFAULT_CONFIG = {
     "max_ath_drawdown": -85.0,  # Batas ATH Drawdown (drop maks -85%, anti-zombie trap)
     "max_er": 20.0,             # Efficiency Ratio max 20
     "min_absorb_score": 65.0,
-    "momentum_5m_min_vol": 100000.0,  # Min Volume 5m > $100k
+    "momentum_5m_min_vol": 200000.0,  # Min Volume 5m > $200k
+    "runner_t2_min_vol_5m": 200000.0, # Min Volume 5m Runner Tier 2 >= $200k
     "momentum_5m_min_liq": 10000.0,   # Min Liquidity >= $10k
     "momentum_5m_min_fee": 0.50,      # Min Fee run-rate >= $0.50/jam
     "top_n_display": 12,        # batas tampilan list token per kategori
@@ -258,7 +259,7 @@ def get_config() -> dict[str, Any]:
                         conf["chain_mode"] = str(data["chain_mode"]).upper().strip()
                     for k in [
                         "min_liq", "min_vl", "max_5m", "max_1h", "max_er", "position",
-                        "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol",
+                        "min_fee_siap_lp", "min_fee_break_ath", "momentum_5m_min_vol", "runner_t2_min_vol_5m",
                         "momentum_5m_min_liq", "momentum_5m_min_fee", "min_mcap", "max_mcap",
                         "min_age_hours", "max_drop_1h", "max_drop_5m", "min_buy_ratio", "max_ath_drawdown",
                         "bonus_stage_min_ath", "bonus_stage_max_age_hours", "bonus_stage_min_vl",
@@ -1174,7 +1175,7 @@ def score_5m_momentum_candidates(
     scored_map: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Filter kandidat strategi ⚡ 5M MOMENTUM:
-    1. vol_5m >= min_vol (default: $100,000)
+    1. vol_5m >= min_vol (default: $200,000)
     2. p5 > 0.0% (pump up / momentum naik)
     3. liq >= min_liq (default: $10,000)
     4. V/L >= min_vl (disinkronkan dengan 1h V/L jika ada di database scan agar seragam 100%)
@@ -1182,7 +1183,7 @@ def score_5m_momentum_candidates(
     6. On-Chain Safety: top10 <= 45%, dev <= 20%, insider <= 10%, bundler <= 55%, rug <= 25%, no wash, no honeypot
     7. Bukan tokenized stock & bukan native quote mint
     """
-    min_vol = float(conf.get("momentum_5m_min_vol", 100000.0))
+    min_vol = float(conf.get("momentum_5m_min_vol", 200000.0))
     min_liq = float(conf.get("momentum_5m_min_liq", 10000.0))
     min_vl = float(conf.get("min_vl", 0.5))
     min_mcap = float(conf.get("min_mcap", 500000.0))
@@ -1350,7 +1351,7 @@ def score_runner_momentum_candidates(
       - MC: $50k <= mcap < $1M
       - Usia: age_hours < 24.0
       - Liq: liq >= $8k
-      - Vol 5m / 1h: vol >= $50k or vol_5m >= $20k
+      - Vol 5m: vol_5m >= $200k
       - V/L: vl >= 2.0x
       - Buy Ratio: buy_ratio >= 52.0%
       - Price momentum: p5 > 0.0% and p1 >= -3.0%
@@ -1430,7 +1431,7 @@ def score_runner_momentum_candidates(
             50000.0 <= mcap < 1000000.0
             and age_hours < 24.0
             and liq >= 8000.0
-            and (vol >= 50000.0 or vol_5m >= 20000.0)
+            and vol_5m >= float(conf.get("runner_t2_min_vol_5m", 200000.0))
             and vl >= 2.0
             and buy_ratio >= 52.0
             and p5 > 0.0
@@ -3086,7 +3087,7 @@ def main() -> None:
     print(f"🛡️ Target Min TVL: ${conf['min_liq']:,.0f}")
     print(f"📊 Filter Mcap   : ≥ {_usd(conf['min_mcap'])}")
     print(f"📊 Filter Siap LP: V/L ≥ {conf['min_vl']:.1f}x · Buy% ≥ {conf['min_buy_ratio']:.0f}%")
-    print(f"⚡ 5M Momentum   : Vol5m ≥ ${conf.get('momentum_5m_min_vol', 100000.0)/1000:.0f}k · Pump Up · Liq ≥ ${conf.get('momentum_5m_min_liq', 10000.0)/1000:.0f}k")
+    print(f"⚡ 5M Momentum   : Vol5m ≥ ${conf.get('momentum_5m_min_vol', 200000.0)/1000:.0f}k · Pump Up · Liq ≥ ${conf.get('momentum_5m_min_liq', 10000.0)/1000:.0f}k")
     has_token = bool(conf.get("telegram_bot_token") and conf.get("telegram_chat_id"))
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")
     print("=" * 65 + "\n")
