@@ -125,3 +125,26 @@
   - Telegram Bot: Command `/history` (atau `/log`), tombol reply keyboard `📜 History 24h`, dan tombol inline callback. Pada laporan berkala 5 menit, token yang muncul berulang (> 1x) menampilkan baris riwayat yang dibatasi **maksimal 3 sinyal terakhir ke belakang**: `🕒 Sinyal: 08:15, 08:20, 08:25 WIB (41x)` agar chat Telegram tetap ringkas dan padat.
   - Web Dashboard: Tab ke-7 `📜 HISTORY (24H)` (Hotkey `7`) menyajikan tampilan Cards & Table khusus riwayat sinyal 24 jam penuh (tanpa batasan 3 sinyal), serta badge riwayat kemunculan pada kartu/tabel di tab aktif lainnya.
 
+## 10. 1H Smart Money & KOL Surge Tracker (GMGN 24H Swaps — Solana Only)
+- **Fokus & Karakter**:
+  - Melacak token GMGN 24h trending volume teratas khusus jaringan Solana (`SOL`).
+  - Menyimpan snapshot berkala per jam di `hourly-smart-tracker.json` (auto-pruning 25 jam) untuk menghitung selisih matematis ($\Delta$) pergerakan Smart Money (`smart_degen_count`) dan KOL (`renowned_count`) antara Jam $T$ dan Jam $T-1$.
+- **Kriteria Pemicu Lonjakan Drastis (Surge Triggers)**:
+  - **🚀 Dual Inflow Surge**: $\Delta \text{Smart} \ge +5$ wallet DAN $\Delta \text{KOL} \ge +2$ KOL dalam 1 jam (Konviksi tertinggi).
+  - **🧠 Pure Smart Inflow**: $\Delta \text{Smart} \ge +10$ wallet baru dalam 1 jam (atau $+30\%$ growth jika base wallet $\ge 15$ dan $\Delta \text{Smart} \ge +6$).
+  - **👑 KOL Inflow Spike**: $\Delta \text{KOL} \ge +3$ KOL baru dalam 1 jam.
+- **Safety Gate & Anti-Trap Filter**:
+  - Rentang Market Cap: $\$100\text{k} \le \text{MCap} \le \$25\text{M}$ (menolak koin zombie atau raksasa jenuh).
+  - On-Chain Safety: `dev_team_hold <= 20%`, `top10_rate <= 45%`, `renounced_mint == 1`, `renounced_freeze == 1`, `is_honeypot == False`, `is_wash == False`.
+  - Order Flow: `buy_ratio >= 48.0%` dan penurunan 1 jam `p1 >= -10.0%` (menolak falling knife).
+- **Mekanisme & Format Notifikasi Telegram**:
+  - **Pesan Terpisah di Menit :00**: Dipicu tepat pada jam dinding kelipatan 1 jam (menit `:00` WIB, misal 01:00, 02:00, 03:00 WIB). Jika tidak ada token lolos, bot **tidak mengirim pesan kosong** (silent).
+  - **Format Minimalis 1 Baris**:
+    ```html
+    <b>🧠 1H SMART & KOL SURGE</b>
+    <i>🕒 Snapshot HH:MM WIB · GMGN 24h Top Volume</i>
+
+    🔸 <a href="https://gmgn.ai/sol/token/{addr}">{symbol}</a> │ 🧠 Smart +{d_smart} ({smart_total}) │ 👑 KOL +{d_kol} ({kol_total}) │ MC ${mcap} │ Vol ${vol} ({p1:+.0f}% 1h)
+    ```
+  - **On-Demand & Interactive**: Command `/surge` (atau `/smart`, `/kol`, tombol keyboard `🧠 1H Surge`, inline callback `action_surge`) menyajikan status surge 1 jam terakhir seketika.
+

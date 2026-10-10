@@ -180,6 +180,16 @@ DEFAULT_CONFIG = {
     "bonus_stage_min_holders": 150,       # Minimal 150 holders
     "bonus_stage_min_vol": 50000.0,       # Min volume $50k
     "bonus_stage_min_buy": 48.0,          # Min buy ratio 48%
+    "hourly_surge_min_smart_dual": 5,      # Dual inflow: min +5 smart money
+    "hourly_surge_min_kol_dual": 2,        # Dual inflow: min +2 KOL
+    "hourly_surge_min_smart_solo": 10,     # Pure smart: min +10 smart money
+    "hourly_surge_smart_growth_pct": 30.0, # Pure smart: min +30% growth (jika base >= 15)
+    "hourly_surge_min_kol_solo": 3,        # Pure KOL: min +3 KOL
+    "hourly_surge_min_mcap": 100000.0,     # Min MCap $100k
+    "hourly_surge_max_mcap": 25000000.0,   # Max MCap $25M
+    "hourly_surge_min_buy_ratio": 48.0,    # Min buy ratio 48%
+    "hourly_surge_max_dev_hold": 20.0,     # Max dev hold 20%
+    "hourly_surge_max_top10": 45.0,        # Max top 10 whale hold 45%
 }
 
 
@@ -425,6 +435,49 @@ def fetch_gmgn_trending_5m(chain: str = "sol", limit: int = 100) -> list[dict]:
             break
         except Exception as e:
             print(f"[GMGN 5m] Fetch Error ({chain_tag}): {e}", file=sys.stderr)
+            break
+    return []
+
+
+def fetch_gmgn_trending_24h(chain: str = "sol", limit: int = 100) -> list[dict]:
+    """Mengambil top trending tokens 24h by volume dari GMGN quotation rank (chain: 'sol' atau 'robinhood')."""
+    api_chain = "robinhood" if chain.lower() in ("rh", "robinhood") else "sol"
+    chain_tag = "RH" if api_chain == "robinhood" else "SOL"
+    url = f"https://gmgn.ai/defi/quotation/v1/rank/{api_chain}/swaps/24h?orderby=volume&direction=desc"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://gmgn.ai/",
+            "Origin": "https://gmgn.ai",
+        },
+    )
+    for attempt in range(3):
+        try:
+            with OPENER.open(req, timeout=22) as res:
+                data = json.loads(res.read().decode())
+                d1 = data.get("data") or data
+                rows = []
+                if isinstance(d1, dict):
+                    rows = d1.get("rank") or []
+                elif isinstance(d1, list):
+                    rows = d1
+                if rows:
+                    for r in rows:
+                        r["chain"] = chain_tag
+                    return rows[:limit]
+            return []
+        except urllib.error.HTTPError as err:
+            if err.code == 429 and attempt < 2:
+                backoff = 3.0 * (attempt + 1)
+                time.sleep(backoff)
+                continue
+            print(f"[GMGN 24h] HTTP Error {err.code} ({chain_tag}): {err.reason}", file=sys.stderr)
+            break
+        except Exception as e:
+            print(f"[GMGN 24h] Fetch Error ({chain_tag}): {e}", file=sys.stderr)
             break
     return []
 
@@ -963,6 +1016,376 @@ def build_telegram_history_report(retention_hours: int = 24) -> str:
 
     lines.append(f"<i>Total: {total_occurrences} sinyal ({total_tokens} token unik) tercatat per {now_str}.</i>")
     return "\n".join(lines).strip()
+
+
+# ================= 1H SMART MONEY & KOL SURGE TRACKER (GMGN 24H) =================
+HOURLY_TRACKER_FILE = BASE_DIR / "hourly-smart-tracker.json"
+LAST_PROCESSED_SURGE_HOUR: int = -1
+
+
+def load_hourly_snapshots() -> dict[str, Any]:
+    """Memuat snapshot historis per jam dari hourly-smart-tracker.json."""
+    if not HOURLY_TRACKER_FILE.exists():
+        return {"snapshots": {}, "updated_at": 0, "last_processed_hour": -1}
+    try:
+        data = json.loads(HOURLY_TRACKER_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {"snapshots": {}, "updated_at": 0, "last_processed_hour": -1}
+        if "snapshots" not in data or not isinstance(data["snapshots"], dict):
+            data["snapshots"] = {}
+        return data
+    except Exception as e:
+        print(f"[Hourly Tracker] Gagal membaca snapshot: {e}", file=sys.stderr)
+        return {"snapshots": {}, "updated_at": 0, "last_processed_hour": -1}
+
+
+def save_hourly_snapshots(data: dict[str, Any], max_retention_hours: int = 25) -> None:
+    """Menyimpan snapshot historis per jam dengan auto-prune snapshot > 25 jam."""
+    now_ts = int(time.time())
+    data["updated_at"] = now_ts
+    snapshots = data.get("snapshots", {})
+    cutoff = now_ts - (max_retention_hours * 3600)
+
+    # Auto-pruning
+    pruned_snapshots = {}
+    for k_ts, v_snap in snapshots.items():
+        try:
+            if int(k_ts) >= cutoff:
+                pruned_snapshots[k_ts] = v_snap
+        except (ValueError, TypeError):
+            pass
+    data["snapshots"] = pruned_snapshots
+
+    try:
+        HOURLY_TRACKER_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[Hourly Tracker] Gagal menyimpan snapshot ke disk: {e}", file=sys.stderr)
+
+
+def record_hourly_snapshot(tokens: list[dict], timestamp: int | None = None) -> str:
+    """Mencatat snapshot token GMGN 24h jam ini ke file disk."""
+    now_ts = timestamp or int(time.time())
+    hour_key = str(int((now_ts // 3600) * 3600))
+
+    snap_dict: dict[str, dict[str, Any]] = {}
+    for r in tokens:
+        addr = str(r.get("address") or "").strip()
+        if not addr:
+            continue
+        symbol = str(r.get("symbol") or "?").strip()
+        name = str(r.get("name") or symbol).strip()
+        smart = int(num(r, "smart_degen_count"))
+        kol = int(num(r, "renowned_count"))
+        mcap = num(r, "market_cap", "marketcap", "usd_market_cap")
+        vol24h = num(r, "volume", "volume_24h")
+        price = num(r, "price")
+        p1 = num(r, "price_change_percent1h")
+        buys = int(num(r, "buys"))
+        sells = int(num(r, "sells"))
+        holders = int(num(r, "holder_count", "holders"))
+        dev_team_hold = num(r, "dev_team_hold_rate")
+        top10_rate = num(r, "top_10_holder_rate")
+        ren_mint = r.get("renounced_mint")
+        ren_freeze = r.get("renounced_freeze_account") if r.get("renounced_freeze_account") is not None else r.get("renounced_freeze")
+        is_hp = check_is_honeypot(r)
+        is_w = check_is_wash(r)
+        created_ts = int(num(r, "created_timestamp", "open_timestamp"))
+
+        snap_dict[addr] = {
+            "symbol": symbol,
+            "name": name,
+            "smart": smart,
+            "kol": kol,
+            "mcap": mcap,
+            "vol24h": vol24h,
+            "price": price,
+            "p1": p1,
+            "buys": buys,
+            "sells": sells,
+            "holders": holders,
+            "dev_team_hold_rate": dev_team_hold,
+            "top_10_holder_rate": top10_rate,
+            "renounced_mint": ren_mint,
+            "renounced_freeze_account": ren_freeze,
+            "is_honeypot": is_hp,
+            "is_wash": is_w,
+            "created_timestamp": created_ts,
+        }
+
+    db = load_hourly_snapshots()
+    db["snapshots"][hour_key] = snap_dict
+    save_hourly_snapshots(db)
+    return hour_key
+
+
+def evaluate_hourly_smart_kol_surge(
+    current_tokens: list[dict],
+    conf: dict[str, Any],
+    timestamp: int | None = None,
+) -> list[dict[str, Any]]:
+    """Mengevaluasi lonjakan drastis Smart Money & KOL berdasarkan perbandingan snapshot T vs T-1."""
+    now_ts = timestamp or int(time.time())
+    current_hour_ts = int((now_ts // 3600) * 3600)
+
+    db = load_hourly_snapshots()
+    snapshots = db.get("snapshots", {})
+    if not snapshots:
+        return []
+
+    # Cari snapshot pembanding T-1 (~1 jam yang lalu)
+    prev_key = str(current_hour_ts - 3600)
+    prev_snapshot = snapshots.get(prev_key)
+
+    if not prev_snapshot:
+        candidate_keys = []
+        for k in snapshots.keys():
+            try:
+                k_int = int(k)
+                if k_int < current_hour_ts and (current_hour_ts - k_int) <= 10800:
+                    candidate_keys.append(k_int)
+            except (ValueError, TypeError):
+                pass
+        if candidate_keys:
+            best_k = min(candidate_keys, key=lambda x: abs(x - (current_hour_ts - 3600)))
+            prev_snapshot = snapshots.get(str(best_k))
+
+    if not prev_snapshot:
+        return []
+
+    min_smart_dual = int(conf.get("hourly_surge_min_smart_dual", 5))
+    min_kol_dual = int(conf.get("hourly_surge_min_kol_dual", 2))
+    min_smart_solo = int(conf.get("hourly_surge_min_smart_solo", 10))
+    smart_growth_pct = float(conf.get("hourly_surge_smart_growth_pct", 30.0))
+    min_kol_solo = int(conf.get("hourly_surge_min_kol_solo", 3))
+    min_mcap = float(conf.get("hourly_surge_min_mcap", 100000.0))
+    max_mcap = float(conf.get("hourly_surge_max_mcap", 25000000.0))
+    min_buy_ratio = float(conf.get("hourly_surge_min_buy_ratio", 48.0))
+    max_dev_hold = float(conf.get("hourly_surge_max_dev_hold", 20.0))
+    max_top10 = float(conf.get("hourly_surge_max_top10", 45.0))
+
+    surge_tokens: list[dict[str, Any]] = []
+
+    for r in current_tokens:
+        addr = str(r.get("address") or "").strip()
+        if not addr:
+            continue
+
+        mcap = num(r, "market_cap", "marketcap", "usd_market_cap")
+        if mcap < min_mcap or mcap > max_mcap:
+            continue
+
+        # Hard Gate: On-Chain Safety & Anti-Rug
+        if check_is_honeypot(r) or check_is_wash(r):
+            continue
+
+        dev_team_hold = round(num(r, "dev_team_hold_rate") * 100, 1)
+        if dev_team_hold > max_dev_hold:
+            continue
+
+        top10_rate = round(num(r, "top_10_holder_rate") * 100, 1)
+        if top10_rate > max_top10:
+            continue
+
+        # Renounced Mint & Freeze Authority (Khusus Solana)
+        ren_mint = r.get("renounced_mint")
+        ren_freeze = r.get("renounced_freeze_account") if r.get("renounced_freeze_account") is not None else r.get("renounced_freeze")
+        if ren_mint not in (1, True, "1"):
+            continue
+        if ren_freeze not in (1, True, "1"):
+            continue
+
+        # Order flow & price check
+        buys = int(num(r, "buys"))
+        sells = int(num(r, "sells"))
+        total_trades = buys + sells
+        buy_ratio = (buys / total_trades * 100.0) if total_trades > 0 else 50.0
+        if buy_ratio < min_buy_ratio:
+            continue
+
+        p1 = num(r, "price_change_percent1h")
+        if p1 < -10.0:
+            continue
+
+        curr_smart = int(num(r, "smart_degen_count"))
+        curr_kol = int(num(r, "renowned_count"))
+        vol24h = num(r, "volume", "volume_24h")
+        created_ts = int(num(r, "created_timestamp", "open_timestamp"))
+
+        # Hitung Delta Perubahan 1 Jam
+        if addr in prev_snapshot:
+            prev_item = prev_snapshot[addr]
+            prev_smart = int(prev_item.get("smart", 0))
+            prev_kol = int(prev_item.get("kol", 0))
+            d_smart = curr_smart - prev_smart
+            d_kol = curr_kol - prev_kol
+            d_vol = vol24h - float(prev_item.get("vol24h", 0.0))
+            growth_smart = ((d_smart / max(prev_smart, 1)) * 100.0) if prev_smart > 0 else 0.0
+        else:
+            # Token baru masuk top 100 GMGN 24h
+            # Hanya lolos jika usia token < 2 jam
+            if created_ts and (now_ts - created_ts) <= 7200:
+                prev_smart = 0
+                prev_kol = 0
+                d_smart = curr_smart
+                d_kol = curr_kol
+                d_vol = vol24h
+                growth_smart = 100.0
+            else:
+                continue
+
+        # Evaluasi Kriteria Lonjakan Drastis
+        is_dual = (d_smart >= min_smart_dual and d_kol >= min_kol_dual)
+        is_smart_surge = (d_smart >= min_smart_solo) or (prev_smart >= 15 and growth_smart >= smart_growth_pct and d_smart >= 6)
+        is_kol_surge = (d_kol >= min_kol_solo)
+
+        if not (is_dual or is_smart_surge or is_kol_surge):
+            continue
+
+        tag = "[🚀 DUAL]" if is_dual else ("[🧠 SMART]" if is_smart_surge else "[👑 KOL]")
+        rank_weight = 3 if is_dual else (2 if is_smart_surge else 1)
+
+        surge_tokens.append({
+            "address": addr,
+            "symbol": str(r.get("symbol") or "?").strip(),
+            "name": str(r.get("name") or "").strip(),
+            "chain": "SOL",
+            "smart": curr_smart,
+            "kol": curr_kol,
+            "d_smart": d_smart,
+            "d_kol": d_kol,
+            "prev_smart": prev_smart,
+            "prev_kol": prev_kol,
+            "growth_smart": round(growth_smart, 1),
+            "mcap": mcap,
+            "vol24h": vol24h,
+            "d_vol": d_vol,
+            "p1": p1,
+            "buy_ratio": round(buy_ratio, 1),
+            "tag": tag,
+            "rank_weight": rank_weight,
+        })
+
+    surge_tokens.sort(key=lambda x: (-x["rank_weight"], -x["d_smart"], -x["d_kol"], -x["vol24h"]))
+    return surge_tokens
+
+
+def format_hourly_surge_report(surge_tokens: list[dict[str, Any]], scan_time_wib: str) -> str:
+    """Format laporan Telegram ultra-minimalis 1 baris per token sesuai aturan GEMINI.md."""
+    lines = [
+        "<b>🧠 1H SMART & KOL SURGE</b>",
+        f"<i>🕒 Snapshot {scan_time_wib} WIB · GMGN 24h Top Volume</i>",
+        "",
+    ]
+    for t in surge_tokens[:15]:
+        sym = html.escape(t["symbol"])
+        addr = t["address"]
+        gmgn_url = f"https://gmgn.ai/sol/token/{addr}"
+        sym_link = f'<a href="{gmgn_url}">{sym}</a>'
+        d_smart = t["d_smart"]
+        tot_smart = t["smart"]
+        d_kol = t["d_kol"]
+        tot_kol = t["kol"]
+        mc_str = _usd(t["mcap"])
+        vol_str = _usd(t["vol24h"])
+        p1 = t["p1"]
+
+        lines.append(
+            f"🔸 {sym_link} │ 🧠 Smart +{d_smart} ({tot_smart}) │ 👑 KOL +{d_kol} ({tot_kol}) │ MC {mc_str} │ Vol {vol_str} ({p1:+.0f}% 1h)"
+        )
+    return "\n".join(lines).strip()
+
+
+def run_hourly_smart_kol_tracker(conf: dict[str, Any], dry_run: bool = False, force: bool = False) -> list[dict[str, Any]]:
+    """Eksekusi pemindaian lonjakan per jam GMGN 24h, kalkulasi delta, dan kirim pesan terpisah ke Telegram."""
+    wib_now_str = get_wib_str(fmt="%H:%M")
+    print(f"[{get_wib_str()}] [Hourly Surge Engine] Memulai pemindaian GMGN 24h Solana...")
+
+    raw_tokens = fetch_gmgn_trending_24h(chain="sol", limit=100)
+    if not raw_tokens:
+        print(f"[{get_wib_str()}] [Hourly Surge Engine] Gagal mengambil data 24h dari GMGN.", file=sys.stderr)
+        return []
+
+    # Evaluasi lonjakan dibandingkan snapshot T-1
+    surge_tokens = evaluate_hourly_smart_kol_surge(raw_tokens, conf)
+
+    # Simpan snapshot jam saat ini ke disk
+    record_hourly_snapshot(raw_tokens)
+
+    # Simpan juga ke sol-hp-cache.json agar Web Dashboard dapat membacanya
+    try:
+        fp_cache = BASE_DIR / "sol-hp-cache.json"
+        if fp_cache.exists():
+            c_data = json.loads(fp_cache.read_text(encoding="utf-8"))
+        else:
+            c_data = {}
+        c_data["hourly_surge"] = {
+            "timestamp": int(time.time()),
+            "time_wib": wib_now_str,
+            "count": len(surge_tokens),
+            "tokens": surge_tokens,
+        }
+        fp_cache.write_text(json.dumps(c_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e_cache:
+        print(f"[Hourly Surge Engine] Gagal update sol-hp-cache.json: {e_cache}", file=sys.stderr)
+
+    if surge_tokens:
+        report_text = format_hourly_surge_report(surge_tokens, wib_now_str)
+        token = conf.get("telegram_bot_token") or ""
+        chat_id = conf.get("telegram_chat_id") or ""
+
+        if dry_run or not token or not chat_id:
+            print("\n" + "=" * 55)
+            print("📢 [PREVIEW PESAN TELEGRAM TERPISAH (HOURLY SURGE)]:")
+            print("=" * 55)
+            print(report_text)
+            print("=" * 55 + "\n")
+        else:
+            ok, err = send_telegram_message(token, chat_id, report_text)
+            if ok:
+                print(f"[{get_wib_str()}] ✅ Berhasil mengirim pesan terpisah 1H SURGE ({len(surge_tokens)} token) ke Telegram!")
+            else:
+                print(f"[{get_wib_str()}] ❌ Gagal kirim Telegram 1H SURGE: {err}", file=sys.stderr)
+    else:
+        print(f"[{get_wib_str()}] [Hourly Surge Engine] Snapshot tersimpan. Tidak ada token yang melonjak drastis (0 token). Skip Telegram.")
+
+    return surge_tokens
+
+
+def ensure_hourly_snapshot_baseline(conf: dict[str, Any]) -> None:
+    """Memastikan terdapat snapshot awal saat bot baru dinyalakan agar jam berikutnya (:00) dapat membandingkan delta."""
+    db = load_hourly_snapshots()
+    snapshots = db.get("snapshots", {})
+    now_ts = int(time.time())
+
+    has_recent = False
+    for k in snapshots.keys():
+        try:
+            if now_ts - int(k) <= 7200:
+                has_recent = True
+                break
+        except (ValueError, TypeError):
+            pass
+
+    if not has_recent:
+        print(f"[{get_wib_str()}] [Hourly Tracker] Inisialisasi baseline snapshot pertama dari GMGN 24h...")
+        tokens = fetch_gmgn_trending_24h(chain="sol", limit=100)
+        if tokens:
+            record_hourly_snapshot(tokens)
+            print(f"[{get_wib_str()}] [Hourly Tracker] Baseline awal tersimpan ({len(tokens)} token). Perhitungan lonjakan akan aktif pada jam berikutnya (:00 WIB).")
+
+
+def handle_manual_surge_command(conf: dict[str, Any], chat_id: str) -> None:
+    """Menangani permintaan on-demand status lonjakan 1H Smart Money & KOL di Telegram."""
+    token = conf.get("telegram_bot_token") or ""
+    surge_tokens = run_hourly_smart_kol_tracker(conf, dry_run=False, force=True)
+    if not surge_tokens and token and chat_id:
+        now_wib_str = get_wib_str(fmt="%H:%M WIB")
+        send_telegram_message(
+            token,
+            chat_id,
+            f"ℹ️ <b>1H SMART & KOL SURGE</b>\n\nBelum ada token GMGN 24h yang melonjak drastis pada perbandingan snapshot 1 jam terakhir (per {now_wib_str}).\n\n<i>Bot otomatis memantau dan mengirim alert terpisah setiap jam di menit :00 WIB.</i>",
+        )
+
 
 def update_ath_cache(scored_tokens: list[dict]) -> None:
     """Update ATH cache dan lacak siklus Break ATH (consecutive scans) per token.
@@ -2038,7 +2461,10 @@ def build_chain_inline_markup(current_mode: str) -> dict[str, Any]:
             ],
             [
                 {"text": "⚡ Scan Sekarang", "callback_data": "action_scan"},
+                {"text": "🧠 1H Surge", "callback_data": "action_surge"},
                 {"text": "📜 History 24h", "callback_data": "action_history"},
+            ],
+            [
                 {"text": "🔄 Refresh Status", "callback_data": "action_refresh"},
             ],
         ]
@@ -2050,7 +2476,7 @@ def build_chain_reply_keyboard() -> dict[str, Any]:
     return {
         "keyboard": [
             [{"text": "🔹 RH Only"}, {"text": "🔸 SOL Only"}, {"text": "🔸🔹 SOL + RH"}],
-            [{"text": "⚡ Scan Sekarang"}, {"text": "📜 History 24h"}, {"text": "⚙️ Menu Toggle"}],
+            [{"text": "⚡ Scan Sekarang"}, {"text": "🧠 1H Surge"}, {"text": "📜 History 24h"}],
         ],
         "resize_keyboard": True,
         "is_persistent": True,
@@ -2959,6 +3385,10 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                             hist_text = build_telegram_history_report()
                             send_telegram_message(token, c_cid, hist_text)
 
+                        elif c_data in ("action_surge", "cmd_surge"):
+                            answer_callback_query(token, cq_id, text="🧠 Memeriksa lonjakan Smart & KOL (1h)...")
+                            threading.Thread(target=handle_manual_surge_command, args=(conf, c_cid), daemon=True).start()
+
                         elif c_data in ("action_refresh", "action_menu"):
                             cur_mode = conf.get("chain_mode", "RH").upper()
                             answer_callback_query(token, cq_id, text="🔄 Menu diperbarui")
@@ -3000,6 +3430,11 @@ def telegram_poller_thread(conf: dict[str, Any]) -> None:
                     elif text in ("/history", "/hist", "/log", "/logs", "📜 history 24h", "📜 riwayat sinyal", "history"):
                         hist_text = build_telegram_history_report()
                         send_telegram_message(token, cid, hist_text)
+
+                    # Perintah Lonjakan 1H Smart Money & KOL
+                    elif text in ("/surge", "/smart", "/kol", "🧠 1h surge", "1h surge", "surge"):
+                        send_telegram_message(token, cid, "⏳ Sedang memindai lonjakan Smart Money & KOL (GMGN 24h)...")
+                        threading.Thread(target=handle_manual_surge_command, args=(conf, cid), daemon=True).start()
 
                     # Quick Button atau Command Ganti Chain
                     elif text in ("🔹 rh only", "rh only", "rh", "/chain rh"):
@@ -3074,6 +3509,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Chop Radar Multi-Chain Telegram Bot (GMGN Edition)")
     parser.add_argument("--dry-run", action="store_true", help="Jalankan 1x scan tanpa kirim Telegram (cetak di terminal)")
     parser.add_argument("--once", action="store_true", help="Jalankan 1x scan dan kirim Telegram, lalu berhenti")
+    parser.add_argument("--test-hourly", action="store_true", help="Uji coba 1x evaluasi snapshot 1H Smart Money & KOL surge")
     parser.add_argument("--token", type=str, default="", help="Telegram Bot Token")
     parser.add_argument("--chat-id", type=str, default="", help="Telegram Chat ID")
     parser.add_argument("--interval", type=int, default=0, help="Interval scan dalam detik (default: 300 / 5 menit)")
@@ -3102,6 +3538,7 @@ def main() -> None:
     print(f"📊 Filter Mcap   : ≥ {_usd(conf['min_mcap'])}")
     print(f"📊 Filter Siap LP: V/L ≥ {conf['min_vl']:.1f}x · Buy% ≥ {conf['min_buy_ratio']:.0f}%")
     print(f"⚡ 5M Momentum   : Vol5m ≥ ${conf.get('momentum_5m_min_vol', 200000.0)/1000:.0f}k · Pump Up · Liq ≥ ${conf.get('momentum_5m_min_liq', 10000.0)/1000:.0f}k")
+    print(f"🧠 1H Surge Mode : Top 100 GMGN 24h Solana (Pesan Terpisah di Menit :00 WIB)")
     has_token = bool(conf.get("telegram_bot_token") and conf.get("telegram_chat_id"))
     print(f"✈️ Telegram Bot  : {'Siap Terhubung' if has_token else 'Token belum diset (Mode Dry-Run)'}")
     print("=" * 65 + "\n")
@@ -3109,6 +3546,11 @@ def main() -> None:
     # Muat ATH cache & Signal History dari disk (persist dari sesi sebelumnya)
     load_ath_cache()
     load_signal_history()
+
+    if args.test_hourly:
+        print("[TEST] Menjalankan uji evaluasi 1H Smart Money & KOL Surge...")
+        run_hourly_smart_kol_tracker(conf, dry_run=True, force=True)
+        return
 
     if args.dry_run or args.once:
         run_single_scan(conf, dry_run=args.dry_run)
@@ -3119,6 +3561,12 @@ def main() -> None:
         t_poll = threading.Thread(target=telegram_poller_thread, args=(conf,), daemon=True)
         t_poll.start()
 
+    # Pastikan baseline snapshot per jam tersedia di awal
+    try:
+        ensure_hourly_snapshot_baseline(conf)
+    except Exception as e_base:
+        print(f"[{get_wib_str()}] [ERROR] Initial hourly snapshot baseline failed: {e_base}", file=sys.stderr)
+
     # Jalankan scan pertama segera saat bot dinyalakan (dengan exception guard)
     try:
         run_single_scan(conf, dry_run=not has_token)
@@ -3126,6 +3574,7 @@ def main() -> None:
         print(f"[{get_wib_str()}] [ERROR] Initial scan failed: {e_init}", file=sys.stderr)
 
     # Loop penjadwalan tersinkronisasi kelipatan jam 5 menit (:00, :05, :10, dst)
+    global LAST_PROCESSED_SURGE_HOUR
     while True:
         try:
             conf.update(get_config())
@@ -3138,6 +3587,16 @@ def main() -> None:
             time.sleep(sleep_time)
             conf.update(get_config())
             run_single_scan(conf, dry_run=not has_token)
+
+            # Evaluasi 1H Smart Money & KOL Surge (Khusus Menit :00 Jam Dinding WIB)
+            wib_dt = now_wib()
+            is_hourly_boundary = (next_boundary % 3600 == 0) or (wib_dt.minute == 0)
+            if is_hourly_boundary and LAST_PROCESSED_SURGE_HOUR != wib_dt.hour:
+                LAST_PROCESSED_SURGE_HOUR = wib_dt.hour
+                try:
+                    run_hourly_smart_kol_tracker(conf, dry_run=not has_token)
+                except Exception as e_surge:
+                    print(f"[{get_wib_str()}] [ERROR] Hourly surge check failed: {e_surge}", file=sys.stderr)
         except KeyboardInterrupt:
             print("\n[!] Bot dihentikan oleh pengguna.")
             break
