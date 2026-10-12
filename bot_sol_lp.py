@@ -190,6 +190,8 @@ DEFAULT_CONFIG = {
     "hourly_surge_min_buy_ratio": 48.0,    # Min buy ratio 48%
     "hourly_surge_max_dev_hold": 20.0,     # Max dev hold 20%
     "hourly_surge_max_top10": 45.0,        # Max top 10 whale hold 45%
+    "toxic_mev_min_vl": 4.0,              # Toxic MEV Flow: Vol/TVL >= 4.0x
+    "toxic_mev_max_tvl": 100000.0,        # Toxic MEV Flow: TVL < $100k
 }
 
 
@@ -2216,6 +2218,44 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         status_label = "Chopping Sideways"
 
     # Validasi filter kriteria Chop Sideways LP (Anti-Burn & Anti-Drill-Down)
+    # ── Anti-Toxic MEV Flow Guard (RangeGuard Model) ─────────────────────────
+    # Vol/TVL >= 4.0x pada likuiditas dangkal (< $100k) menguras pool via MEV arbitrage dump
+    max_toxic_tvl = float(conf.get("toxic_mev_max_tvl", 100000.0))
+    min_toxic_vl = float(conf.get("toxic_mev_min_vl", 4.0))
+    is_toxic_flow = bool(vl >= min_toxic_vl and liq < max_toxic_tvl)
+
+    # ── Active Bin Yield & Meteora DLMM Metrics ─────────────────────────────
+    # Total Pool Fee 24h (USD)
+    pool_fee_24h = num(row, "fees_24h", "fees_usd_24h", "pool_fee_24h")
+    if pool_fee_24h <= 0:
+        vol_24h = num(row, "volume_24h", "volume24h", "vol_24h")
+        if vol_24h > 0:
+            pool_fee_24h = vol_24h * 0.01  # Flat 100 bps / 1% DLMM fee
+        elif vol > 0:
+            pool_fee_24h = vol * 24.0 * 0.01  # Extrapolasi dari 1h volume ke 24h
+
+    # Estimasi Fee/Total TVL 24 jam (%)
+    fee_tvl_ratio = round((pool_fee_24h / liq * 100.0), 2) if liq > 0 else 0.0
+    # Active Bin TVL (~4.5% of TVL di Meteora DLMM 100 bps)
+    active_tvl_pct = 4.5
+    active_tvl = round(liq * (active_tvl_pct / 100.0), 2)
+    # Fee / Active TVL Ratio (Annualized / Scalper run-rate di active bin)
+    fee_active_tvl_ratio = round((fee_tvl_ratio / (active_tvl_pct / 100.0)), 1) if active_tvl_pct > 0 else 0.0
+
+    # ── Pool Grading System (Grade A / B / C / D) ───────────────────────────
+    if not is_wash and not is_honeypot and not is_rug_risk and buy_ratio >= 48.0:
+        if liq >= 100000.0 and fee_tvl_ratio >= 20.0 and not is_toxic_flow:
+            pool_grade = "A"
+        elif liq >= 20000.0 and fee_tvl_ratio >= 5.0 and not is_toxic_flow:
+            pool_grade = "B"
+        elif fee_tvl_ratio >= 1.0 or is_toxic_flow:
+            pool_grade = "C"
+        else:
+            pool_grade = "D"
+    else:
+        pool_grade = "D"
+
+    # Validasi filter kriteria Chop Sideways LP (Anti-Burn & Anti-Drill-Down + Anti-Toxic MEV)
     is_chop = (
         liq >= min_liq
         and vl >= min_vl
@@ -2229,6 +2269,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         and not is_wash
         and not is_honeypot
         and not is_rug_risk
+        and not is_toxic_flow
     )
 
     if chain == "RH":
@@ -2265,6 +2306,11 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "is_honeypot": is_honeypot,
         "is_wash": is_wash,
         "is_rug_risk": is_rug_risk,
+        "is_toxic_flow": is_toxic_flow,
+        "fee_tvl_ratio": fee_tvl_ratio,
+        "active_tvl": active_tvl,
+        "fee_active_tvl_ratio": fee_active_tvl_ratio,
+        "pool_grade": pool_grade,
         "bundler_rate": bundler_rate,
         "rug_reasons": rug_reasons,
         "is_cto": is_cto,
@@ -2611,6 +2657,7 @@ def generate_report(
             and p.get("vl", 0.0) >= min_vl
             and not p.get("is_honeypot")
             and not p.get("is_wash")
+            and not p.get("is_toxic_flow")
         ]
         absorption = deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("vl", 0.0))
@@ -2645,6 +2692,8 @@ def generate_report(
                 reasons.append(f"1h &gt; {max_1h:.0f}%")
             if er > max_er:
                 reasons.append(f"ER &gt; {max_er:.1f}")
+            if p.get("is_toxic_flow"):
+                reasons.append("Toxic MEV Flow (Vol >= 4x & Liq < $100k)")
 
             if reasons:
                 p_copy = dict(p)
@@ -2712,8 +2761,9 @@ def generate_report(
             mc_str = _usd(t.get('mcap', 0.0))
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
+            grade_str = f" │ Grade {t.get('pool_grade')}" if chain == "SOL" and t.get("pool_grade") else ""
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{grade_str}")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -2900,6 +2950,8 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         min_buy_ratio = float(conf.get("min_buy_ratio", 46.0))
         max_ath_drawdown = float(conf.get("max_ath_drawdown", -85.0))
         max_er = float(conf.get("max_er", 20.0))
+        toxic_mev_min_vl = float(conf.get("toxic_mev_min_vl", 4.0))
+        toxic_mev_max_tvl = float(conf.get("toxic_mev_max_tvl", 100000.0))
         interval = int(conf.get("interval_sec", 300))
 
         print(f"[{get_wib_str()}] [Engine Scan] Memulai pemindaian via {source} (Chain: {chain_mode})...")
@@ -3087,6 +3139,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
             and not p.get("is_honeypot")
             and not p.get("is_wash")
             and not p.get("is_rug_risk")
+            and not p.get("is_toxic_flow")
         ]
         absorption = deduplicate_best_tokens(absorb_candidates)
         absorption.sort(key=lambda x: -x.get("vl", 0.0))
@@ -3140,6 +3193,8 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                 reasons.append(f"ATH drop dalam ({ath_dd:.0f}% &lt; {max_ath_drawdown:.0f}%)")
             if er > max_er:
                 reasons.append(f"ER melebar ({er:.1f} &gt; {max_er:.1f})")
+            if p.get("is_toxic_flow"):
+                reasons.append(f"Toxic MEV Flow (Vol {vl:.1f}x &gt;= {toxic_mev_min_vl:.1f}x &amp; Liq &lt; {_usd(toxic_mev_max_tvl)})")
 
             if reasons:
                 p_copy = dict(p)

@@ -1002,6 +1002,85 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .safety-C { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(255, 194, 75, 0.35); }
     .safety-D { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(255, 107, 134, 0.35); }
 
+    /* ===== METEORA DLMM POOL GRADING & TOXIC FLOW BADGES ===== */
+    .badge-grade-a {
+      background: rgba(16, 185, 129, 0.18);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-grade-b {
+      background: rgba(59, 130, 246, 0.18);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-grade-c {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-grade-d {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-toxic-mev {
+      background: rgba(239, 68, 68, 0.22);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.6);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 9.5px;
+      font-family: var(--font-mono);
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .badge-active-yield {
+      background: rgba(168, 85, 247, 0.16);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      display: inline-flex;
+      align-items: center;
+    }
+
     /* ===== DATA-PUBLIC FEED TABLE ===== */
     .table-container {
       width: 100%;
@@ -2741,6 +2820,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 ? `<span class="badge-hist-compact" style="margin-left:0;background:rgba(255,255,255,0.04);color:var(--text-sub);border-color:rgba(255,255,255,0.1)" title="Baru muncul 1x: ${escapeHtml(histInfo.summary_times)}">1x (${escapeHtml(histInfo.last_seen_wib || histShortTime)})</span>`
                 : '<span style="color:var(--text-dim);font-size:11px">—</span>');
 
+          const poolGrade = (t.pool_grade || "").toUpperCase();
+          const isToxic = !!t.is_toxic_flow;
+          const gradeBadge = poolGrade ? `<span class="badge-grade-${poolGrade.toLowerCase()}" style="margin-left:3px" title="Meteora DLMM Grade: ${poolGrade} · Active Bin Yield: ${t.fee_active_tvl_ratio || 0}%/24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">Grade ${poolGrade}</span>` : "";
+          const toxicBadge = isToxic ? `<span class="badge-toxic-mev" style="margin-left:3px" title="⚠️ Toxic MEV Warning: Vol/TVL >= 4.0x & Liq < $100k">Toxic MEV</span>` : "";
+          const activeYieldSub = (t.fee_active_tvl_ratio && t.fee_active_tvl_ratio > 0)
+            ? `<div style="font-size:9.5px;color:#c084fc;font-weight:700" title="Active Bin Yield (Run-rate DLMM): ${t.fee_active_tvl_ratio}% / 24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">⚡ ${t.fee_active_tvl_ratio}%</div>`
+            : "";
+
           tRows += `
             <tr class="arc-tr ${rankClass}">
               <td class="arc-td" style="width:36px;text-align:center;white-space:nowrap">${rankBadge}</td>
@@ -2748,7 +2835,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <div style="display:flex;align-items:center;gap:5px">
                   ${avatarHtml}
                   <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:700;font-size:13px;color:var(--text-main);text-decoration:none">${t.symbol || "?"}</a>
-                  ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
+                  ${chainBadge}${gradeBadge}${toxicBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
                   ${twitterHtml}
                   ${subRowHtml}
                 </div>
@@ -2761,7 +2848,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 </div>
               </td>
               <td class="arc-td mono" style="font-weight:700;color:var(--text-main);white-space:nowrap">${mcapStr}</td>
-              <td class="arc-td mono" style="color:var(--text-sub);white-space:nowrap">${liqStr}</td>
+              <td class="arc-td mono" style="color:var(--text-sub);white-space:nowrap">${liqStr}${activeYieldSub}</td>
               <td class="arc-td mono" style="white-space:nowrap">${erBadge}</td>
               <td class="arc-td mono" style="font-size:11.5px;white-space:nowrap">
                 <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span> <span style="color:var(--text-dim);font-size:10px">/</span> <span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span>
@@ -2923,6 +3010,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               else if (r.includes("Fee")) icon = "💰";
               else if (r.includes("5m") || r.includes("1h")) icon = "⚡";
               else if (r.includes("ER")) icon = "📐";
+              else if (r.includes("Toxic")) icon = "☣️";
               return `<span class="gap-pill">${icon} ${r}</span>`;
             }).join("") +
             `</div>`;
@@ -2939,6 +3027,28 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>`
           : "";
 
+        const poolGrade = (t.pool_grade || "").toUpperCase();
+        const isToxic = !!t.is_toxic_flow;
+        const gradeBadge = poolGrade ? `<span class="badge-grade-${poolGrade.toLowerCase()}" style="margin-left:2px" title="Meteora DLMM Grade: ${poolGrade} · Active Bin Yield: ${t.fee_active_tvl_ratio || 0}%/24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">Grade ${poolGrade}</span>` : "";
+        const toxicBadge = isToxic ? `<span class="badge-toxic-mev" style="margin-left:2px" title="⚠️ Toxic MEV Warning: Vol/TVL >= 4.0x & Liq < $100k">Toxic MEV</span>` : "";
+
+        let dlmmHtml = "";
+        if (t.fee_active_tvl_ratio && t.fee_active_tvl_ratio > 0) {
+          dlmmHtml = `
+            <div class="dlmm-yield-row" style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.25);border-radius:6px;padding:4px 8px;margin:6px 0;font-size:11px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+              <span style="color:#c084fc;font-weight:700">⚡ Active Bin Yield: ${t.fee_active_tvl_ratio}% / 24h</span>
+              <span style="color:var(--text-muted);font-size:10px">Fee/TVL: ${t.fee_tvl_ratio || 0}% · Active TVL: ${formatUsd(t.active_tvl || 0)}</span>
+            </div>`;
+        }
+        let toxicCardHtml = "";
+        if (isToxic) {
+          toxicCardHtml = `
+            <div style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:6px;padding:5px 8px;margin:6px 0;font-size:11px;color:#fca5a5;font-weight:600;display:flex;align-items:center;gap:6px">
+              <span>⚠️</span>
+              <span><b>Toxic MEV Flow:</b> Vol/TVL ${(t.vl||0).toFixed(1)}x pada TVL ${liqStr} menguras pool via MEV arb dump.</span>
+            </div>`;
+        }
+
         html += `
           <div class="token-card ${cardClass} ${rankClass}">
             <div class="card-row-top">
@@ -2948,7 +3058,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <div class="token-name-block">
                   <div class="symbol-row" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
                     <span class="token-symbol">${t.symbol || "?"}</span>
-                    ${chainBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
+                    ${chainBadge}${gradeBadge}${toxicBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
                     ${twitterHtml}
                     <button class="btn-copy-inline" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">
                       <span>${caShort}</span> <span>⧉</span>
@@ -2977,6 +3087,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>
 
             ${athHtml}
+            ${dlmmHtml}
+            ${toxicCardHtml}
             ${cardHistHtml}
 
             <!-- Order Flow Bar -->

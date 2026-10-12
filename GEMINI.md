@@ -24,6 +24,19 @@
   - `max_1h <= 20.0%` & `max_5m <= 15.0%`: Pengetatan rentang volatilitas 1 jam simetris untuk konsolidasi sideways sejati.
   - **Asymmetric Downside Guard**: `p1 >= -8.0%` (penurunan 1 jam maks -8%) dan `p5 >= -4.0%` (penurunan 5 menit maks -4%). Menolak koin yang sedang meluncur bebas (*falling knife*).
   - `min_vl >= 0.5x`: Standar rasio perputaran volume terhadap likuiditas (Turnover V/L) universal untuk SEMUA strategi (Siap LP, Akashi Zone, 5M Momentum, Break ATH, Absorption, dan Gaps). Menggantikan filter ambang batas fee/jam arbitrer ($/h) demi objektivitas konsisten lintas timeframe dan pool.
+- **Anti-Toxic MEV Flow Guard (RangeGuard Engine)**:
+  - Deteksi aliran MEV toksik yang menguras likuiditas pool via arbitrage dump: `vl >= 4.0x` DAN `liq < $100,000`.
+  - Pool dengan turnover volume ekstrem pada likuiditas dangkal (< $100k TVL) **DILARANG** masuk strategi Siap LP (Chop Sideways) dan Absorption Radar. Token otomatis dipindahkan ke panel Gaps dengan alasan `❌ Toxic MEV Flow`.
+  - Likuiditas $\ge \$100\text{k}$ memiliki kedalaman bin yang memadai untuk menyerap volume besar dengan aman.
+- **Active Bin Yield & Meteora DLMM Pool Grading (Grade A/B/C/D)**:
+  - **Active Bin Concentration**: Pada Meteora DLMM 100 bps (1%), active bin menampung $\approx 4.5\%$ dari total TVL.
+  - **Scalper Run-Rate Yield**: $\text{Fee / Active TVL} = \frac{\text{Fee / Total TVL}}{0.045}$.
+  - **Sistem Grading Otomatis**:
+    - `Grade A`: `liq >= $100k`, $\text{Fee/TVL} \ge 20\%$, `is_toxic_flow == False`, order flow bersih (`buy_ratio >= 48%`), dan on-chain safety lolos 100%. (Menghasilkan Active Bin Yield $\ge 440\%$).
+    - `Grade B`: `liq >= $20k`, $\text{Fee/TVL} \ge 5\%$, `is_toxic_flow == False`, safety lolos 100%.
+    - `Grade C`: $\text{Fee/TVL} \ge 1\%$ atau `is_toxic_flow == True` (terkena penalti volume toksik).
+    - `Grade D`: $\text{Fee/TVL} < 1\%$ atau gagal audit safety (dead pool / dump risk).
+  - Tampilan visual: Badge Grade (`Grade A`, `Grade B`, dsb.) dan pill `Toxic MEV` ditampilkan di Web Dashboard (Card & Table mode) serta status Grade A/B pada baris Siap LP di chat Telegram.
 - **Hard Filter Screening Skala Global (Front Gate Filter)**:
   - `min_mcap >= $500,000` ($500k USD Market Cap)
   - `min_age_hours >= 12.0` (Usia token minimal 12 jam sejak pembuatan / open trading)
