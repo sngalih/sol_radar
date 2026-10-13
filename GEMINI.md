@@ -73,6 +73,8 @@
   - Koin yang belum lolos kriteria harus masuk ke panel **Belum Kriteria (Gaps)** beserta label alasan spesifik.
   - **Desktop Screen Resolution**: Layar laptop pengguna adalah `1920 x 1200`. Variabel `--container-max` di `web.py` diatur ke `1840px` agar tabel penuh dan tidak terpotong horizontal scrollbar.
   - **Susunan Kolom Tabel (Table Mode)**: Urutan kolom wajib: `#` │ `TOKEN` │ `V/L` │ `AKSI` │ `MCAP` │ `LIQ` │ `ER` │ `1H / 5M` │ `BUY %` │ `SAFE` │ `LAST SINYAL`. Kolom `FEE/H` dan CA/VENUE dihapus agar tabel bersih, padat, tombol AKSI (GMGN) berada langsung di kolom ke-4, dan kolom `LAST SINYAL` berada di paling kanan untuk menampilkan riwayat sinyal tanpa memadati kolom TOKEN.
+  - **7 Tab Navigasi Inti Ergonomis**: Navigasi disederhanakan menjadi 7 tab terpadu: `ALL SIGNALS` (Hotkey `A`), `🚀 RUNNER` (Hotkey `R`), `🎮 BONUS` (Hotkey `B`), `🟢 LP FARMING` (Hotkey `L` / `1` — menggabungkan Siap LP, Akashi, Smart LP, Slow Cook, Dip dengan deduplikasi cerdas), `⚡ BREAKOUT` (Hotkey `O` / `3` — menggabungkan 5M Momentum & Break ATH), `⚖️ GAPS` (Hotkey `G` / `6`), dan `📜 HISTORY` (Hotkey `H` / `7`).
+  - **Market Pulse Mini KPI Strip**: Strip ringkasan instan di bawah tab navigasi menampilkan metrik kilat: `TOTAL`, `🚀 RUNNER`, `🎮 BONUS`, `🟢 LP FARM`, `🅰️ GRADE A`, dan `🧠 SM/KOL`.
 
 ## 4. VPS Deployment Invariants
 - **Path Folder VPS**: Proyek berada di `~/sol_radar` (BUKAN `~/LP`).
@@ -91,23 +93,27 @@
 - **Tampilan Ultra-Minimalis & Header Bersih**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
   - Header pesan menampilkan mode rantai dan timestamp jam dinding WIB: `<b>{mode_icon} {mode_label} LP RADAR</b> · <i>HH:MM WIB</i>`.
-  - Judul kategori ditebalkan: `<b>RUNNER</b>`, `<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>AKASHI ZONE</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
-- **Format Token Bersih & Strictly 1 Baris per Token**:
-  - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
-  - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`).
-  - **Metrik Proteksi Smart Money & KOL (Siap LP & Akashi Zone)**:
-    - Menampilkan jumlah wallet Smart Money (`smart_degen_count`) dan KOL (`renowned_count`) yang memegang token untuk verifikasi anti-rug & anti-drill-down:
-      `🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ 🧠 XX SM │ 👑 XX KOL │ Grade A`
-    - Jika tidak ada Smart Money maupun KOL (`SM=0` dan `KOL=0`), tampilkan badge peringatan bahaya:
-      `🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ ⚠️ 0 SM/KOL │ Grade B`
-  - **Konsistensi 1 Baris Universal**: Seluruh kategori (termasuk `5M MOMENTUM` dan `BREAK ATH LP`) disajikan strictly 1 baris per token tanpa baris kosong pemisah antar token.
+  - Judul kategori ditebalkan: `<b>RUNNER</b>`, `<b>🎮 BONUS STAGE (15M)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>AKASHI ZONE</b>`, `<b>⚡ BREAKOUT</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
+- **Smart Deduplication Antar Kategori**:
+  - Satu token **HANYA BOLEH MUNCUL 1 KALI** di kategori tertingginya (Hierarki: Runner > Bonus Stage > Siap LP > Akashi Zone > Breakout > Absorption > Gaps). Token tidak diduplikasi lintas kategori. Jika token Siap LP juga berada di zona Akashi Fibo, token diberi label tag kompak `[Fibo]`.
+- **Ultra-Compact 1-Line Format (< 55 Karakter per Baris)**:
+  - Format angka dan metrik disajikan sangat padat agar bebas dari pemotongan baris (*zero text wrapping*) di layar smartphone:
+    - V/L turnover: `{vl:.1f}x` (tanpa prefix `V/L `).
+    - MCap: `$X.XM` atau `$Xk` (misal `$2.1M`, `$649k`, tanpa desimal nol mubazir).
+    - Smart Money & KOL: `🧠XX 👑YY` (contoh: `🧠165 👑9`) atau `⚠️0SM` jika kosong.
+    - Grade DLMM: `GrA` / `GrB` / `GrC`.
+    - Runner: `🏛️W2 +12%` atau `⚡Pump +8%`.
+    - Breakout: `🚀+15% ATH (18m)` atau `V5 $450k (+25%) │ 🟢65%`.
+- **Capping Top N Adaptif**:
+  - Maksimal 3 token per kategori (dan maksimal 4 token untuk Siap LP). Jika ada token berlebih, ditutup dengan ringkasan padat `<i>(+N lainnya)</i>` sehingga pesan rutin Telegram pas dalam 1 layar ponsel tanpa scrolling.
+- **Konsistensi 1 Baris Universal**:
+  - Seluruh kategori disajikan strictly 1 baris per token tanpa baris kosong pemisah antar token.
   - **DILARANG menampilkan tag narasi di chat Telegram maupun Web Dashboard** seperti `[👑 CTO]`, `[🧠 Smart]`, `[💎 Bluechip]`, atau `[🤖 AI]`.
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
-  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token.
-  - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
-  - **DILARANG Menampilkan Baris Riwayat Sinyal (`🕒 Sinyal:`) di Pesan Rutin**: Pada laporan pemindaian berkala 5 menit di Telegram, baris riwayat jam sinyal (`🕒 Sinyal: ... (Nx)`) **DILARANG DITAMPILKAN** agar seluruh daftar token murni dan strictly 1 baris per token. Riwayat 24 jam tetap dicatat di backend dan disajikan penuh pada Web Dashboard (Tab 7 `📜 HISTORY`) serta menu on-demand `/history`.
+  - **Top 3 GAPS Radar Kompak**: Disajikan strictly 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ X.Xx │ $XXXk`) tanpa baris alasan.
+  - **DILARANG Menampilkan Baris Riwayat Sinyal (`🕒 Sinyal:`) di Pesan Rutin**: Pada laporan pemindaian berkala 5 menit di Telegram, baris riwayat jam sinyal **DILARANG DITAMPILKAN**. Riwayat 24 jam disajikan penuh pada Web Dashboard (Tab 7 `📜 HISTORY`) serta menu on-demand `/history`.
 
 ## 6. Sinkronisasi Waktu Pemindaian (Scan Timing Synchronization)
 - **Jadwal Jam Dinding Kelipatan 5 Menit**:

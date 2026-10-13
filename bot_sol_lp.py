@@ -2048,10 +2048,10 @@ def _usd(n: float) -> str:
         return "$0"
     if n >= 1e6:
         val = n / 1e6
-        return f"${val:.2f}M" if val < 10 else f"${val:.1f}M"
+        return f"${val:.1f}M" if (val >= 10 or val == int(val)) else f"${val:.2f}".rstrip("0").rstrip(".") + "M"
     if n >= 1e3:
         val = n / 1e3
-        return f"${val:.0f}k" if (val >= 100 or val == int(val)) else f"${val:.1f}k"
+        return f"${val:.0f}k" if (val >= 100 or val == int(val)) else f"${val:.1f}".rstrip("0").rstrip(".") + "k"
     return f"${n:,.0f}"
 
 
@@ -2706,7 +2706,9 @@ def generate_report(
         gaps.sort(key=lambda x: (-x.get("vl", 0.0), -x.get("vol", 0.0)))
 
     chain_mode = str(conf.get("chain_mode", "BOTH")).upper()
-    top_limit = conf.get("top_n_display", 10)
+    top_limit = int(conf.get("top_n_display", 3) or 3)
+    if top_limit > 5:
+        top_limit = 3  # Proteksi agar pesan rutin 5m selalu muat dalam 1 layar smartphone
 
     mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
     mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
@@ -2716,210 +2718,187 @@ def generate_report(
         f"<b>{mode_icon} {mode_label} LP RADAR</b> · <i>{now_wib}</i>",
     ]
 
-    # 0. 🚀 RUNNER MOMENTUM (Spot Entry)
-    rn_list = runner_list or []
+    seen_addrs: set[str] = set()
+
+    def _sm_part(item: dict) -> str:
+        chain = str(item.get("chain", "SOL")).upper()
+        if chain != "SOL":
+            return ""
+        sd = int(item.get("smart_degen_count", 0) or 0)
+        rn = int(item.get("renowned_count", 0) or 0)
+        if sd > 0 or rn > 0:
+            parts = []
+            if sd > 0:
+                parts.append(f"🧠{sd}")
+            if rn > 0:
+                parts.append(f"👑{rn}")
+            return " │ " + " ".join(parts)
+        return " │ ⚠️0SM"
+
+    # 1. 🚀 RUNNER (Spot Momentum)
+    rn_list = [x for x in (runner_list or []) if (x.get("address") or "").lower() not in seen_addrs]
     if rn_list:
         lines.append("")
         lines.append("<b>RUNNER</b>")
         for rn in rn_list[:top_limit]:
+            addr = (rn.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
             sym_link = _tlink(rn)
             vl = rn.get("vl", 0.0)
             mc_str = _usd(rn.get('mcap', 0.0))
             vol5_val = float(rn.get("vol_5m", 0.0) or 0.0)
-            vol5_str = _usd(vol5_val)
-            tier = html.escape(str(rn.get("runner_label") or "🚀 Runner"))
+            v5_str = f" │ V5 {_usd(vol5_val)}" if vol5_val >= 50000 else ""
+            sm_str = _sm_part(rn)
+            tier_raw = str(rn.get("runner_label") or "")
+            tier = "🏛️W2" if ("1" in tier_raw or "Wave" in tier_raw) else ("⚡Pump" if ("2" in tier_raw or "Fresh" in tier_raw) else "🚀Run")
             p5_val = rn.get("p5", 0.0)
-            p5_str = f" (+{p5_val:.0f}% 5m)" if p5_val > 0 else ""
+            p5_str = f" +{p5_val:.0f}%" if p5_val > 0 else (f" {p5_val:.0f}%" if p5_val < 0 else "")
             chain = str(rn.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Vol5m {vol5_str} │ [{tier}]{p5_str}")
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{v5_str}{sm_str} │ {tier}{p5_str}")
 
         if len(rn_list) > top_limit:
-            lines.append(f"<i>...dan {len(rn_list) - top_limit} token Runner lainnya</i>")
+            lines.append(f"<i>(+{len(rn_list) - top_limit} runner lainnya)</i>")
 
-    # 0b. 🎮 BONUS STAGE (15M Supertrend Retrace)
-    b_list = bonus_list or []
+    # 2. 🎮 BONUS STAGE (15M Supertrend Retrace)
+    b_list = [x for x in (bonus_list or []) if (x.get("address") or "").lower() not in seen_addrs]
     if b_list:
         lines.append("")
-        lines.append("<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>")
+        lines.append("<b>🎮 BONUS STAGE (15M)</b>")
         for b in b_list[:top_limit]:
+            addr = (b.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
             sym_link = _tlink(b)
             vl = float(b.get("vl", 0.0) or 0.0)
             mc_str = _usd(b.get("mcap", 0.0))
             dist_pct = float(b.get("st_retrace_pct", 0.0) or 0.0)
             ath_str = _usd(b.get("ath_mcap", 0.0))
+            sm_str = _sm_part(b)
             chain = str(b.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ ST {dist_pct:+.1f}% (ATH {ath_str})")
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str} │ ST {dist_pct:+.1f}% (ATH {ath_str})")
 
         if len(b_list) > top_limit:
-            lines.append(f"<i>...dan {len(b_list) - top_limit} token Bonus Stage lainnya</i>")
+            lines.append(f"<i>(+{len(b_list) - top_limit} bonus lainnya)</i>")
 
-    if siap_lp:
+    # 3. 🟢 SIAP LP (Chop Sideways DLMM)
+    siap_filtered = [x for x in (siap_lp or []) if (x.get("address") or "").lower() not in seen_addrs]
+    ak_set = {(x.get("address") or "").lower() for x in (akashi_list or [])}
+    if siap_filtered:
         lines.append("")
         lines.append("<b>SIAP LP (Chop Sideways)</b>")
-        for idx, t in enumerate(siap_lp[:top_limit]):
+        siap_limit = min(top_limit + 1, 4)  # Siap LP kuota maksimal 4 token
+        for t in siap_filtered[:siap_limit]:
+            addr = (t.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
             sym_link = _tlink(t)
             vl = t.get("vl", 0.0)
             mc_str = _usd(t.get('mcap', 0.0))
             chain = str(t.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
-            grade_str = f" │ Grade {t.get('pool_grade')}" if chain == "SOL" and t.get("pool_grade") else ""
+            grade = t.get("pool_grade")
+            grade_str = f" │ Gr{grade}" if chain == "SOL" and grade else ""
+            fibo_tag = " [Fibo]" if addr in ak_set else ""
+            sm_str = _sm_part(t)
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str}{grade_str}{fibo_tag}")
 
-            sd = int(t.get("smart_degen_count", 0) or 0)
-            rn = int(t.get("renowned_count", 0) or 0)
-            if chain == "SOL":
-                sm_str = f" │ 🧠 {sd} SM │ 👑 {rn} KOL" if (sd > 0 or rn > 0) else " │ ⚠️ 0 SM/KOL"
-            else:
-                sm_str = ""
+        if len(siap_filtered) > siap_limit:
+            lines.append(f"<i>(+{len(siap_filtered) - siap_limit} pool lainnya)</i>")
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{sm_str}{grade_str}")
-
-        if len(siap_lp) > top_limit:
-            lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
-
-    # 1a-2. 🔴 AKASHI ZONE (Fibonacci Retracement 0.236 - 0.382)
-    ak_list = akashi_list or []
-    if ak_list:
+    # 4. 🔴 AKASHI ZONE (Khusus yang belum masuk Siap LP)
+    ak_filtered = [x for x in (akashi_list or []) if (x.get("address") or "").lower() not in seen_addrs]
+    if ak_filtered:
         lines.append("")
         lines.append("<b>AKASHI ZONE</b>")
-        for ak in ak_list[:top_limit]:
+        for ak in ak_filtered[:top_limit]:
+            addr = (ak.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
             sym_link = _tlink(ak)
             vl = ak.get("vl", 0.0)
             mc_str = _usd(ak.get('mcap', 0.0))
             f_ratio = ak.get("fibo_ratio", 0.0)
             chain = str(ak.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
+            sm_str = _sm_part(ak)
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str} │ Fibo {f_ratio:.3f}")
 
-            sd = int(ak.get("smart_degen_count", 0) or 0)
-            rn = int(ak.get("renowned_count", 0) or 0)
-            if chain == "SOL":
-                sm_str = f" │ 🧠 {sd} SM │ 👑 {rn} KOL" if (sd > 0 or rn > 0) else " │ ⚠️ 0 SM/KOL"
+        if len(ak_filtered) > top_limit:
+            lines.append(f"<i>(+{len(ak_filtered) - top_limit} akashi lainnya)</i>")
+
+    # 5. ⚡ BREAKOUT (5M Momentum + Break ATH)
+    breakout_candidates: list[tuple[str, dict]] = []
+    for b in (break_ath_candidates or []):
+        addr = (b.get("address") or "").lower()
+        if addr and addr not in seen_addrs:
+            breakout_candidates.append(("ATH", b))
+    for m in (momentum_5m_candidates or []):
+        addr = (m.get("address") or "").lower()
+        if addr and addr not in seen_addrs and not any(x[1].get("address", "").lower() == addr for x in breakout_candidates):
+            breakout_candidates.append(("5M", m))
+
+    if breakout_candidates:
+        lines.append("")
+        lines.append("<b>⚡ BREAKOUT</b>")
+        for b_type, item in breakout_candidates[:top_limit]:
+            addr = (item.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
+            sym_link = _tlink(item)
+            vl = item.get("vl", 0.0)
+            mc_str = _usd(item.get("mcap", 0.0))
+            chain = str(item.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            sm_str = _sm_part(item)
+            if b_type == "ATH":
+                pct = item.get("breakout_pct", 0)
+                dur = item.get("duration_mins", 0)
+                lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str} │ 🚀+{pct:.0f}% ATH ({dur}m)")
             else:
-                sm_str = ""
+                vol5_str = _usd(item.get("vol_5m", 0.0))
+                p5 = item.get("p5", 0.0)
+                p5_str = f"+{p5:.0f}%" if p5 > 0 else f"{p5:.0f}%"
+                b_ratio = round(item.get("buy_ratio", 50.0))
+                lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str} │ V5 {vol5_str} ({p5_str}) │ 🟢{b_ratio}%")
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} (Fibo {f_ratio:.3f}){sm_str}")
+        if len(breakout_candidates) > top_limit:
+            lines.append(f"<i>(+{len(breakout_candidates) - top_limit} breakout lainnya)</i>")
 
-        if len(ak_list) > top_limit:
-            lines.append(f"<i>...dan {len(ak_list) - top_limit} pool Akashi lainnya</i>")
-
-    # 1c. 🍲 SLOW COOK LP (Premium Mid-Long Term)
-    sc_list = slow_cook_list or []
-    if sc_list:
-        lines.append("")
-        lines.append("<b>🍲 SLOW COOK LP (Medium-Long Term Premium)</b>")
-        for sc in sc_list[:top_limit]:
-            sym_link = _tlink(sc)
-            vl = sc.get("vl", 0.0)
-            mc_str = _usd(sc.get('mcap', 0.0))
-            chain = str(sc.get("chain", "SOL")).upper()
-            badge = "🔹" if chain == "RH" else "🔸"
-            score = sc.get("slow_cook_score", 0)
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Skor {score}/100")
-
-        if len(sc_list) > top_limit:
-            lines.append(f"<i>...dan {len(sc_list) - top_limit} pool Slow Cook lainnya</i>")
-
-    # 1d. 📉 30% DIP CHOP
-    d_list = dip_list or []
-    if d_list:
-        lines.append("")
-        lines.append("<b>📉 30% DIP CHOP (Tight Range at Bottom)</b>")
-        for d in d_list[:top_limit]:
-            sym_link = _tlink(d)
-            vl = d.get("vl", 0.0)
-            mc_str = _usd(d.get('mcap', 0.0))
-            drop = d.get("ath_drawdown", 0.0)
-            chain = str(d.get("chain", "SOL")).upper()
-            badge = "🔹" if chain == "RH" else "🔸"
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Drop {drop:.1f}%")
-
-        if len(d_list) > top_limit:
-            lines.append(f"<i>...dan {len(d_list) - top_limit} pool 30% Dip lainnya</i>")
-
-    # 1e. SMART LP (Smart Money Concentration)
-    sm_list = smart_list or []
-    if sm_list:
-        lines.append("")
-        lines.append("<b>🧠 SMART LP (Smart Money)</b>")
-        for sm in sm_list[:top_limit]:
-            sym_link = _tlink(sm)
-            vl = sm.get("vl", 0.0)
-            mc_str = _usd(sm.get('mcap', 0.0))
-            sd_count = int(sm.get("smart_degen_count", 0) or 0)
-            rn_count = int(sm.get("renowned_count", 0) or 0)
-            chain = str(sm.get("chain", "SOL")).upper()
-            badge = "🔹" if chain == "RH" else "🔸"
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ SM {sd_count} │ KOL {rn_count}")
-
-        if len(sm_list) > top_limit:
-            lines.append(f"<i>...dan {len(sm_list) - top_limit} pool Smart LP lainnya</i>")
-
-    # 2. 5M MOMENTUM
-    m5_list = momentum_5m_candidates or []
-    if m5_list:
-        lines.append("")
-        lines.append("<b>5M MOMENTUM</b>")
-        for m in m5_list[:top_limit]:
-            sym_link = _tlink(m)
-            vl = m.get("vl", 0.0)
-            mc_str = _usd(m.get("mcap", 0.0))
-            vol5_str = _usd(m.get("vol_5m", 0.0))
-            p5 = m.get("p5", 0.0)
-            p5_str = f"+{p5:.0f}%" if p5 > 0 else f"{p5:.0f}%"
-            badge = "🔹" if str(m.get("chain", "SOL")).upper() == "RH" else "🔸"
-            b_ratio = round(m.get("buy_ratio", 50.0))
-
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Vol5m {vol5_str} ({p5_str} 5m) │ 🟢 {b_ratio}% Buy")
-
-        if len(m5_list) > top_limit:
-            lines.append(f"<i>...dan {len(m5_list) - top_limit} token 5M Momentum lainnya</i>")
-
-    # 3. BREAK ATH LP
-    bath_list = break_ath_candidates or []
-    if bath_list:
-        lines.append("")
-        lines.append("<b>BREAK ATH LP</b>")
-        for b in bath_list[:top_limit]:
-            sym_link = _tlink(b)
-            vl = b.get("vl", 0.0)
-            mc_str   = _usd(b.get('mcap', 0.0))
-            dur_str  = f"{b.get('duration_mins', 0)}m"
-            badge = "🔹" if str(b.get("chain", "SOL")).upper() == "RH" else "🔸"
-            pct_sign = "+" if b.get("breakout_pct", 0) >= 0 else ""
-            b_ratio  = round(b.get("buy_ratio", 50.0))
-
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b.get('breakout_pct', 0):.0f}% ATH) │ ⏱ {dur_str} │ 🟢 {b_ratio}% Buy")
-
-        if len(bath_list) > top_limit:
-            lines.append(f"<i>...dan {len(bath_list) - top_limit} token Break ATH lainnya</i>")
-
-    # 4. ABSORPTION RADAR
-    if absorption:
+    # 6. 📡 ABSORPTION RADAR (Khusus yang belum muncul di atas)
+    abs_filtered = [x for x in (absorption or []) if (x.get("address") or "").lower() not in seen_addrs]
+    if abs_filtered:
         lines.append("")
         lines.append("<b>ABSORPTION RADAR</b>")
-        for t in absorption[:top_limit]:
+        for t in abs_filtered[:top_limit]:
+            addr = (t.get("address") or "").lower()
+            if addr:
+                seen_addrs.add(addr)
             sym_link = _tlink(t)
             vl = t.get("vl", 0.0)
-            mc_str = f"MC {_usd(t.get('mcap', 0.0))}"
+            mc_str = _usd(t.get('mcap', 0.0))
             status = html.escape(str(t.get("status_label", "")).strip())
-            badge = "🔹" if str(t.get("chain", "SOL")).upper() == "RH" else "🔸"
+            chain = str(t.get("chain", "SOL")).upper()
+            badge = "🔹" if chain == "RH" else "🔸"
+            sm_str = _sm_part(t)
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}{sm_str} │ {status}")
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ {mc_str} │ {status}")
-        if len(absorption) > top_limit:
-            lines.append(f"<i>...dan {len(absorption) - top_limit} token lainnya</i>")
+        if len(abs_filtered) > top_limit:
+            lines.append(f"<i>(+{len(abs_filtered) - top_limit} token lainnya)</i>")
 
-    # 5. GAPS RADAR (Kompak 1 baris per token)
-    if gaps:
+    # 7. ⚖️ GAPS RADAR (Top 3 Kompak 1 Baris)
+    gaps_filtered = [x for x in (gaps or []) if (x.get("address") or "").lower() not in seen_addrs]
+    if gaps_filtered:
         lines.append("")
         lines.append("<b>GAPS RADAR</b>")
-        for g in gaps[:5]:
+        for g in gaps_filtered[:3]:
             sym_link = _tlink(g)
             vl = g.get("vl", 0.0)
             mc_str = _usd(g.get('mcap', 0.0))
             badge = "🔹" if str(g.get("chain", "SOL")).upper() == "RH" else "🔸"
-
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
+            lines.append(f"{badge} {sym_link} │ {vl:.1f}x │ {mc_str}")
 
     report_body = "\n".join(lines).strip()
     return f"{report_body}"
@@ -3357,6 +3336,7 @@ def run_single_scan(conf: dict[str, Any], dry_run: bool = False, override_chain:
         dip_list=scan_res.get("dip_chop", []),
         smart_list=scan_res.get("smart_lp", []),
         absorption_list=scan_res.get("absorption", []),
+        gaps_list=scan_res.get("gaps", []),
     )
 
     token = conf.get("telegram_bot_token") or ""

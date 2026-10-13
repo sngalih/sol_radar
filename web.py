@@ -762,6 +762,55 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: #06b6d4;
     }
 
+    .cat-tab.active[data-cat="lp"] {
+      background: rgba(47, 217, 123, 0.15);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .cat-tab.active[data-cat="lp"] .badge-count {
+      background: rgba(47, 217, 123, 0.3);
+      color: var(--green);
+    }
+
+    .cat-tab.active[data-cat="breakout"] {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+    .cat-tab.active[data-cat="breakout"] .badge-count {
+      background: rgba(245, 158, 11, 0.3);
+      color: var(--amber);
+    }
+
+    /* Market Pulse Mini KPI Strip */
+    .market-pulse-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      margin: 8px 0 2px;
+      width: 100%;
+    }
+    .pulse-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      padding: 2px 8px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .chip-lbl { color: var(--text-muted); font-size: 10px; font-weight: 600; }
+    .chip-val { font-weight: 700; color: var(--text-main); }
+
     /* Sub-Controls Bar (Tier 2) */
     .sub-controls-bar {
       display: flex;
@@ -1124,13 +1173,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     .arc-tr.rank-3 { background: rgba(249, 115, 22, 0.01); }
 
     .arc-td {
-      padding: 6px 10px;
+      padding: 5px 8px;
       vertical-align: middle;
-      font-size: 13px;
+      font-size: 12.5px;
+      height: 38px;
+      line-height: 1.25;
     }
     .arc-td.mono {
       font-family: var(--font-mono);
-      font-size: 12.5px;
+      font-size: 12px;
     }
 
     /* Action button in Table */
@@ -1769,59 +1820,46 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     <!-- Controls Strip: Two-Tier Layout (Category Tabs + Sub-Controls) -->
     <div class="controls-strip">
       <!-- Tier 1: Category Tabs (Full-Width Wrap, No Clipping) -->
+      <!-- Tier 1: Category Tabs (7 Core Ergonomic Tabs) -->
       <div class="cat-tabs" id="catTabsBar">
-        <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Hotkey: A">
+        <div class="cat-tab active" data-cat="all" onclick="setCategoryTab('all')" title="Semua Sinyal Aktif (Hotkey: A)">
           <span>ALL SIGNALS</span>
           <span id="badgeAll" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="runner" onclick="setCategoryTab('runner')" title="Hotkey: R">
+        <div class="cat-tab" data-cat="runner" onclick="setCategoryTab('runner')" title="Spot Momentum Runner (Hotkey: R)">
           <span>🚀 RUNNER</span>
           <span id="badgeRunner" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="bonus_stage" onclick="setCategoryTab('bonus_stage')" title="Hotkey: B">
+        <div class="cat-tab" data-cat="bonus_stage" onclick="setCategoryTab('bonus_stage')" title="15M Supertrend Retrace (Hotkey: B)">
           <span>🎮 BONUS</span>
           <span id="badgeBonus" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="akashi" onclick="setCategoryTab('akashi')" title="Hotkey: K">
-          <span>🔴 AKASHI</span>
-          <span id="badgeAkashi" class="badge-count">0</span>
+        <div class="cat-tab" data-cat="lp" onclick="setCategoryTab('lp')" title="LP Farming Terpadu (Hotkey: L / 1)">
+          <span>🟢 LP FARMING</span>
+          <span id="badgeLp" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="siap" onclick="setCategoryTab('siap')" title="Hotkey: 1">
-          <span>🟢 SIAP LP</span>
-          <span id="badgeSiap" class="badge-count">0</span>
+        <div class="cat-tab" data-cat="breakout" onclick="setCategoryTab('breakout')" title="Momentum & Breakout (Hotkey: O / 3)">
+          <span>⚡ BREAKOUT</span>
+          <span id="badgeBreakout" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="smart" onclick="setCategoryTab('smart')" title="Hotkey: M">
-          <span>🧠 SMART</span>
-          <span id="badgeSmart" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="slow_cook" onclick="setCategoryTab('slow_cook')" title="Hotkey: O">
-          <span>🍲 SLOW COOK</span>
-          <span id="badgeSlow" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="dip" onclick="setCategoryTab('dip')" title="Hotkey: D">
-          <span>📉 30% DIP</span>
-          <span id="badgeDip" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="momentum_5m" onclick="setCategoryTab('momentum_5m')" title="Hotkey: 3">
-          <span>⚡ 5M</span>
-          <span id="badgeM5" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="absorption" onclick="setCategoryTab('absorption')" title="Hotkey: 4">
-          <span>📡 ABSORB</span>
-          <span id="badgeAbsorb" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="break_ath" onclick="setCategoryTab('break_ath')" title="Hotkey: 5">
-          <span>🚀 ATH</span>
-          <span id="badgeBath" class="badge-count">0</span>
-        </div>
-        <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Hotkey: 6">
+        <div class="cat-tab" data-cat="gaps" onclick="setCategoryTab('gaps')" title="Gaps Radar (Hotkey: G / 6)">
           <span>⚖️ GAPS</span>
           <span id="badgeGaps" class="badge-count">0</span>
         </div>
-        <div class="cat-tab" data-cat="history" onclick="setCategoryTab('history')" title="Hotkey: 7">
+        <div class="cat-tab" data-cat="history" onclick="setCategoryTab('history')" title="Riwayat Sinyal 24 Jam (Hotkey: H / 7)">
           <span>📜 HISTORY</span>
           <span id="badgeHistory" class="badge-count">0</span>
         </div>
+      </div>
+
+      <!-- Market Pulse Mini KPI Strip -->
+      <div class="market-pulse-strip" id="marketPulseStrip">
+        <div class="pulse-chip" title="Total Peluang Aktif"><span class="chip-lbl">TOTAL:</span> <b id="pulseTotal" class="chip-val">0</b></div>
+        <div class="pulse-chip" title="Spot Runner Multi-Bagger"><span class="chip-lbl">🚀 RUNNER:</span> <b id="pulseRunner" class="chip-val" style="color:#22d3ee">0</b></div>
+        <div class="pulse-chip" title="15M Supertrend Retrace"><span class="chip-lbl">🎮 BONUS:</span> <b id="pulseBonus" class="chip-val" style="color:#c084fc">0</b></div>
+        <div class="pulse-chip" title="Siap LP & Akashi Zone DLMM"><span class="chip-lbl">🟢 LP FARM:</span> <b id="pulseLp" class="chip-val" style="color:#2fd97b">0</b></div>
+        <div class="pulse-chip" title="Meteora DLMM Grade A Pools"><span class="chip-lbl">🅰️ GRADE A:</span> <b id="pulseGradeA" class="chip-val" style="color:#4ade80">0</b></div>
+        <div class="pulse-chip" title="Smart Money Concentration"><span class="chip-lbl">🧠 SM/KOL:</span> <b id="pulseSmart" class="chip-val" style="color:#f43f5e">0</b></div>
       </div>
 
       <!-- Tier 2: Sub-Controls Bar (Status Kategori Kiri + Quick Search & Mode Switcher Kanan) -->
@@ -2270,11 +2308,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         tab.classList.toggle("active", tab.getAttribute("data-cat") === cat)
       );
       const catLabels = {
-        all: "ALL SIGNALS", runner: "🚀 RUNNER", bonus_stage: "🎮 BONUS STAGE", akashi: "🔴 AKASHI ZONE", siap: "🟢 SIAP LP",
-        smart: "🧠 SMART LP", slow_cook: "🍲 SLOW COOK",
-        dip: "📉 30% DIP", momentum_5m: "⚡ 5M",
-        absorption: "📡 ABSORB", break_ath: "🚀 ATH", gaps: "⚖️ GAPS",
-        history: "📜 HISTORY"
+        all: "ALL SIGNALS",
+        runner: "🚀 RUNNER",
+        bonus_stage: "🎮 BONUS STAGE",
+        lp: "🟢 LP FARMING",
+        breakout: "⚡ BREAKOUT",
+        gaps: "⚖️ GAPS",
+        history: "📜 HISTORY",
+        // Legacy compatibility
+        siap: "🟢 LP FARMING",
+        akashi: "🟢 LP FARMING",
+        smart: "🟢 LP FARMING",
+        slow_cook: "🟢 LP FARMING",
+        dip: "🟢 LP FARMING",
+        absorption: "🟢 LP FARMING",
+        momentum_5m: "⚡ BREAKOUT",
+        break_ath: "⚡ BREAKOUT"
       };
       const labelEl = document.getElementById("activeCatLabel");
       if (labelEl) labelEl.innerText = catLabels[cat] || cat.toUpperCase();
@@ -2509,18 +2558,58 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           const bAll = document.getElementById("badgeAll");
           if (bAll) bAll.innerText = rawList.length;
       }
+      else if (activeCategory === "lp" || activeCategory === "siap" || activeCategory === "akashi" || activeCategory === "smart" || activeCategory === "slow_cook" || activeCategory === "dip" || activeCategory === "absorption") {
+          const merged = [];
+          const seen = new Set();
+          const mergeLp = (list, tag, tagColor) => {
+              (list || []).forEach(t => {
+                  const addr = (t.address || "").toLowerCase();
+                  if (!seen.has(addr)) {
+                      seen.add(addr);
+                      const cloned = {...t, strat_tags: [{name: tag, color: tagColor}]};
+                      merged.push(cloned);
+                  } else {
+                      const existing = merged.find(x => (x.address||"").toLowerCase() === addr);
+                      if (existing && !existing.strat_tags.find(x => x.name === tag)) {
+                          existing.strat_tags.push({name: tag, color: tagColor});
+                      }
+                  }
+              });
+          };
+          mergeLp(globalState.siap_lp, "Siap LP", "#2fd97b");
+          mergeLp(globalState.akashi_zone, "Akashi", "#dc2626");
+          mergeLp(globalState.smart_lp, "Smart", "#f43f5e");
+          mergeLp(globalState.slow_cook_lp, "Slow Cook", "#2fd97b");
+          mergeLp(globalState.dip_chop, "30% Dip", "#3b82f6");
+          mergeLp(globalState.absorption, "Absorb", "#5d667a");
+          rawList = merged;
+      }
+      else if (activeCategory === "breakout" || activeCategory === "momentum_5m" || activeCategory === "break_ath") {
+          const merged = [];
+          const seen = new Set();
+          const mergeBo = (list, tag, tagColor) => {
+              (list || []).forEach(t => {
+                  const addr = (t.address || "").toLowerCase();
+                  if (!seen.has(addr)) {
+                      seen.add(addr);
+                      const cloned = {...t, strat_tags: [{name: tag, color: tagColor}]};
+                      merged.push(cloned);
+                  } else {
+                      const existing = merged.find(x => (x.address||"").toLowerCase() === addr);
+                      if (existing && !existing.strat_tags.find(x => x.name === tag)) {
+                          existing.strat_tags.push({name: tag, color: tagColor});
+                      }
+                  }
+              });
+          };
+          mergeBo(globalState.break_ath, "ATH", "#14b8a6");
+          mergeBo(globalState.momentum_5m, "5M", "#f59e0b");
+          rawList = merged;
+      }
       else if (activeCategory === "runner")      rawList = globalState.runner_momentum || [];
       else if (activeCategory === "bonus_stage") rawList = globalState.bonus_stage || [];
-      else if (activeCategory === "akashi")      rawList = globalState.akashi_zone || [];
-      else if (activeCategory === "dip")         rawList = globalState.dip_chop || [];
-      else if (activeCategory === "slow_cook")   rawList = globalState.slow_cook_lp || [];
-      else if (activeCategory === "siap")        rawList = globalState.siap_lp    || [];
-      else if (activeCategory === "smart")       rawList = globalState.smart_lp   || [];
-      else if (activeCategory === "momentum_5m") rawList = globalState.momentum_5m || [];
-      else if (activeCategory === "absorption")  rawList = globalState.absorption || [];
-      else if (activeCategory === "break_ath")   rawList = globalState.break_ath  || [];
       else if (activeCategory === "history")     rawList = globalState.signal_history || [];
-      else                                       rawList = globalState.gaps        || [];
+      else                                       rawList = globalState.gaps || [];
 
       const pillEl = document.getElementById("activeCatPill");
       if (pillEl) pillEl.innerText = `${rawList.length} pool`;
@@ -2565,18 +2654,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       // Empty State
       if (!filtered.length) {
         const msgs = {
+          all:         "Belum ada token di semua kategori sinyal.",
           runner:      "Belum ada token memenuhi kriteria 🚀 Runner Momentum (Tier 1 Wave 2 atau Tier 2 Fresh Breakout).",
           bonus_stage: "Belum ada token memenuhi kriteria 🎮 Bonus Stage (New ATH > $250k, Usia < 48h, Supertrend 15m Retrace).",
-          slow_cook:   "Belum ada token memenuhi kriteria 🍲 Slow Cook (Skor ≥ 90).",
-          dip:         "Belum ada token memenuhi kriteria 📉 30% Dip Chop (Drop 20-45%, ER ≤ 10, Range 1H ≤ 4%).",
-          all:         "Belum ada token di semua kategori sinyal.",
-            siap:        "Belum ada token memenuhi kriteria Siap LP (V/L ≥ 0.5x, Buy% ≥ 46%, Drop 1h ≥ -8%, ATH Drop ≤ 85%, MC ≥ $500k, Usia ≥ 12h).",
-          akashi:      "Belum ada token memenuhi kriteria 🔴 Akashi Zone (Fibo 0.236 - 0.382, V/L ≥ 0.5x, MC ≥ $500k, Usia ≥ 12h).",
-          momentum_5m: "Belum ada token memenuhi kriteria ⚡ 5M Momentum (Vol 5m > $100k, V/L ≥ 0.5x, MC ≥ $500k, Usia ≥ 12h).",
-          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini (MC ≥ $500k, Usia ≥ 12h, V/L ≥ 0.5x, Buy% ≥ 46%).",
-          break_ath:   "Belum ada token Break ATH terkonfirmasi (MC ≥ $500k, Usia ≥ 12h, V/L ≥ 0.5x).",
-          history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir (Akashi Zone, Siap LP, 5M Momentum, Break ATH, Absorption).",
+          lp:          "Belum ada pool memenuhi kriteria 🟢 LP Farming (Siap LP, Akashi Zone, Smart LP, Slow Cook, 30% Dip).",
+          breakout:    "Belum ada token memenuhi kriteria ⚡ Breakout (5M Momentum atau Break ATH).",
+          history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir.",
           gaps:        "Tidak ada token radar yang berada di luar kriteria (Hard Filter: MC ≥ $500k & Usia ≥ 12h).",
+          siap:        "Belum ada token memenuhi kriteria Siap LP.",
+          akashi:      "Belum ada token memenuhi kriteria Akashi Zone.",
+          momentum_5m: "Belum ada token memenuhi kriteria 5M Momentum.",
+          absorption:  "Belum ada sinyal akumulasi/absorption terdeteksi saat ini.",
+          break_ath:   "Belum ada token Break ATH terkonfirmasi.",
+          slow_cook:   "Belum ada token memenuhi kriteria Slow Cook.",
+          dip:         "Belum ada token memenuhi kriteria 30% Dip Chop.",
         };
         const searchMsg = searchQuery ? `Tidak ditemukan token yang cocok dengan pencarian "<b>${searchQuery}</b>".` : (msgs[activeCategory] || msgs.siap);
         container.innerHTML = `
@@ -3169,25 +3260,66 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const topVl = (data.top_vl !== undefined && data.top_vl !== null) ? Number(data.top_vl).toFixed(1) + "x" : (data.top_yield ? `${Number(data.top_yield).toFixed(1)}x` : "0.0x");
         const bathCount = (data.counts && data.counts.break_ath) || (data.break_ath ? data.break_ath.length : 0);
 
-        // Category Badges
+        // 7 Category Badges & KPI Calculations
+        const runnerCount = (data.counts && data.counts.runner) || (data.runner_momentum ? data.runner_momentum.length : 0);
+        const bonusCount = (data.counts && data.counts.bonus_stage) || (data.bonus_stage ? data.bonus_stage.length : 0);
+
+        const lpSeen = new Set();
+        [...(data.siap_lp || []), ...(data.akashi_zone || []), ...(data.smart_lp || []), ...(data.slow_cook_lp || []), ...(data.dip_chop || []), ...(data.absorption || [])].forEach(t => {
+          if (t && t.address) lpSeen.add(t.address.toLowerCase());
+        });
+        const lpCount = lpSeen.size;
+
+        const boSeen = new Set();
+        [...(data.break_ath || []), ...(data.momentum_5m || [])].forEach(t => {
+          if (t && t.address) boSeen.add(t.address.toLowerCase());
+        });
+        const breakoutCount = boSeen.size;
+
+        const gapsCount = (data.counts && data.counts.gaps) || (data.gaps ? data.gaps.length : 0);
+        const histCount = (data.counts && data.counts.history) || (data.signal_history ? data.signal_history.length : 0);
+
+        // Update 7 Tab Badges
+        const bAll = document.getElementById("badgeAll");
+        if (bAll) bAll.innerText = (data.counts && data.counts.total) || (runnerCount + bonusCount + lpCount + breakoutCount);
         const bRunner = document.getElementById("badgeRunner");
-        if (bRunner) bRunner.innerText = (data.counts && data.counts.runner) || (data.runner_momentum ? data.runner_momentum.length : 0);
+        if (bRunner) bRunner.innerText = runnerCount;
         const bBonus = document.getElementById("badgeBonus");
-        if (bBonus) bBonus.innerText = (data.counts && data.counts.bonus_stage) || (data.bonus_stage ? data.bonus_stage.length : 0);
-        const bAkashi = document.getElementById("badgeAkashi");
-        if (bAkashi) bAkashi.innerText = (data.counts && data.counts.akashi_zone) || (data.akashi_zone ? data.akashi_zone.length : 0);
-        document.getElementById("badgeDip").innerText = data.counts.dip_chop || 0;
-        document.getElementById("badgeSlow").innerText = data.counts.slow_cook || 0;
-        document.getElementById("badgeSiap").innerText   = data.counts.siap || 0;
-        const bSmart = document.getElementById("badgeSmart");
-        if (bSmart) bSmart.innerText = data.counts.smart_lp || 0;
-        const bM5 = document.getElementById("badgeM5");
-        if (bM5) bM5.innerText = (data.counts && data.counts.momentum_5m) || (data.momentum_5m ? data.momentum_5m.length : 0);
-        document.getElementById("badgeAbsorb").innerText = data.counts.absorption || 0;
-        document.getElementById("badgeBath").innerText   = bathCount;
-        document.getElementById("badgeGaps").innerText   = data.counts.gaps || 0;
+        if (bBonus) bBonus.innerText = bonusCount;
+        const bLp = document.getElementById("badgeLp");
+        if (bLp) bLp.innerText = lpCount;
+        const bBreakout = document.getElementById("badgeBreakout");
+        if (bBreakout) bBreakout.innerText = breakoutCount;
+        const bGaps = document.getElementById("badgeGaps");
+        if (bGaps) bGaps.innerText = gapsCount;
         const bHist = document.getElementById("badgeHistory");
-        if (bHist) bHist.innerText = (data.counts && data.counts.history) || (data.signal_history ? data.signal_history.length : 0);
+        if (bHist) bHist.innerText = histCount;
+
+        // Update Market Pulse KPI Chips
+        const pTotal = document.getElementById("pulseTotal");
+        if (pTotal) pTotal.innerText = (data.counts && data.counts.total) || (runnerCount + bonusCount + lpCount + breakoutCount);
+        const pRunner = document.getElementById("pulseRunner");
+        if (pRunner) pRunner.innerText = runnerCount;
+        const pBonus = document.getElementById("pulseBonus");
+        if (pBonus) pBonus.innerText = bonusCount;
+        const pLp = document.getElementById("pulseLp");
+        if (pLp) pLp.innerText = lpCount;
+
+        let grACount = 0, smCount = 0;
+        const allPools = [...(data.siap_lp || []), ...(data.akashi_zone || []), ...(data.runner_momentum || []), ...(data.bonus_stage || [])];
+        const countedAddrs = new Set();
+        allPools.forEach(t => {
+          const a = (t.address || "").toLowerCase();
+          if (a && !countedAddrs.has(a)) {
+            countedAddrs.add(a);
+            if ((t.pool_grade || "").toUpperCase() === "A") grACount++;
+            if ((t.smart_degen_count || 0) > 0 || (t.renowned_count || 0) > 0) smCount++;
+          }
+        });
+        const pGradeA = document.getElementById("pulseGradeA");
+        if (pGradeA) pGradeA.innerText = grACount;
+        const pSmart = document.getElementById("pulseSmart");
+        if (pSmart) pSmart.innerText = smCount;
 
         // Render Caching / Smart Diffing: Hindari render ulang DOM jika data tidak berubah
         const currentFingerprint = `${data.scanned_timestamp || 0}_${data.scanning ? 1 : 0}_${(data.counts && data.counts.total) || 0}_${(data.counts && data.counts.history) || 0}_${activeCategory}_${activeChain}_${viewMode}_${searchQuery}`;
@@ -3215,16 +3347,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       else if (e.key === "a" || e.key === "A") setCategoryTab("all");
       else if (e.key === "r" || e.key === "R") setCategoryTab("runner");
       else if (e.key === "b" || e.key === "B") setCategoryTab("bonus_stage");
-      else if (e.key === "k" || e.key === "K") setCategoryTab("akashi");
-      else if (e.key === "1") setCategoryTab("siap");
-      else if (e.key === "m" || e.key === "M") setCategoryTab("smart");
-      else if (e.key === "o" || e.key === "O") setCategoryTab("slow_cook");
-      else if (e.key === "d" || e.key === "D") setCategoryTab("dip");
-      else if (e.key === "3") setCategoryTab("momentum_5m");
-      else if (e.key === "4") setCategoryTab("absorption");
-      else if (e.key === "5") setCategoryTab("break_ath");
-      else if (e.key === "6") setCategoryTab("gaps");
-      else if (e.key === "7") setCategoryTab("history");
+      else if (e.key === "l" || e.key === "L" || e.key === "1") setCategoryTab("lp");
+      else if (e.key === "o" || e.key === "O" || e.key === "3") setCategoryTab("breakout");
+      else if (e.key === "g" || e.key === "G" || e.key === "6") setCategoryTab("gaps");
+      else if (e.key === "h" || e.key === "H" || e.key === "7") setCategoryTab("history");
+      else if (e.key === "k" || e.key === "K" || e.key === "m" || e.key === "M" || e.key === "d" || e.key === "D" || e.key === "4") setCategoryTab("lp");
+      else if (e.key === "5") setCategoryTab("breakout");
       else if (e.key === "s" || e.key === "S") { e.preventDefault(); triggerScan(); }
       else if (e.key === "/") {
         e.preventDefault();
