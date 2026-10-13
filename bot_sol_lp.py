@@ -2141,6 +2141,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     narratives: list[str] = []
 
     smart_degen_count = int(num(row, "smart_degen_count"))
+    renowned_count = int(num(row, "renowned_count"))
     bluechip_pct = num(row, "bluechip_owner_percentage")
 
     twitter_username = str(row.get("twitter_username") or "").strip()
@@ -2316,6 +2317,7 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "is_cto": is_cto,
         "narratives": narratives,
         "smart_degen_count": smart_degen_count,
+        "renowned_count": renowned_count,
         "bluechip_owner_pct": round(bluechip_pct * 100, 1),
         "twitter_url": twitter_url,
         "telegram_url": telegram_url,
@@ -2709,8 +2711,9 @@ def generate_report(
     mode_label = "Solana + Robinhood" if chain_mode == "BOTH" else ("Robinhood" if chain_mode == "RH" else "Solana")
     mode_icon = "🔸🔹" if chain_mode == "BOTH" else ("🔹" if chain_mode == "RH" else "🔸")
 
+    now_wib = get_wib_str(fmt="%H:%M WIB")
     lines = [
-        f"{mode_icon} {mode_label}",
+        f"<b>{mode_icon} {mode_label} LP RADAR</b> · <i>{now_wib}</i>",
     ]
 
     # 0. 🚀 RUNNER MOMENTUM (Spot Entry)
@@ -2763,7 +2766,14 @@ def generate_report(
             badge = "🔹" if chain == "RH" else "🔸"
             grade_str = f" │ Grade {t.get('pool_grade')}" if chain == "SOL" and t.get("pool_grade") else ""
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{grade_str}")
+            sd = int(t.get("smart_degen_count", 0) or 0)
+            rn = int(t.get("renowned_count", 0) or 0)
+            if chain == "SOL":
+                sm_str = f" │ 🧠 {sd} SM │ 👑 {rn} KOL" if (sd > 0 or rn > 0) else " │ ⚠️ 0 SM/KOL"
+            else:
+                sm_str = ""
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}{sm_str}{grade_str}")
 
         if len(siap_lp) > top_limit:
             lines.append(f"<i>...dan {len(siap_lp) - top_limit} pool lainnya</i>")
@@ -2781,7 +2791,14 @@ def generate_report(
             chain = str(ak.get("chain", "SOL")).upper()
             badge = "🔹" if chain == "RH" else "🔸"
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} (Fibo {f_ratio:.3f})")
+            sd = int(ak.get("smart_degen_count", 0) or 0)
+            rn = int(ak.get("renowned_count", 0) or 0)
+            if chain == "SOL":
+                sm_str = f" │ 🧠 {sd} SM │ 👑 {rn} KOL" if (sd > 0 or rn > 0) else " │ ⚠️ 0 SM/KOL"
+            else:
+                sm_str = ""
+
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} (Fibo {f_ratio:.3f}){sm_str}")
 
         if len(ak_list) > top_limit:
             lines.append(f"<i>...dan {len(ak_list) - top_limit} pool Akashi lainnya</i>")
@@ -2843,31 +2860,27 @@ def generate_report(
     if m5_list:
         lines.append("")
         lines.append("<b>5M MOMENTUM</b>")
-        for m in m5_list[:6]:
+        for m in m5_list[:top_limit]:
             sym_link = _tlink(m)
             vl = m.get("vl", 0.0)
             mc_str = _usd(m.get("mcap", 0.0))
             vol5_str = _usd(m.get("vol_5m", 0.0))
             p5 = m.get("p5", 0.0)
-            p5_str = f"+{p5:.1f}%" if p5 > 0 else f"{p5:.1f}%"
+            p5_str = f"+{p5:.0f}%" if p5 > 0 else f"{p5:.0f}%"
             badge = "🔹" if str(m.get("chain", "SOL")).upper() == "RH" else "🔸"
             b_ratio = round(m.get("buy_ratio", 50.0))
-            buys = m.get("buys", 0)
-            sells = m.get("sells", 0)
-            tx_str = f"🟢 {b_ratio}% Buy"
-            if buys > 0 or sells > 0:
-                tx_str += f" ({buys}/{sells})"
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str}")
-            lines.append(f"  ⚡ 5m {p5_str} │ 🌊 Vol5m {vol5_str} │ {tx_str}")
-            lines.append("")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} │ Vol5m {vol5_str} ({p5_str} 5m) │ 🟢 {b_ratio}% Buy")
+
+        if len(m5_list) > top_limit:
+            lines.append(f"<i>...dan {len(m5_list) - top_limit} token 5M Momentum lainnya</i>")
 
     # 3. BREAK ATH LP
     bath_list = break_ath_candidates or []
     if bath_list:
         lines.append("")
         lines.append("<b>BREAK ATH LP</b>")
-        for b in bath_list[:6]:
+        for b in bath_list[:top_limit]:
             sym_link = _tlink(b)
             vl = b.get("vl", 0.0)
             mc_str   = _usd(b.get('mcap', 0.0))
@@ -2876,9 +2889,10 @@ def generate_report(
             pct_sign = "+" if b.get("breakout_pct", 0) >= 0 else ""
             b_ratio  = round(b.get("buy_ratio", 50.0))
 
-            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b.get('breakout_pct', 0):.0f}%)")
-            lines.append(f"  ⏱ {dur_str} │ 🌊 Vol {_usd(b.get('vol', 0.0))} │ 🟢 {b_ratio}% Buy")
-            lines.append("")
+            lines.append(f"{badge} {sym_link} │ V/L {vl:.1f}x │ MC {mc_str} ({pct_sign}{b.get('breakout_pct', 0):.0f}% ATH) │ ⏱ {dur_str} │ 🟢 {b_ratio}% Buy")
+
+        if len(bath_list) > top_limit:
+            lines.append(f"<i>...dan {len(bath_list) - top_limit} token Break ATH lainnya</i>")
 
     # 4. ABSORPTION RADAR
     if absorption:

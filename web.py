@@ -2855,7 +2855,8 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               </td>
               <td class="arc-td mono" style="color:var(--green);font-weight:600;white-space:nowrap">${buyRatio}%</td>
               <td class="arc-td" style="white-space:nowrap">
-                <span class="safety-pill safety-${sGrade}" title="Score: ${sScore}/100">${sGrade} ${sScore}</span>
+                <span class="safety-pill safety-${sGrade}" title="Audit Score: ${sScore}/100 · Smart Money: ${t.smart_degen_count || 0} · KOL: ${t.renowned_count || 0}">${sGrade} ${sScore}</span>
+                <div style="font-size:9.5px;color:var(--text-muted);margin-top:1px;font-family:var(--font-mono)">🧠 ${t.smart_degen_count || 0} · 👑 ${t.renowned_count || 0}</div>
               </td>
               <td class="arc-td mono" style="text-align:center;white-space:nowrap">
                 ${histBadge}
@@ -3111,7 +3112,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               <div class="vol-tag"><span>1h:</span>&nbsp;<span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span></div>
               <div class="safety-block">
                 <span class="safety-pill safety-${sGrade}" title="Audit Score: ${sScore}/100">${sGrade} ${sScore}</span>
-                <span class="safety-sub">t10 ${t.top10_rate || 0}% · dev ${t.dev_team_hold || 0}%</span>
+                <span class="safety-sub">t10 ${t.top10_rate || 0}% · dev ${t.dev_team_hold || 0}% · 🧠 ${t.smart_degen_count || 0} SM · 👑 ${t.renowned_count || 0} KOL</span>
               </div>
             </div>
 

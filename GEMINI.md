@@ -88,17 +88,24 @@
   ```
 
 ## 5. Telegram Bot Reporting Rules (`bot_sol_lp.py`)
-- **Tampilan Ultra-Minimalis**:
+- **Tampilan Ultra-Minimalis & Header Bersih**:
   - Tanpa dekorasi garis pembatas panjang (`━━━━━━━━━━━━`).
+  - Header pesan menampilkan mode rantai dan timestamp jam dinding WIB: `<b>{mode_icon} {mode_label} LP RADAR</b> · <i>HH:MM WIB</i>`.
   - Judul kategori ditebalkan: `<b>RUNNER</b>`, `<b>🎮 BONUS STAGE (15M Supertrend Retrace)</b>`, `<b>SIAP LP (Chop Sideways)</b>`, `<b>AKASHI ZONE</b>`, `<b>5M MOMENTUM</b>`, `<b>BREAK ATH LP</b>`, `<b>ABSORPTION RADAR</b>`, `<b>GAPS RADAR</b>`.
-- **Format Token Bersih**:
+- **Format Token Bersih & Strictly 1 Baris per Token**:
   - Diawali langsung dengan badge rantai (`🔹` RH / `🔸` SOL). **DILARANG ada bullet point `•`** di depan badge.
   - Nama token adalah link langsung tanpa kurung siku `[]` diikuti pemisah pipe `│` (contoh: `🔹 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`).
-  - **DILARANG menampilkan tag narasi di chat Telegram maupun Web Dashboard** seperti `[👑 CTO]`, `[🧠 Smart]`, `[💎 Bluechip]`, atau `[🤖 AI]`. Seluruh tag narasi dihapus agar tampilan chat Telegram maupun antarmuka Web Dashboard tetap padat, bersih, dan fokus pada data esensial.
+  - **Metrik Proteksi Smart Money & KOL (Siap LP & Akashi Zone)**:
+    - Menampilkan jumlah wallet Smart Money (`smart_degen_count`) dan KOL (`renowned_count`) yang memegang token untuk verifikasi anti-rug & anti-drill-down:
+      `🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ 🧠 XX SM │ 👑 XX KOL │ Grade A`
+    - Jika tidak ada Smart Money maupun KOL (`SM=0` dan `KOL=0`), tampilkan badge peringatan bahaya:
+      `🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM │ ⚠️ 0 SM/KOL │ Grade B`
+  - **Konsistensi 1 Baris Universal**: Seluruh kategori (termasuk `5M MOMENTUM` dan `BREAK ATH LP`) disajikan strictly 1 baris per token tanpa baris kosong pemisah antar token.
+  - **DILARANG menampilkan tag narasi di chat Telegram maupun Web Dashboard** seperti `[👑 CTO]`, `[🧠 Smart]`, `[💎 Bluechip]`, atau `[🤖 AI]`.
   - **DILARANG menampilkan baris Contract Address (CA)** (`<code>{addr}</code>`).
   - **DILARANG memakai emoji `📋` dan `🔗`**.
   - **DILARANG menampilkan baris GMGN terpisah** karena nama token sudah menjadi tautan langsung menuju GMGN.
-  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token agar tampilan daftar GAPS sangat padat (compact).
+  - **Top 5 GAPS Radar Kompak**: Wajib disajikan dalam format 1 baris per token (`🔹/🔸 <a href="...">Token</a> │ V/L X.Xx │ MC $X.XM`). **DILARANG menampilkan baris alasan `❌ {alasan}`** dan tanpa jeda baris kosong antar token.
   - Top 5 GAPS Radar wajib disertakan di bagian paling bawah laporan rutin.
   - **DILARANG Menampilkan Baris Riwayat Sinyal (`🕒 Sinyal:`) di Pesan Rutin**: Pada laporan pemindaian berkala 5 menit di Telegram, baris riwayat jam sinyal (`🕒 Sinyal: ... (Nx)`) **DILARANG DITAMPILKAN** agar seluruh daftar token murni dan strictly 1 baris per token. Riwayat 24 jam tetap dicatat di backend dan disajikan penuh pada Web Dashboard (Tab 7 `📜 HISTORY`) serta menu on-demand `/history`.
 
