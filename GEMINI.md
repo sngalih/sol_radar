@@ -174,3 +174,20 @@
     ```
   - **On-Demand & Interactive**: Command `/surge` (atau `/smart`, `/kol`, tombol keyboard `🧠 1H Surge`, inline callback `action_surge`) menyajikan status surge 1 jam terakhir seketika.
 
+## 11. Coding Philosophy & Agent Rule: Ponytail (Lazy Senior Dev Mode)
+- **Filosofi Inti**: "The best code is the code never written. Solve the whole problem with the least new code."
+- **The Smallest Complete Change Hierarchy**:
+  1. Skip fitur/fleksibilitas/boilerplate yang tidak diminta (YAGNI mutlak).
+  2. Gunakan fungsi, helper, atau service yang sudah ada di codebase.
+  3. Gunakan fitur platform / standard library native bawaan bahasa.
+  4. Gunakan library pihak ketiga yang sudah terinstall di dependencies. Dilarang menambah dependency baru untuk hal sepele.
+  5. Jika bisa 1 baris yang mudah dipahami, gunakan 1 baris. Jika tidak, gunakan kode minimum yang bekerja.
+- **Disiplin Eksekusi**:
+  - Malas terhadap solusi, tapi jangan malas terhadap perubahan: tuntaskan semua callers, perbaiki callers/fixtures/tests yang tersentuh.
+  - No abstraction/wrapper/type conversion yang tidak diminta. Deletion beats addition.
+  - Bug fix: grep semua callers sebelum edit, perbaiki root cause sekali pada shared code.
+  - Non-trivial logic wajib disertai unit test/self-check singkat.
+- **Mandatory Wrap-Up**:
+  - Selalu akhiri respon teknis dengan 1–2 baris catatan ringkas: apa yang dilewati/tidak dicek (*what was skipped/not checked*), dan risiko apa yang perlu diketahui user.
+
+

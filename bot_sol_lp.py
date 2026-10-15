@@ -1391,6 +1391,7 @@ def handle_manual_surge_command(conf: dict[str, Any], chat_id: str) -> None:
 
 def update_ath_cache(scored_tokens: list[dict]) -> None:
     """Update ATH cache dan lacak siklus Break ATH (consecutive scans) per token.
+    Sinkronisasi otomatis dengan GMGN historical highest market cap.
     Prune otomatis: hapus entry tidak terlihat > 72 jam."""
     global ATH_CACHE
     now = int(time.time())
@@ -1398,6 +1399,7 @@ def update_ath_cache(scored_tokens: list[dict]) -> None:
         addr = str(t.get("address") or "").strip()
         mcap = float(t.get("mcap") or 0.0)
         gmgn_ath = float(t.get("ath_mcap") or 0.0)
+        ath_drawdown = float(t.get("ath_drawdown") or 0.0)
         symbol = str(t.get("symbol") or "?")
         chain = str(t.get("chain") or "SOL").upper()
 
@@ -1406,15 +1408,14 @@ def update_ath_cache(scored_tokens: list[dict]) -> None:
 
         existing = ATH_CACHE.get(addr)
         if existing is None:
-            # Token baru: jika MC saat ini di bawah ATH GMGN, baseline adalah gmgn_ath.
-            # Jika MC saat ini sudah di puncak, baseline adalah mcap.
-            baseline_ath = gmgn_ath if gmgn_ath > mcap * 1.02 else mcap
-            is_breaking = (mcap >= baseline_ath * 1.02)
+            # Baseline ATH selalu mengambil nilai tertinggi on-chain (GMGN ATH)
+            baseline_ath = max(gmgn_ath, mcap)
+            is_breaking = (mcap >= baseline_ath * 0.98) and (ath_drawdown >= -2.0)
             ATH_CACHE[addr] = {
                 "symbol": symbol,
                 "chain": chain,
                 "ath_mcap": baseline_ath,
-                "peak_mcap": mcap,
+                "peak_mcap": max(baseline_ath, mcap),
                 "break_scans": 1 if is_breaking else 0,
                 "first_break_ts": now if is_breaking else 0,
                 "last_seen": now,
@@ -1423,25 +1424,42 @@ def update_ath_cache(scored_tokens: list[dict]) -> None:
             existing["symbol"] = symbol
             existing["chain"] = chain
             existing["last_seen"] = now
-            baseline_ath = float(existing.get("ath_mcap") or 0.0)
-            if baseline_ath <= 0:
-                baseline_ath = gmgn_ath if gmgn_ath > 0 else mcap
-                existing["ath_mcap"] = baseline_ath
 
-            # Evaluasi breakout dengan buffer +2% dari ATH lama
-            if mcap >= baseline_ath * 1.02:
-                existing["break_scans"] = existing.get("break_scans", 0) + 1
-                if not existing.get("first_break_ts"):
-                    existing["first_break_ts"] = now
-                existing["peak_mcap"] = max(existing.get("peak_mcap", 0.0), mcap)
-            elif mcap >= baseline_ath * 0.98:
-                # Retest zone (antara -2% s/d +2% dari ATH)
-                # Tahan status scans tanpa reset (sedang menguji support ATH lama)
-                pass
+            # Pastikan baseline_ath selalu tersinkron jika GMGN mencatat ATH on-chain lebih tinggi
+            current_baseline = float(existing.get("ath_mcap") or 0.0)
+            if gmgn_ath > current_baseline:
+                current_baseline = gmgn_ath
+                existing["ath_mcap"] = current_baseline
+
+            if current_baseline <= 0:
+                current_baseline = max(gmgn_ath, mcap)
+                existing["ath_mcap"] = current_baseline
+
+            first_ts = int(existing.get("first_break_ts") or 0)
+            break_duration = (now - first_ts) // 60 if first_ts > 0 else 0
+
+            # Kriteria Break ATH yang valid:
+            # 1. Harga saat ini berada di ATH atau menembus ATH baru (mcap >= current_baseline * 0.98)
+            # 2. Drawdown dari historical ATH GMGN minimal >= -3.0% (bukan koin yang sedang drop/koreksi dalam)
+            is_breaking = (mcap >= current_baseline * 0.98) and (ath_drawdown >= -3.0)
+
+            if is_breaking:
+                # Batasi siklus breakout aktif maksimal 90 menit.
+                # Jika sudah bertahan > 90 menit, breakout dianggap selesai & menetap sebagai baseline ATH baru.
+                if break_duration > 90:
+                    existing["ath_mcap"] = max(existing.get("peak_mcap", mcap), mcap)
+                    existing["break_scans"] = 0
+                    existing["first_break_ts"] = 0
+                    existing["peak_mcap"] = mcap
+                else:
+                    existing["break_scans"] = existing.get("break_scans", 0) + 1
+                    if not existing.get("first_break_ts"):
+                        existing["first_break_ts"] = now
+                    existing["peak_mcap"] = max(existing.get("peak_mcap", 0.0), mcap)
             else:
-                # Dump / jatuh kembali di bawah ATH (< 98% ATH lama)
-                # Jika sempat mencetak peak baru yang signifikan, perbarui baseline ATH
-                if existing.get("peak_mcap", 0.0) > baseline_ath * 1.05:
+                # Harga sudah turun dari ATH (bukan breakout lagi)
+                # Jika sebelumnya sempat mencetak peak baru yang lebih tinggi dari baseline, kunci peak sebagai ATH baru
+                if existing.get("peak_mcap", 0.0) > current_baseline:
                     existing["ath_mcap"] = existing["peak_mcap"]
                 existing["break_scans"] = 0
                 existing["first_break_ts"] = 0
@@ -1554,10 +1572,20 @@ def score_break_ath_candidates(
         if t.get("is_honeypot") or t.get("is_wash") or float(t.get("top10_rate") or 0) > 60.0 or float(t.get("insider_rate") or 0) > 25.0:
             continue
 
-        breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
+        ath_drawdown = float(t.get("ath_drawdown") or 0.0)
+        if ath_drawdown < -3.0:
+            # Token harus benar-benar berada di area ATH (drawdown dari GMGN max -3%)
+            continue
 
         first_ts = int(cached.get("first_break_ts") or now)
         duration_mins = max(15, int((now - first_ts) // 60))
+        if duration_mins > 90:
+            # Siklus breakout aktif maksimal 90 menit agar tidak menggantung berjam-jam
+            continue
+
+        breakout_pct = round(((mcap - ath_old) / ath_old * 100), 1) if ath_old > 0 else 0.0
+        if breakout_pct < -2.0:
+            continue
 
         chain = str(t.get("chain") or "SOL").upper()
         badge = "🔹" if chain == "RH" else "🔸"
@@ -1583,6 +1611,8 @@ def score_break_ath_candidates(
             "vl": vl,
             "buy_ratio": buy_ratio,
             "price": price_val,
+            "smart_degen_count": int(t.get("smart_degen_count", 0) or 0),
+            "renowned_count": int(t.get("renowned_count", 0) or 0),
             "range_low": round(price_val * 0.80, 8),
             "range_high": round(price_val * 1.20, 8),
             "range_pct": 20.0,
@@ -1717,6 +1747,10 @@ def score_5m_momentum_candidates(
         if top10_rate <= 30.0:
             score += 10.0
 
+        # Smart Money & KOL lookup dari token_1h (scored_map) atau fallback raw r
+        sd = int(token_1h.get("smart_degen_count", 0) if token_1h else num(r, "smart_degen_count"))
+        rn = int(token_1h.get("renowned_count", 0) if token_1h else num(r, "renowned_count"))
+
         candidates.append({
             "symbol": symbol,
             "name": str(r.get("name") or symbol).strip(),
@@ -1744,6 +1778,8 @@ def score_5m_momentum_candidates(
             "insider_rate": insider_rate,
             "score": score,
             "er": er,
+            "smart_degen_count": sd,
+            "renowned_count": rn,
             "url": gmgn_url,
             "gmgn": gmgn_url,
         })
