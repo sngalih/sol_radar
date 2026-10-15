@@ -155,6 +155,12 @@ def load_persistent_filters() -> dict[str, Any]:
                     saved["max_ath_drawdown"] = -85.0
                 if "max_drop_1h" not in saved:
                     saved["max_drop_1h"] = -8.0
+                if saved.get("bonus_stage_st_multiplier") == 3.0:
+                    saved["bonus_stage_st_multiplier"] = 2.0
+                if saved.get("bonus_stage_max_retrace_dist") == 3.5:
+                    saved["bonus_stage_max_retrace_dist"] = 6.0
+                if saved.get("bonus_stage_max_age_hours") == 48.0:
+                    saved["bonus_stage_max_age_hours"] = 999999.0
                 if "max_drop_5m" not in saved:
                     saved["max_drop_5m"] = -4.0
 
@@ -2656,7 +2662,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const msgs = {
           all:         "Belum ada token di semua kategori sinyal.",
           runner:      "Belum ada token memenuhi kriteria 🚀 Runner Momentum (Tier 1 Wave 2 atau Tier 2 Fresh Breakout).",
-          bonus_stage: "Belum ada token memenuhi kriteria 🎮 Bonus Stage (New ATH > $250k, Usia < 48h, Supertrend 15m Retrace).",
+          bonus_stage: "Belum ada token memenuhi kriteria 🎮 Bonus Stage (New ATH > $250k, Supertrend 15m Retrace).",
           lp:          "Belum ada pool memenuhi kriteria 🟢 LP Farming (Siap LP, Akashi Zone, Smart LP, Slow Cook, 30% Dip).",
           breakout:    "Belum ada token memenuhi kriteria ⚡ Breakout (5M Momentum atau Break ATH).",
           history:     "Belum ada riwayat sinyal aktif yang tercatat dalam 24 jam terakhir.",

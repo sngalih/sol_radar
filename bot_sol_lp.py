@@ -167,11 +167,11 @@ DEFAULT_CONFIG = {
     "max_insider": 15.0,        # Maksimal insider rat trader (15%)
     "min_holders": 150,         # Minimal holders untuk LP & Tier 1 (150)
     "bonus_stage_min_ath": 250000.0,      # Min New ATH Market Cap $250k
-    "bonus_stage_max_age_hours": 48.0,    # Usia token < 2 hari
+    "bonus_stage_max_age_hours": 999999.0,# Tanpa batasan usia maksimal (bebas age)
     "bonus_stage_min_vl": 1.0,            # Turnover V/L min 1.0x
-    "bonus_stage_max_retrace_dist": 3.5,  # Retrace zone (0% s/d +3.5% di atas garis ST 15m)
+    "bonus_stage_max_retrace_dist": 6.0,  # Retrace zone (0% s/d +6.0% di atas garis ST 15m)
     "bonus_stage_st_period": 10,          # Supertrend ATR period 15m
-    "bonus_stage_st_multiplier": 3.0,     # Supertrend multiplier 15m
+    "bonus_stage_st_multiplier": 2.0,     # Supertrend multiplier 15m (tighter dynamic support)
     "bonus_stage_max_dev_hold": 10.0,     # Dev hold max 10%
     "bonus_stage_max_top10": 35.0,        # Top 10 whale hold max 35%
     "bonus_stage_max_top70_sniper": 15.0, # Sniper hold rate di top 70 max 15%
@@ -294,6 +294,12 @@ def get_config() -> dict[str, Any]:
                                 val = 12.0
                             if k == "break_ath_min_mcap" and val == 1000000.0:
                                 val = 500000.0
+                            if k == "bonus_stage_st_multiplier" and val == 3.0:
+                                val = 2.0
+                            if k == "bonus_stage_max_retrace_dist" and val == 3.5:
+                                val = 6.0
+                            if k == "bonus_stage_max_age_hours" and val == 48.0:
+                                val = 999999.0
                             conf[k if k != "position" else "position_usd"] = val
                     break
             except Exception:
@@ -567,7 +573,7 @@ def compute_supertrend_15m(ohlcv_list: list, period: int = 10, multiplier: float
     """Menghitung TradingView Supertrend 15m dari data candlestick GeckoTerminal [ts, o, h, l, c, v].
     Mengembalikan (direction ('bull'/'bear'), supertrend_value, distance_pct).
     """
-    if not ohlcv_list or len(ohlcv_list) < period + 1:
+    if not ohlcv_list or period <= 0 or len(ohlcv_list) < period + 1:
         return None, None, 0.0
 
     # Candle GeckoTerminal berurutan newest first -> balik ke kronologis
@@ -1934,7 +1940,7 @@ def score_bonus_stage_candidates(
     """Filter kandidat strategi 🎮 BONUS STAGE (15M Supertrend Retrace):
     1. Hard Filter Screening:
        - ATH MC >= $250k (ath_mcap >= 250,000)
-       - Token Age < 2 hari (age_hours <= 48.0)
+       - Bebas batasan usia (tanpa batasan max_age_hours, siap deteksi runner muda maupun konsolidasi matang)
        - Good Volume: V/L >= 1.0x, vol >= $50,000, buy_ratio >= 48.0%
        - Healthy Distribution (Top 75 avg buy normal & Anti-Rug):
          top70_sniper <= 15.0%, top10 <= 35.0%, dev_hold <= 10.0%, insider <= 12.0%,
@@ -1943,14 +1949,13 @@ def score_bonus_stage_candidates(
        - TIDAK ADA batasan drawdown dari New ATH (koreksi berapapun diperbolehkan selama tren 15m ST Bullish & retrace).
     2. Sinyal Retrace Supertrend 15m:
        - Trend 15m Supertrend wajib BULLISH (direction == 'bull')
-       - Retrace Zone: Harga berada di atas garis ST dengan jarak 0.0% s/d +3.5% (atau candle low menguji garis ST support).
+       - Retrace Zone: Harga berada di atas garis ST dengan jarak 0.0% s/d +6.0% (atau wick 3-candle terakhir menguji support ST).
     """
     min_ath = float(conf.get("bonus_stage_min_ath", 250000.0))
-    max_age_hours = float(conf.get("bonus_stage_max_age_hours", 48.0))
     min_vl = float(conf.get("bonus_stage_min_vl", 1.0))
     min_vol = float(conf.get("bonus_stage_min_vol", 50000.0))
     min_buy_ratio = float(conf.get("bonus_stage_min_buy", 48.0))
-    max_retrace_dist = float(conf.get("bonus_stage_max_retrace_dist", 3.5))
+    max_retrace_dist = float(conf.get("bonus_stage_max_retrace_dist", 6.0))
     max_dev_hold = float(conf.get("bonus_stage_max_dev_hold", 10.0))
     max_top10 = float(conf.get("bonus_stage_max_top10", 35.0))
     max_top70_sniper = float(conf.get("bonus_stage_max_top70_sniper", 15.0))
@@ -1958,7 +1963,7 @@ def score_bonus_stage_candidates(
     max_bundler = float(conf.get("bonus_stage_max_bundler", 0.50))
     min_holders = int(conf.get("bonus_stage_min_holders", 150))
     st_period = int(conf.get("bonus_stage_st_period", 10))
-    st_multiplier = float(conf.get("bonus_stage_st_multiplier", 3.0))
+    st_multiplier = float(conf.get("bonus_stage_st_multiplier", 2.0))
 
     dex_map = dict(dex_data) if dex_data else {}
     candidates: list[dict] = []
@@ -1972,22 +1977,21 @@ def score_bonus_stage_candidates(
             continue
 
         ath_mcap = float(t.get("ath_mcap", 0.0) or 0.0)
-        age_hours = float(t.get("age_hours", 9999.0) or 9999.0)
         vl = float(t.get("vl", 0.0) or 0.0)
         vol = float(t.get("vol", 0.0) or 0.0)
         vol_5m = float(t.get("vol_5m", 0.0) or 0.0)
         buy_ratio = float(t.get("buy_ratio", 50.0) or 50.0)
-        top10 = float(t.get("top10_rate", 100.0) or 100.0)
-        dev_hold = float(t.get("dev_team_hold", 100.0) or 100.0)
-        insider = float(t.get("insider_rate", 100.0) or 100.0)
-        bundler = float(t.get("bundler_rate", 1.0) or 1.0)
+
+        # Explicit None-checks untuk mencegah bug falsy evaluation 0.0 or 100.0
+        top10 = float(t["top10_rate"]) if t.get("top10_rate") is not None else 100.0
+        dev_hold = float(t["dev_team_hold"]) if t.get("dev_team_hold") is not None else 100.0
+        insider = float(t["insider_rate"]) if t.get("insider_rate") is not None else 100.0
+        bundler = float(t["bundler_rate"]) if t.get("bundler_rate") is not None else 1.0
         top70_sniper = float(t.get("top70_sniper_hold_rate", 0.0) or 0.0)
         holders = int(t.get("holders", 0) or 0)
 
         # Hard Filter Screening
         if ath_mcap < min_ath:
-            continue
-        if age_hours > max_age_hours:
             continue
         if vl < min_vl:
             continue
@@ -2034,10 +2038,12 @@ def score_bonus_stage_candidates(
             continue
 
         ohlcv = fetch_geckoterminal_15m_ohlcv(pair_addr)
-        if not ohlcv or len(ohlcv) < st_period + 1:
+        # Adaptif: gunakan period=10 jika candle >= 11, atau fallback period=7 jika candle 8-10
+        eff_period = st_period if (ohlcv and len(ohlcv) >= st_period + 1) else 7
+        if not ohlcv or len(ohlcv) < eff_period + 1:
             continue
 
-        direction, st_val, dist_pct = compute_supertrend_15m(ohlcv, period=st_period, multiplier=st_multiplier)
+        direction, st_val, dist_pct = compute_supertrend_15m(ohlcv, period=eff_period, multiplier=st_multiplier)
 
         # 1. Tren wajib BULLISH
         if direction != "bull" or st_val is None or st_val <= 0:
@@ -2047,14 +2053,15 @@ def score_bonus_stage_candidates(
         if price <= 0:
             price = float(ohlcv[0][4]) if ohlcv else 0.0
 
-        # Ambil low candle terakhir untuk deteksi wick test support
-        last_candle_low = float(ohlcv[0][3]) if ohlcv else price
+        # Memori wick test 3 candle terakhir (45m terakhir) untuk konfirmasi pantulan support
+        recent_low = min(float(c[3]) for c in ohlcv[:3]) if ohlcv else price
 
-        # 2. Sinyal Retrace: Harga berada di area support ST (0% s/d +max_retrace_dist%)
-        # ATAU low candle menguji garis support ST dan harga close bertahan di atasnya
+        # 2. Sinyal Retrace:
+        # - Harga close saat ini berada di area support ST (0% s/d +max_retrace_dist%)
+        # - ATAU low dari 3 candle terakhir sempat menguji support ST dan harga saat ini bertahan di atas garis ST
         is_retrace = (
             (0.0 <= dist_pct <= max_retrace_dist)
-            or (last_candle_low <= st_val * 1.01 and price >= st_val)
+            or (recent_low <= st_val * 1.02 and price >= st_val)
         )
 
         if not is_retrace:
@@ -2067,6 +2074,8 @@ def score_bonus_stage_candidates(
         t_copy["st_retrace_pct"] = dist_pct
         t_copy["pair_address"] = pair_addr
         t_copy["status_label"] = f"Bonus Stage ({dist_pct:+.1f}%)"
+        t_copy["smart_degen_count"] = int(t.get("smart_degen_count", 0) or 0)
+        t_copy["renowned_count"] = int(t.get("renowned_count", 0) or 0)
 
         candidates.append(t_copy)
         seen.add(addr.lower())
