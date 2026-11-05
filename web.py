@@ -1205,7 +1205,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       text-align: left;
       font-size: 13px;
       line-height: 1.4;
-      min-width: 1200px;
+      min-width: 960px;
     }
     .arc-thead th {
       background: #13151b;
@@ -3328,9 +3328,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <div class="lp-num-green">${feeTvl.toFixed(2)}%</div>
                 ${activeYieldSub}
               </td>
-              <td class="arc-td lp-cell-right lp-num-val" style="min-width:95px;white-space:nowrap">${formatLpUsd(t.liq || 0)}</td>
-              <td class="arc-td lp-cell-right lp-num-val" style="min-width:100px;white-space:nowrap">${formatLpUsd(vol24h)}</td>
-              <td class="arc-td lp-cell-right lp-num-val" style="min-width:90px;white-space:nowrap">${formatLpUsd(poolFee24h)}</td>
               <td class="arc-td lp-cell-right lp-num-val" style="min-width:95px;white-space:nowrap">${formatLpUsd(t.mcap || 0)}</td>
               <td class="arc-td lp-cell-right lp-num-gray" style="min-width:85px;white-space:nowrap">${(t.holders || 0).toLocaleString('en-US')}</td>
               <td class="arc-td lp-cell-center lp-num-gray" style="width:65px;white-space:nowrap">${formatLpAge(t.age_hours)}</td>
@@ -3366,15 +3363,6 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                   <th style="text-align:left;min-width:270px">POOL</th>
                   <th onclick="setTableSort('fee_tvl')" class="sortable ${tableSort.col === 'fee_tvl' ? 'sort-active' : ''}" style="text-align:right;min-width:115px" title="Klik untuk mengurutkan Fee/TVL 24h">
                     ${tableSort.col === 'fee_tvl' ? (tableSort.dir === 'desc' ? '↓ ' : '↑ ') : ''}FEE/TVL 24H ∨
-                  </th>
-                  <th onclick="setTableSort('liq')" class="sortable ${tableSort.col === 'liq' ? 'sort-active' : ''}" style="text-align:right;min-width:95px" title="Klik untuk mengurutkan Likuiditas">
-                    LIQUIDITY ${tableSort.col === 'liq' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
-                  </th>
-                  <th onclick="setTableSort('vol_24h')" class="sortable ${tableSort.col === 'vol_24h' ? 'sort-active' : ''}" style="text-align:right;min-width:100px" title="Klik untuk mengurutkan Volume 24h">
-                    VOLUME 24H ${tableSort.col === 'vol_24h' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
-                  </th>
-                  <th onclick="setTableSort('fees_24h')" class="sortable ${tableSort.col === 'fees_24h' ? 'sort-active' : ''}" style="text-align:right;min-width:90px" title="Klik untuk mengurutkan Fee 24h">
-                    FEES 24H ${tableSort.col === 'fees_24h' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
                   </th>
                   <th onclick="setTableSort('mcap')" class="sortable ${tableSort.col === 'mcap' ? 'sort-active' : ''}" style="text-align:right;min-width:95px" title="Klik untuk mengurutkan Market Cap">
                     MCAP ${tableSort.col === 'mcap' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
