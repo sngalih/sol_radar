@@ -490,12 +490,12 @@ def fetch_gmgn_trending_24h(chain: str = "sol", limit: int = 100) -> list[dict]:
     return []
 
 
-def fetch_meteora_dlmm_pools(limit: int = 50, min_tvl: int = 15000) -> list[dict]:
-    """Fallback Engine: Mengambil pool DLMM aktif dari official REST API Meteora."""
+def fetch_meteora_dlmm_pools(limit: int = 100, min_tvl: int = 15000) -> list[dict]:
+    """Mengambil top pool DLMM aktif dari official REST API Meteora terurut berdasarkan Fee/TVL 24h."""
     pools_map: dict[str, dict] = {}
     p1 = {
-        "page_size": min(limit, 60),
-        "sort_by": "fee_tvl_ratio_1h:desc",
+        "page_size": min(limit, 100),
+        "sort_by": "fee_tvl_ratio_24h:desc",
         "filter_by": f"is_blacklisted=false && tvl>={min_tvl}",
     }
     u1 = "https://dlmm.datapi.meteora.ag/pools?" + urllib.parse.urlencode(p1)
@@ -2280,8 +2280,12 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         pool_fee_24h = vol_24h * 0.01  # Flat 100 bps / 1% DLMM fee
     fee_tier = str(row.get("fee_tier") or (f"{float(row['fee_rate'])*100:.2f}%" if row.get("fee_rate") else "1.00%"))
 
-    # Estimasi Fee/Total TVL 24 jam (%)
-    fee_tvl_ratio = round((pool_fee_24h / liq * 100.0), 2) if liq > 0 else 0.0
+    # Fee/Total TVL 24 jam (%) - Gunakan data riil Meteora jika tersedia
+    real_fee_tvl = num(row, "fee_tvl_ratio", "fee_tvl")
+    if real_fee_tvl > 0:
+        fee_tvl_ratio = round(real_fee_tvl, 2)
+    else:
+        fee_tvl_ratio = round((pool_fee_24h / liq * 100.0), 2) if liq > 0 else 0.0
     # Active Bin TVL (~4.5% of TVL di Meteora DLMM 100 bps)
     active_tvl_pct = 4.5
     active_tvl = round(liq * (active_tvl_pct / 100.0), 2)
@@ -2384,6 +2388,8 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "vol_24h": vol_24h,
         "pool_fee_24h": pool_fee_24h,
         "fee_tier": fee_tier,
+        "pool_address": str(row.get("pool_address") or row.get("pool_addr") or ""),
+        "meteora": str(row.get("meteora") or (f"https://app.meteora.ag/dlmm/{row['pool_address']}" if row.get("pool_address") else (f"https://app.meteora.ag/dlmm/{addr}" if chain == "SOL" else ""))),
         "logo": str(row.get("logo") or row.get("image_url") or row.get("logo_url") or ""),
     }
 
@@ -3002,16 +3008,92 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
         if source == "GMGN":
             # 1. Fetch Solana
             if chain_mode in ("BOTH", "SOL"):
+                # Pre-fetch Meteora DLMM pools agar semua token memiliki yield Fee/TVL riil dari Meteora
+                meteora_pools: list[dict] = []
+                meteora_map: dict[str, dict] = {}
+                try:
+                    meteora_pools = fetch_meteora_dlmm_pools(limit=100, min_tvl=int(min_liq))
+                    for p in meteora_pools:
+                        tx = (p.get("token_x") or {}).get("address", "")
+                        ty = (p.get("token_y") or {}).get("address", "")
+                        m_addr = tx if tx not in QUOTE_MINTS else ty
+                        if m_addr and m_addr not in meteora_map:
+                            meteora_map[m_addr] = p
+                except Exception as e:
+                    print(f"[{get_wib_str()}] [Meteora Pre-fetch] Error: {e}", file=sys.stderr)
+
                 raw_sol = fetch_gmgn_tokens("sol", api_key=api_key, limit=50)
+                sol_addrs_seen = set()
                 if raw_sol:
                     for r in raw_sol:
                         r["chain"] = "SOL"
+                        addr = str(r.get("address") or "")
+                        if addr:
+                            sol_addrs_seen.add(addr)
+                        # Sematkan data riil Meteora DLMM jika token ada di pool Meteora
+                        if addr in meteora_map:
+                            mp = meteora_map[addr]
+                            r["fee_tvl_ratio"] = float(mp.get("fee_tvl_ratio", {}).get("24h") or 0.0)
+                            r["fees_24h"] = float(mp.get("fees", {}).get("24h") or 0.0)
+                            r["volume_24h"] = float(mp.get("volume", {}).get("24h") or 0.0)
+                            base_fee = (mp.get("pool_config") or {}).get("base_fee_pct")
+                            if base_fee is not None:
+                                r["fee_tier"] = f"{float(base_fee):.2f}%"
+                            r["pool_address"] = mp.get("address")
+                            r["meteora"] = f"https://app.meteora.ag/dlmm/{mp.get('address')}"
                         scored_tokens.append(score_gmgn_token(r, conf))
-                    print(f"[{get_wib_str()}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana.")
+                    print(f"[{get_wib_str()}] Berhasil mengambil {len(raw_sol)} token dari GMGN Solana (enriched with Meteora DLMM).")
+
+                    # Tambahkan pool-pool Meteora DLMM top yield yang belum ada di daftar GMGN
+                    unseen_meteora = [
+                        p for p in meteora_pools
+                        if (
+                            ((p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS and (p.get("token_x") or {}).get("address", "") not in sol_addrs_seen)
+                            or ((p.get("token_y") or {}).get("address", "") not in QUOTE_MINTS and (p.get("token_y") or {}).get("address", "") not in sol_addrs_seen)
+                        )
+                    ]
+                    if unseen_meteora:
+                        unseen_addrs = [
+                            (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
+                            for p in unseen_meteora
+                        ]
+                        dex_data = fetch_dexscreener_batch(unseen_addrs[:40])
+                        for p in unseen_meteora[:40]:
+                            tx = (p.get("token_x") or {}).get("address", "")
+                            ty = (p.get("token_y") or {}).get("address", "")
+                            m_addr = tx if tx not in QUOTE_MINTS else ty
+                            if not m_addr or m_addr in sol_addrs_seen:
+                                continue
+                            sol_addrs_seen.add(m_addr)
+                            d = dex_data.get(m_addr, {})
+                            base_fee = (p.get("pool_config") or {}).get("base_fee_pct", 1.0)
+                            t_score = score_gmgn_token({
+                                "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
+                                "name": p.get("name", ""),
+                                "address": m_addr,
+                                "chain": "SOL",
+                                "price": d.get("priceUsd") or 0.0,
+                                "liquidity": float(p.get("tvl") or 0.0),
+                                "volume": float(p.get("volume", {}).get("1h") or 0.0),
+                                "volume_24h": float(p.get("volume", {}).get("24h") or 0.0),
+                                "fees_24h": float(p.get("fees", {}).get("24h") or 0.0),
+                                "fee_tvl_ratio": float(p.get("fee_tvl_ratio", {}).get("24h") or 0.0),
+                                "fee_tier": f"{float(base_fee):.2f}%",
+                                "pool_address": p.get("address"),
+                                "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
+                                "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
+                                "market_cap": float(d.get("marketCap") or d.get("fdv") or (p.get("token_x") or {}).get("market_cap") or 0.0),
+                                "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
+                                "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
+                                "holders": int((p.get("token_x") or {}).get("holders") or 0),
+                            }, conf)
+                            t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
+                            t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
+                            scored_tokens.append(t_score)
                 else:
                     print(f"[{get_wib_str()}] GMGN SOL tidak merespons, beralih ke Meteora Fallback...")
                     try:
-                        pools_raw = fetch_meteora_dlmm_pools(limit=50, min_tvl=int(min_liq))
+                        pools_raw = fetch_meteora_dlmm_pools(limit=100, min_tvl=int(min_liq))
                         meme_addrs = [
                             (p.get("token_x") or {}).get("address", "") if (p.get("token_x") or {}).get("address", "") not in QUOTE_MINTS else (p.get("token_y") or {}).get("address", "")
                             for p in pools_raw
@@ -3022,6 +3104,7 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                             ty = (p.get("token_y") or {}).get("address", "")
                             m_addr = tx if tx not in QUOTE_MINTS else ty
                             d = dex_data.get(m_addr, {})
+                            base_fee = (p.get("pool_config") or {}).get("base_fee_pct", 1.0)
                             t_score = score_gmgn_token({
                                 "symbol": (p.get("token_x") or {}).get("symbol") or p.get("name", "").split("-")[0],
                                 "name": p.get("name", ""),
@@ -3030,11 +3113,17 @@ def execute_full_scan(conf: dict[str, Any], force: bool = False, override_chain:
                                 "price": d.get("priceUsd") or 0.0,
                                 "liquidity": float(p.get("tvl") or 0.0),
                                 "volume": float(p.get("volume", {}).get("1h") or 0.0),
+                                "volume_24h": float(p.get("volume", {}).get("24h") or 0.0),
+                                "fees_24h": float(p.get("fees", {}).get("24h") or 0.0),
+                                "fee_tvl_ratio": float(p.get("fee_tvl_ratio", {}).get("24h") or 0.0),
+                                "fee_tier": f"{float(base_fee):.2f}%",
+                                "pool_address": p.get("address"),
                                 "price_change_percent5m": float(d.get("priceChange", {}).get("m5") or 0.0),
                                 "price_change_percent1h": float(d.get("priceChange", {}).get("h1") or 0.0),
-                                "market_cap": float(d.get("marketCap") or d.get("fdv") or 0.0),
+                                "market_cap": float(d.get("marketCap") or d.get("fdv") or (p.get("token_x") or {}).get("market_cap") or 0.0),
                                 "buys": int(d.get("txns", {}).get("h1", {}).get("buys") or 0),
                                 "sells": int(d.get("txns", {}).get("h1", {}).get("sells") or 0),
+                                "holders": int((p.get("token_x") or {}).get("holders") or 0),
                             }, conf)
                             t_score["meteora"] = f"https://app.meteora.ag/dlmm/{p.get('address')}"
                             t_score["url"] = t_score.get("gmgn") or f"https://gmgn.ai/sol/token/{m_addr}"
