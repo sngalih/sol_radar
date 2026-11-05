@@ -2271,14 +2271,14 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
     is_toxic_flow = bool(vl >= min_toxic_vl and liq < max_toxic_tvl)
 
     # ── Active Bin Yield & Meteora DLMM Metrics ─────────────────────────────
-    # Total Pool Fee 24h (USD)
+    # Total Pool Fee 24h & Volume 24h (USD)
+    vol_24h = num(row, "volume_24h", "volume24h", "vol_24h")
+    if vol_24h <= 0 and vol > 0:
+        vol_24h = vol * 24.0
     pool_fee_24h = num(row, "fees_24h", "fees_usd_24h", "pool_fee_24h")
-    if pool_fee_24h <= 0:
-        vol_24h = num(row, "volume_24h", "volume24h", "vol_24h")
-        if vol_24h > 0:
-            pool_fee_24h = vol_24h * 0.01  # Flat 100 bps / 1% DLMM fee
-        elif vol > 0:
-            pool_fee_24h = vol * 24.0 * 0.01  # Extrapolasi dari 1h volume ke 24h
+    if pool_fee_24h <= 0 and vol_24h > 0:
+        pool_fee_24h = vol_24h * 0.01  # Flat 100 bps / 1% DLMM fee
+    fee_tier = str(row.get("fee_tier") or (f"{float(row['fee_rate'])*100:.2f}%" if row.get("fee_rate") else "1.00%"))
 
     # Estimasi Fee/Total TVL 24 jam (%)
     fee_tvl_ratio = round((pool_fee_24h / liq * 100.0), 2) if liq > 0 else 0.0
@@ -2381,6 +2381,9 @@ def score_gmgn_token(row: dict, conf: dict[str, Any]) -> dict[str, Any]:
         "buys": buys,
         "sells": sells,
         "holders": holder_count,
+        "vol_24h": vol_24h,
+        "pool_fee_24h": pool_fee_24h,
+        "fee_tier": fee_tier,
         "logo": str(row.get("logo") or row.get("image_url") or row.get("logo_url") or ""),
     }
 

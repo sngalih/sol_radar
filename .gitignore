@@ -1,6 +1,9 @@
 # Environment variables & secrets
 .env
 *.env
+.env*
+*.env*
+bot_trade_journal*.json
 
 # Local filters & runtime state files (prevent token/credential leaks)
 *-filters.json

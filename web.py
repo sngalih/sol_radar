@@ -1137,57 +1137,336 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     /* ===== DATA-PUBLIC FEED TABLE ===== */
+    /* ── LP Agent Aesthetic Table Styling ── */
+    .lp-table-topbar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: #0f1117;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      box-sizing: border-box;
+    }
+    .lp-table-count {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .lp-table-count strong {
+      color: #ffffff;
+      font-weight: 700;
+    }
+    .lp-table-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .lp-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .lp-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      box-shadow: 0 0 6px #10b981;
+      animation: lpPulse 2s infinite ease-in-out;
+    }
+    @keyframes lpPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+
     .table-container {
       width: 100%;
       overflow-x: auto;
-      background: var(--bg);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
+      background: #0b0c10;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0 0 8px 8px;
       -webkit-overflow-scrolling: touch;
+      box-sizing: border-box;
     }
     .arc-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       text-align: left;
       font-size: 13px;
-      line-height: 1.45;
-      min-width: 960px;
+      line-height: 1.4;
+      min-width: 1200px;
     }
     .arc-thead th {
-      background: var(--card-bg);
-      color: var(--text-sub);
+      background: #13151b;
+      color: #848e9c;
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      padding: 7px 10px;
-      border-bottom: 1px solid var(--card-border);
+      letter-spacing: 0.05em;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       white-space: nowrap;
       position: sticky;
       top: 0;
       z-index: 5;
     }
+    .arc-thead th.sortable {
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.15s ease;
+    }
+    .arc-thead th.sortable:hover {
+      color: #f1f5f9;
+    }
+    .arc-thead th.sort-active {
+      color: #10b981;
+    }
+
     .arc-tr {
-      border-bottom: 1px solid var(--card-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      height: 56px;
       transition: background 0.12s ease;
     }
     .arc-tr:hover {
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.025);
     }
     .arc-tr.rank-1 { background: rgba(255, 194, 75, 0.02); }
     .arc-tr.rank-2 { background: rgba(226, 232, 240, 0.01); }
     .arc-tr.rank-3 { background: rgba(249, 115, 22, 0.01); }
 
     .arc-td {
-      padding: 5px 8px;
+      padding: 8px 12px;
       vertical-align: middle;
-      font-size: 12.5px;
-      height: 38px;
-      line-height: 1.25;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
     .arc-td.mono {
       font-family: var(--font-mono);
       font-size: 12px;
+    }
+    .lp-cell-right { text-align: right; }
+    .lp-cell-center { text-align: center; }
+
+    /* LP Agent Pool Component */
+    .lp-pool-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .lp-avatar-box {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+    }
+    .lp-avatar-img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1e222d;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: block;
+    }
+    .lp-avatar-fallback {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      letter-spacing: 0.5px;
+    }
+    .lp-chain-badge-icon {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #0b0c10;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .lp-chain-badge-icon.sol { color: #14f195; }
+    .lp-chain-badge-icon.rh  { color: #7ee0c9; }
+
+    .lp-pool-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .lp-pool-row1 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .lp-pair-symbol {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #ffffff;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: color 0.15s ease;
+    }
+    .lp-pair-symbol:hover {
+      color: #38bdf8;
+    }
+    .lp-fee-pill {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 1px 5px;
+      white-space: nowrap;
+      font-family: var(--font-mono);
+      line-height: 1.2;
+    }
+    .lp-audit-pill {
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 1px 5px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      line-height: 1.2;
+    }
+    .lp-audit-pill.audit-high {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .lp-audit-pill.audit-mid {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .lp-audit-pill.audit-low {
+      background: rgba(244, 63, 94, 0.12);
+      color: #f43f5e;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+    }
+
+    .lp-pool-row2 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #64748b;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+    .lp-dex-pill {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      font-size: 9.5px;
+      font-weight: 700;
+      border-radius: 3px;
+      padding: 0 4px;
+      letter-spacing: 0.02em;
+      line-height: 1.3;
+    }
+    .lp-ca-text {
+      color: #64748b;
+      font-size: 11px;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+    .lp-ca-text:hover {
+      color: #94a3b8;
+    }
+    .lp-copy-btn {
+      background: none;
+      border: none;
+      padding: 0 2px;
+      cursor: pointer;
+      color: #64748b;
+      font-size: 11px;
+      transition: all 0.15s ease;
+      line-height: 1;
+    }
+    .lp-copy-btn:hover {
+      color: #38bdf8;
+      transform: scale(1.15);
+    }
+    .lp-ext-link {
+      color: #64748b;
+      text-decoration: none;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 0 2px;
+      border-radius: 3px;
+      transition: all 0.15s ease;
+    }
+    .lp-ext-link:hover {
+      color: #38bdf8;
+    }
+    .lp-ext-link.meteora {
+      color: #c084fc;
+    }
+    .lp-ext-link.meteora:hover {
+      color: #e879f9;
+    }
+
+    /* Numeric & Metric Text in Table */
+    .lp-num-green {
+      color: #10b981;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.2;
+    }
+    .lp-num-val {
+      color: #f1f5f9;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    .lp-num-gray {
+      color: #94a3b8;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+    .lp-num-cyan {
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+    .lp-num-sub {
+      color: #c084fc;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      line-height: 1.2;
+      margin-top: 2px;
     }
 
     /* Action button in Table */
@@ -1215,6 +1494,28 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       transform: none;
     }
     .btn-chart:active { transform: scale(0.97); }
+
+    .btn-gmgn-direct {
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      color: #c084fc;
+      font-weight: 700;
+      padding: 2.5px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-gmgn-direct:hover {
+      background: rgba(168, 85, 247, 0.28);
+      border-color: #c084fc;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+    }
 
     .btn-chart-secondary {
       background: transparent;
@@ -2132,6 +2433,47 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       return num.toString();
     }
 
+    /* ---- LP Agent Metric Helpers ---- */
+    function formatLpUsd(val) {
+      if (!val || val <= 0) return "$0.00";
+      if (val >= 1e9) return "$" + (val / 1e9).toFixed(2) + "b";
+      if (val >= 1e6) return "$" + (val / 1e6).toFixed(2) + "m";
+      if (val >= 1e3) return "$" + (val / 1e3).toFixed(2) + "k";
+      return "$" + val.toFixed(2);
+    }
+
+    function formatLpAge(ageHours) {
+      if (ageHours === undefined || ageHours === null || ageHours >= 9999 || ageHours <= 0) return "—";
+      if (ageHours < 1) return Math.max(1, Math.round(ageHours * 60)) + "m";
+      if (ageHours < 24) return Math.round(ageHours) + "h";
+      if (ageHours < 720) return Math.round(ageHours / 24) + "d";
+      if (ageHours < 8760) return Math.round(ageHours / 720) + "mo";
+      return (ageHours / 8760).toFixed(1) + "y";
+    }
+
+    function getTimeAgoStr(ts) {
+      if (!ts) return "recently";
+      const sec = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min} minute${min > 1 ? 's' : ''} ago`;
+      const hr = Math.floor(min / 60);
+      return `${hr} hour${hr > 1 ? 's' : ''} ago`;
+    }
+
+    /* ---- Table Sort State ---- */
+    let tableSort = { col: "fee_tvl", dir: "desc" };
+    window.setTableSort = function(col) {
+      if (tableSort.col === col) {
+        tableSort.dir = tableSort.dir === "desc" ? "asc" : "desc";
+      } else {
+        tableSort.col = col;
+        tableSort.dir = "desc";
+      }
+      lastRenderStateKey = "";
+      renderCards();
+    };
+
     /* ---- View Mode Toggle ---- */
     function setViewMode(mode) {
       viewMode = mode;
@@ -2698,7 +3040,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             const rankBadge = getRankBadge(idx);
             const mcapStr = formatUsd(t.mcap || 0);
             const vlStr = (t.vl || 0).toFixed(1) + "x";
-            const avatarHtml = "";
+            const avatarHtml = `
+              <div class="lp-avatar-box" style="width:32px;height:32px">
+                ${t.logo ? `<img src="${escapeHtml(t.logo)}" class="lp-avatar-img" style="width:32px;height:32px" alt="${escapeHtml(t.symbol || '')}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />` : ''}
+                <div class="lp-avatar-fallback" style="width:32px;height:32px;font-size:11px;${t.logo ? 'display:none' : 'display:flex'}">${escapeHtml((t.symbol || '?').slice(0, 2).toUpperCase())}</div>
+                <span class="lp-chain-badge-icon ${isRh ? 'rh' : 'sol'}" style="width:12px;height:12px;font-size:7px">${isRh ? 'RH' : '◎'}</span>
+              </div>`;
 
             let stratCls = "state-momentum", stratIcon = "⚡";
             if (t.strategy_key === "siap_lp") { stratCls = "state-chop"; stratIcon = "🟢"; }
@@ -2741,6 +3088,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           });
 
           container.innerHTML = `
+            <div class="lp-table-topbar">
+              <div class="lp-table-count">
+                <strong>${filtered.length} token</strong> dalam riwayat 24 jam
+              </div>
+              <div class="lp-table-meta">
+                <span class="lp-live-badge"><span class="lp-pulse-dot"></span>Updated ${getTimeAgoStr(globalState.scanned_timestamp)}</span>
+              </div>
+            </div>
             <div class="table-container">
               <table class="arc-table">
                 <thead class="arc-thead">
@@ -2829,87 +3184,103 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         return;
       }
 
-      // Render Table View (ArcTools Dense Trading Style)
+      // Render Table View (LP Agent Style)
       if (viewMode === "table") {
+        // Apply table sorting
+        const sortList = [...filtered];
+        if (tableSort && tableSort.col) {
+          const sc = tableSort.col;
+          const sdir = tableSort.dir === "asc" ? 1 : -1;
+          sortList.sort((a, b) => {
+            let va = 0, vb = 0;
+            if (sc === "fee_tvl") {
+              va = a.fee_tvl_ratio || ((a.fee_24h && a.liq) ? (a.fee_24h / a.liq * 100) : 0);
+              vb = b.fee_tvl_ratio || ((b.fee_24h && b.liq) ? (b.fee_24h / b.liq * 100) : 0);
+            } else if (sc === "liq") {
+              va = a.liq || 0; vb = b.liq || 0;
+            } else if (sc === "vol_24h") {
+              va = a.vol_24h || (a.vol ? a.vol * 24 : 0);
+              vb = b.vol_24h || (b.vol ? b.vol * 24 : 0);
+            } else if (sc === "fees_24h") {
+              va = a.pool_fee_24h || a.fee_24h || 0;
+              vb = b.pool_fee_24h || b.fee_24h || 0;
+            } else if (sc === "mcap") {
+              va = a.mcap || 0; vb = b.mcap || 0;
+            } else if (sc === "holders") {
+              va = a.holders || 0; vb = b.holders || 0;
+            } else if (sc === "age") {
+              va = a.age_hours || 0; vb = b.age_hours || 0;
+            } else if (sc === "vl") {
+              va = a.vl || 0; vb = b.vl || 0;
+            } else if (sc === "p1") {
+              va = a.p1 || 0; vb = b.p1 || 0;
+            } else if (sc === "safe") {
+              va = a.score || 0; vb = b.score || 0;
+            }
+            return (va - vb) * sdir;
+          });
+        }
+
+        const chainMode = (globalState.chain_mode || "SOL").toUpperCase();
+        const chainLabel = chainMode === "SOL" ? "Solana" : (chainMode === "RH" ? "Robinhood" : "Solana & Robinhood");
+        const updatedTimeAgo = getTimeAgoStr(globalState.scanned_timestamp);
+
         let tRows = "";
-        filtered.forEach((t, idx) => {
+        sortList.forEach((t, idx) => {
           const isRh = (t.chain || "SOL").toUpperCase() === "RH";
-          const chainBadge = isRh
-            ? `<span class="chain-pill rh" style="font-size:9px;padding:1px 4px;margin-left:4px">RH</span>`
-            : `<span class="chain-pill sol" style="font-size:9px;padding:1px 4px;margin-left:4px">SOL</span>`;
+          const quoteSymbol = isRh ? "USDC" : "SOL";
           const rankBadge = getRankBadge(idx);
           const rankClass = idx === 0 ? "rank-1" : (idx === 1 ? "rank-2" : (idx === 2 ? "rank-3" : ""));
 
-          const feeHour = t.fee_hour ? `$${t.fee_hour.toFixed(2)}/h` : "$0.00/h";
-          const feeDay  = t.fee_24h  ? `+$${t.fee_24h.toFixed(1)}/24h` : "";
-          const mcapStr = formatUsd(t.mcap || 0);
-          const liqStr  = formatUsd(t.liq  || 0);
-          const vlStr   = (t.vl || 0).toFixed(1) + "x";
-          const priceStr = formatPrice(t.price || 0);
           const addrStr = t.address || "";
-          const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
-          const ageHtml = formatAge(t.age_hours);
-          const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
-          const avatarHtml = "";
+          const caShort = addrStr ? (addrStr.slice(0, 6) + "..." + addrStr.slice(-4)) : "";
+          const venueTag = isRh ? "Uni-V4" : (t.meteora || (t.url && t.url.includes("meteora")) ? "DLMM" : "DLMM");
 
-          // ER badge
-          const erVal = t.er !== undefined ? t.er : 999;
-          let erClass = "er-high", erText = "High";
-          if      (erVal <= 3)  { erClass = "er-prime"; erText = "Prime"; }
-          else if (erVal <= 6)  { erClass = "er-good";  erText = "Good"; }
-          else if (erVal <= 15) { erClass = "er-mid";   erText = "Mid"; }
-          const erBadge = `<span class="er-badge ${erClass}">${erVal.toFixed(1)} · ${erText}</span>`;
+          const feeTier = t.fee_tier || (t.fee_rate ? `${(t.fee_rate * 100).toFixed(2)}%` : "1.00%");
+          const sScore = Math.round(t.score || 0);
 
-          // Volatility
+          const vol24h = t.vol_24h || (t.vol ? t.vol * 24 : 0);
+          const poolFee24h = t.pool_fee_24h || (t.fee_24h ? t.fee_24h : vol24h * 0.01);
+          const feeTvl = (t.fee_tvl_ratio !== undefined && t.fee_tvl_ratio !== null && t.fee_tvl_ratio > 0)
+            ? Number(t.fee_tvl_ratio)
+            : ((poolFee24h && t.liq) ? (Number(poolFee24h) / Number(t.liq) * 100.0) : 0);
+
+          const vlStr = (t.vl || 0).toFixed(1) + "x";
           const p5 = t.p5 || 0, p1 = t.p1 || 0;
           const p5Str = (p5 >= 0 ? "+" : "") + p5.toFixed(1) + "%";
           const p1Str = (p1 >= 0 ? "+" : "") + p1.toFixed(1) + "%";
 
-          // Order flow
-          const buys = t.buys || 0, sells = t.sells || 0;
-          const buyRatio = t.buy_ratio !== undefined ? Math.round(t.buy_ratio) : 50;
-
-          // Safety grade
-          const sScore = Math.round(t.score || 0);
-          const sGrade = sScore >= 80 ? "A" : (sScore >= 65 ? "B" : (sScore >= 50 ? "C" : "D"));
-
-          // State Pill
-          const mState = t.micro_state || "NEUTRAL";
-          let spClass = "state-neutral", spIcon = "🎯";
-          if (activeCategory === "runner")      { spClass = "state-runner";     spIcon = "🚀"; }
-          else if (activeCategory === "bonus_stage") { spClass = "state-bonus"; spIcon = "🎮"; }
-          else if (activeCategory === "momentum_5m") { spClass = "state-momentum"; spIcon = "⚡"; }
-          else if (activeCategory === "break_ath")  { spClass = "state-ath";        spIcon = "🚀"; }
-          else if (mState === "ABSORPTION")    { spClass = "state-absorption"; spIcon = "📡"; }
-          else if (mState === "REACCUMULATION"){ spClass = "state-reaccum";    spIcon = "🔄"; }
-          else if (mState === "DISTRIBUTION")  { spClass = "state-distrib";    spIcon = "⚠️"; }
-          else if (t.is_chop)                  { spClass = "state-chop";       spIcon = "🟢"; }
-          const spLabel = activeCategory === "runner" ? "Spot Runner 🚀" : (activeCategory === "bonus_stage" ? "Bonus Stage 🎮" : (activeCategory === "momentum_5m" ? "5M Momentum ⚡" : (activeCategory === "break_ath" ? "Break ATH ✓" : (t.status_label || (t.is_chop ? "Chop Sideways" : "Monitoring")))));
-
+          const gmgnUrl = t.url || (isRh ? `https://gmgn.ai/robinhood/token/${addrStr}` : `https://gmgn.ai/sol/token/${addrStr}`);
           const dexsUrl = isRh ? `https://fomo.family/token/${addrStr}` : `https://dexscreener.com/solana/${addrStr}`;
           const dexsLabel = isRh ? "FOMO ↗" : "DexS ↗";
+          const meteoraUrl = t.meteora || (isRh ? "" : `https://app.meteora.ag/dlmm/${addrStr}`);
+
+          const poolGrade = (t.pool_grade || "").toUpperCase();
+          const isToxic = !!t.is_toxic_flow;
+          const gradeBadge = poolGrade ? `<span class="badge-grade-${poolGrade.toLowerCase()}" style="margin-left:2px" title="Meteora DLMM Grade ${poolGrade}">Grade ${poolGrade}</span>` : "";
+          const toxicBadge = isToxic ? `<span class="badge-toxic-mev" style="margin-left:2px" title="Toxic MEV Warning">Toxic MEV</span>` : "";
 
           // Sub-details if Runner, Bonus, Momentum, ATH
           let subRowHtml = "";
-          if (activeCategory === "runner") {
+          if (activeCategory === "runner" || t.runner_label) {
             const tierStr = t.runner_label || "🚀 Runner";
-            const v5mStr = formatUsd(t.vol_5m || (t.vol ? t.vol / 12 : 0));
-            subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:8px;white-space:nowrap">${tierStr} · Vol5m: ${v5mStr}</span>`;
-          } else if (activeCategory === "bonus_stage") {
+            subRowHtml = `<span style="color:#22d3ee;font-size:10px;margin-left:4px;white-space:nowrap">${tierStr}</span>`;
+          } else if (activeCategory === "bonus_stage" || t.st_retrace_pct !== undefined) {
             const dist = (t.st_retrace_pct !== undefined) ? (t.st_retrace_pct >= 0 ? `+${t.st_retrace_pct}%` : `${t.st_retrace_pct}%`) : "";
-            subRowHtml = `<span style="color:#c084fc;font-size:10px;margin-left:8px;white-space:nowrap">🎮 ST ${dist}</span>`;
+            subRowHtml = `<span style="color:#c084fc;font-size:10px;margin-left:4px;white-space:nowrap">🎮 ST ${dist}</span>`;
           } else if (activeCategory === "momentum_5m") {
-            subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:8px;white-space:nowrap">⚡ V5: ${formatUsd(t.vol_5m || t.vol || 0)}</span>`;
-          } else if (activeCategory === "break_ath") {
-            subRowHtml = `<span style="color:var(--cyan-light);font-size:10px;margin-left:8px;white-space:nowrap">🚀 +${t.breakout_pct || 0}%</span>`;
+            subRowHtml = `<span style="color:#fde047;font-size:10px;margin-left:4px;white-space:nowrap">⚡ Momentum</span>`;
+          } else if (activeCategory === "break_ath" || t.breakout_pct) {
+            subRowHtml = `<span style="color:var(--cyan-light);font-size:10px;margin-left:4px;white-space:nowrap">🚀 +${t.breakout_pct || 0}%</span>`;
           } else if (activeCategory === "gaps" && t.gap_reasons && t.gap_reasons.length) {
             const gapShort = t.gap_reasons[0].split('(')[0].trim();
-            subRowHtml = `<span style="color:var(--red);font-size:10px;margin-left:8px;white-space:nowrap">❌ ${gapShort}</span>`;
+            subRowHtml = `<span style="color:var(--red);font-size:10px;margin-left:4px;white-space:nowrap">❌ ${gapShort}</span>`;
           }
 
-          // Social link
-          const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X">𝕏</a>` : '';
-          const histInfo = histLookup[(t.address || "").toLowerCase()];
+          const stratTagsHtml = t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px;color:${tg.color};border:1px solid ${tg.color}40;padding:1px 4px;border-radius:3px;margin-left:4px">${tg.name}</span>`).join("") : "";
+          const twitterHtml = t.twitter_url ? `<a href="${t.twitter_url}" target="_blank" rel="noopener noreferrer" class="social-link" title="Twitter / X" style="margin-left:3px">𝕏</a>` : "";
+
+          const histInfo = histLookup[(addrStr || "").toLowerCase()];
           const histShortTime = histInfo ? (histInfo.summary_times_short || histInfo.last_seen_wib || "") : "";
           const histBadge = (histInfo && histInfo.count > 1)
             ? `<span class="badge-hist-compact" style="margin-left:0" title="Sinyal muncul ${histInfo.count}x: ${escapeHtml(histInfo.summary_times)}">🕒 ${histInfo.count}x${histShortTime ? ' (' + escapeHtml(histShortTime) + ')' : ''}</span>`
@@ -2917,66 +3288,111 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 ? `<span class="badge-hist-compact" style="margin-left:0;background:rgba(255,255,255,0.04);color:var(--text-sub);border-color:rgba(255,255,255,0.1)" title="Baru muncul 1x: ${escapeHtml(histInfo.summary_times)}">1x (${escapeHtml(histInfo.last_seen_wib || histShortTime)})</span>`
                 : '<span style="color:var(--text-dim);font-size:11px">—</span>');
 
-          const poolGrade = (t.pool_grade || "").toUpperCase();
-          const isToxic = !!t.is_toxic_flow;
-          const gradeBadge = poolGrade ? `<span class="badge-grade-${poolGrade.toLowerCase()}" style="margin-left:3px" title="Meteora DLMM Grade: ${poolGrade} · Active Bin Yield: ${t.fee_active_tvl_ratio || 0}%/24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">Grade ${poolGrade}</span>` : "";
-          const toxicBadge = isToxic ? `<span class="badge-toxic-mev" style="margin-left:3px" title="⚠️ Toxic MEV Warning: Vol/TVL >= 4.0x & Liq < $100k">Toxic MEV</span>` : "";
           const activeYieldSub = (t.fee_active_tvl_ratio && t.fee_active_tvl_ratio > 0)
-            ? `<div style="font-size:9.5px;color:#c084fc;font-weight:700" title="Active Bin Yield (Run-rate DLMM): ${t.fee_active_tvl_ratio}% / 24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">⚡ ${t.fee_active_tvl_ratio}%</div>`
+            ? `<div class="lp-num-sub" title="Active Bin Yield (DLMM Scalper Run-Rate): ${t.fee_active_tvl_ratio}% / 24h">⚡ ${t.fee_active_tvl_ratio}% bin</div>`
             : "";
 
           tRows += `
             <tr class="arc-tr ${rankClass}">
-              <td class="arc-td" style="width:36px;text-align:center;white-space:nowrap">${rankBadge}</td>
-              <td class="arc-td" style="white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis">
-                <div style="display:flex;align-items:center;gap:5px">
-                  ${avatarHtml}
-                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" style="font-weight:700;font-size:13px;color:var(--text-main);text-decoration:none">${t.symbol || "?"}</a>
-                  ${chainBadge}${gradeBadge}${toxicBadge} ${t.strat_tags ? t.strat_tags.map(tg => `<span style="font-size:9px; color:${tg.color}; border:1px solid ${tg.color}40; padding:1px 4px; border-radius:3px; margin-left:4px;">${tg.name}</span>`).join("") : ""}
-                  ${twitterHtml}
-                  ${subRowHtml}
+              <td class="arc-td lp-cell-center" style="width:36px;white-space:nowrap">${rankBadge}</td>
+              <td class="arc-td" style="min-width:270px;white-space:nowrap">
+                <div class="lp-pool-wrap">
+                  <div class="lp-avatar-box">
+                    ${t.logo ? `<img src="${escapeHtml(t.logo)}" class="lp-avatar-img" alt="${escapeHtml(t.symbol || '')}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />` : ''}
+                    <div class="lp-avatar-fallback" style="${t.logo ? 'display:none' : 'display:flex'}">${escapeHtml((t.symbol || '?').slice(0, 2).toUpperCase())}</div>
+                    <span class="lp-chain-badge-icon ${isRh ? 'rh' : 'sol'}" title="${isRh ? 'Robinhood Chain' : 'Solana'}">${isRh ? 'RH' : '◎'}</span>
+                  </div>
+                  <div class="lp-pool-info">
+                    <div class="lp-pool-row1">
+                      <a href="${gmgnUrl}" target="_blank" rel="noopener noreferrer" class="lp-pair-symbol" title="Buka chart GMGN ${escapeHtml(t.symbol || '')}">${escapeHtml(t.symbol || '?')} / ${quoteSymbol}</a>
+                      <span class="lp-fee-pill" title="Pool Fee Tier">${feeTier}</span>
+                      <span class="lp-audit-pill ${sScore >= 80 ? 'audit-high' : (sScore >= 60 ? 'audit-mid' : 'audit-low')}" title="Safety Score: ${sScore}/100 · Top10: ${t.top10_rate || 0}% · Dev: ${t.dev_team_hold || 0}% · Rat: ${t.insider_rate || 0}%">🛡️ ${sScore}</span>
+                      ${gradeBadge}
+                      ${toxicBadge}
+                      ${subRowHtml}
+                      ${stratTagsHtml}
+                      ${twitterHtml}
+                    </div>
+                    <div class="lp-pool-row2">
+                      <span class="lp-dex-pill">${venueTag}</span>
+                      <span class="lp-ca-text" onclick="copyCA('${addrStr}', this)" title="Klik untuk salin CA">${caShort}</span>
+                      <button class="lp-copy-btn" onclick="copyCA('${addrStr}', this)" title="Salin Contract Address">📋</button>
+                      <a href="${gmgnUrl}" target="_blank" rel="noopener noreferrer" class="lp-ext-link">GMGN ↗</a>
+                      <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="lp-ext-link">${dexsLabel}</a>
+                      ${meteoraUrl ? `<a href="${meteoraUrl}" target="_blank" rel="noopener noreferrer" class="lp-ext-link meteora">Meteora ↗</a>` : ''}
+                    </div>
+                  </div>
                 </div>
               </td>
-              <td class="arc-td mono" style="text-align:center;font-weight:700;color:var(--teal);font-size:12.5px;white-space:nowrap">${vlStr}</td>
-              <td class="arc-td" style="text-align:center;white-space:nowrap">
-                <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-                  <span class="state-pill ${spClass}" style="padding:1px 5px;font-size:9.5px;white-space:nowrap" title="${spLabel}">${spIcon}</span>
-                  <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart">GMGN ↗</a>
+              <td class="arc-td lp-cell-right" style="min-width:115px;white-space:nowrap">
+                <div class="lp-num-green">${feeTvl.toFixed(2)}%</div>
+                ${activeYieldSub}
+              </td>
+              <td class="arc-td lp-cell-right lp-num-val" style="min-width:95px;white-space:nowrap">${formatLpUsd(t.liq || 0)}</td>
+              <td class="arc-td lp-cell-right lp-num-val" style="min-width:100px;white-space:nowrap">${formatLpUsd(vol24h)}</td>
+              <td class="arc-td lp-cell-right lp-num-val" style="min-width:90px;white-space:nowrap">${formatLpUsd(poolFee24h)}</td>
+              <td class="arc-td lp-cell-right lp-num-val" style="min-width:95px;white-space:nowrap">${formatLpUsd(t.mcap || 0)}</td>
+              <td class="arc-td lp-cell-right lp-num-gray" style="min-width:85px;white-space:nowrap">${(t.holders || 0).toLocaleString('en-US')}</td>
+              <td class="arc-td lp-cell-center lp-num-gray" style="width:65px;white-space:nowrap">${formatLpAge(t.age_hours)}</td>
+              <td class="arc-td lp-cell-center lp-num-cyan" style="font-weight:700;width:65px;white-space:nowrap">${vlStr}</td>
+              <td class="arc-td lp-cell-center" style="font-family:var(--font-mono);font-size:12px;white-space:nowrap">
+                <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span>
+                <span style="color:#475569">/</span>
+                <span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span>
+              </td>
+              <td class="arc-td lp-cell-center" style="white-space:nowrap">
+                <div style="font-size:11.5px;font-family:var(--font-mono);font-weight:600;color:#e2e8f0">
+                  ${(t.smart_degen_count > 0 || t.renowned_count > 0) ? `🧠 ${t.smart_degen_count || 0} · 👑 ${t.renowned_count || 0}` : `<span style="color:#64748b">⚠️ 0SM</span>`}
                 </div>
               </td>
-              <td class="arc-td mono" style="font-weight:700;color:var(--text-main);white-space:nowrap">${mcapStr}</td>
-              <td class="arc-td mono" style="color:var(--text-sub);white-space:nowrap">${liqStr}${activeYieldSub}</td>
-              <td class="arc-td mono" style="white-space:nowrap">${erBadge}</td>
-              <td class="arc-td mono" style="font-size:11.5px;white-space:nowrap">
-                <span class="${p1 >= 0 ? 'vol-pos' : 'vol-neg'}">${p1Str}</span> <span style="color:var(--text-dim);font-size:10px">/</span> <span class="${p5 >= 0 ? 'vol-pos' : 'vol-neg'}">${p5Str}</span>
-              </td>
-              <td class="arc-td mono" style="color:var(--green);font-weight:600;white-space:nowrap">${buyRatio}%</td>
-              <td class="arc-td" style="white-space:nowrap">
-                <span class="safety-pill safety-${sGrade}" title="Audit Score: ${sScore}/100 · Smart Money: ${t.smart_degen_count || 0} · KOL: ${t.renowned_count || 0}">${sGrade} ${sScore}</span>
-                <div style="font-size:9.5px;color:var(--text-muted);margin-top:1px;font-family:var(--font-mono)">🧠 ${t.smart_degen_count || 0} · 👑 ${t.renowned_count || 0}</div>
-              </td>
-              <td class="arc-td mono" style="text-align:center;white-space:nowrap">
-                ${histBadge}
-              </td>
+              <td class="arc-td lp-cell-center" style="white-space:nowrap">${histBadge}</td>
             </tr>`;
         });
 
         container.innerHTML = `
+          <div class="lp-table-topbar">
+            <div class="lp-table-count">
+              <strong>${sortList.length} pools</strong> on ${chainLabel}
+            </div>
+            <div class="lp-table-meta">
+              <span class="lp-live-badge"><span class="lp-pulse-dot"></span>Updated ${updatedTimeAgo}</span>
+            </div>
+          </div>
           <div class="table-container">
             <table class="arc-table">
               <thead class="arc-thead">
                 <tr>
                   <th style="width:36px;text-align:center">#</th>
-                  <th>TOKEN</th>
-                  <th style="text-align:center">V/L</th>
-                  <th style="text-align:center">AKSI</th>
-                  <th>MCAP</th>
-                  <th>LIQ</th>
-                  <th>ER</th>
-                  <th>1H / 5M</th>
-                  <th>BUY %</th>
-                  <th>SAFE</th>
-                  <th style="text-align:center;white-space:nowrap">LAST SINYAL</th>
+                  <th style="text-align:left;min-width:270px">POOL</th>
+                  <th onclick="setTableSort('fee_tvl')" class="sortable ${tableSort.col === 'fee_tvl' ? 'sort-active' : ''}" style="text-align:right;min-width:115px" title="Klik untuk mengurutkan Fee/TVL 24h">
+                    ${tableSort.col === 'fee_tvl' ? (tableSort.dir === 'desc' ? '↓ ' : '↑ ') : ''}FEE/TVL 24H ∨
+                  </th>
+                  <th onclick="setTableSort('liq')" class="sortable ${tableSort.col === 'liq' ? 'sort-active' : ''}" style="text-align:right;min-width:95px" title="Klik untuk mengurutkan Likuiditas">
+                    LIQUIDITY ${tableSort.col === 'liq' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('vol_24h')" class="sortable ${tableSort.col === 'vol_24h' ? 'sort-active' : ''}" style="text-align:right;min-width:100px" title="Klik untuk mengurutkan Volume 24h">
+                    VOLUME 24H ${tableSort.col === 'vol_24h' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('fees_24h')" class="sortable ${tableSort.col === 'fees_24h' ? 'sort-active' : ''}" style="text-align:right;min-width:90px" title="Klik untuk mengurutkan Fee 24h">
+                    FEES 24H ${tableSort.col === 'fees_24h' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('mcap')" class="sortable ${tableSort.col === 'mcap' ? 'sort-active' : ''}" style="text-align:right;min-width:95px" title="Klik untuk mengurutkan Market Cap">
+                    MCAP ${tableSort.col === 'mcap' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('holders')" class="sortable ${tableSort.col === 'holders' ? 'sort-active' : ''}" style="text-align:right;min-width:85px" title="Klik untuk mengurutkan Holders">
+                    HOLDERS ${tableSort.col === 'holders' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('age')" class="sortable ${tableSort.col === 'age' ? 'sort-active' : ''}" style="text-align:center;width:65px" title="Klik untuk mengurutkan Umur pool">
+                    AGE ${tableSort.col === 'age' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('vl')" class="sortable ${tableSort.col === 'vl' ? 'sort-active' : ''}" style="text-align:center;width:65px" title="Turnover V/L">
+                    V/L ${tableSort.col === 'vl' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th onclick="setTableSort('p1')" class="sortable ${tableSort.col === 'p1' ? 'sort-active' : ''}" style="text-align:center;min-width:100px" title="Perubahan Harga 1H / 5M">
+                    1H / 5M ${tableSort.col === 'p1' ? (tableSort.dir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                  <th style="text-align:center;min-width:95px" title="Smart Money Degens & KOL GMGN">SM / KOL</th>
+                  <th style="text-align:center;min-width:115px" title="Riwayat sinyal 24 jam terakhir">LAST SINYAL</th>
                 </tr>
               </thead>
               <tbody>${tRows}</tbody>
@@ -3007,7 +3423,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         const caShort = addrStr ? (addrStr.slice(0, 4) + "…" + addrStr.slice(-4)) : "";
         const ageHtml = formatAge(t.age_hours);
         const venueTag = isRh ? "UniswapV4" : (t.url && t.url.includes("meteora") ? "Meteora" : "Raydium");
-        const avatarHtml = "";
+        const avatarHtml = `
+          <div class="lp-avatar-box" style="width:32px;height:32px;margin-right:2px">
+            ${t.logo ? `<img src="${escapeHtml(t.logo)}" class="lp-avatar-img" style="width:32px;height:32px" alt="${escapeHtml(t.symbol || '')}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />` : ''}
+            <div class="lp-avatar-fallback" style="width:32px;height:32px;font-size:11px;${t.logo ? 'display:none' : 'display:flex'}">${escapeHtml((t.symbol || '?').slice(0, 2).toUpperCase())}</div>
+            <span class="lp-chain-badge-icon ${isRh ? 'rh' : 'sol'}" style="width:12px;height:12px;font-size:7px">${isRh ? 'RH' : '◎'}</span>
+          </div>`;
 
         // ER badge
         const erVal = t.er !== undefined ? t.er : 999;
@@ -3125,6 +3546,10 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </div>`
           : "";
 
+        const cardGmgnUrl = t.url || ('https://gmgn.ai/sol/token/' + addrStr);
+        const feeTvl = (t.fee_tvl_ratio !== undefined && t.fee_tvl_ratio !== null)
+          ? Number(t.fee_tvl_ratio)
+          : ((t.fee_24h && t.liq) ? (Number(t.fee_24h) / Number(t.liq) * 100.0) : 0);
         const poolGrade = (t.pool_grade || "").toUpperCase();
         const isToxic = !!t.is_toxic_flow;
         const gradeBadge = poolGrade ? `<span class="badge-grade-${poolGrade.toLowerCase()}" style="margin-left:2px" title="Meteora DLMM Grade: ${poolGrade} · Active Bin Yield: ${t.fee_active_tvl_ratio || 0}%/24h (Fee/TVL: ${t.fee_tvl_ratio || 0}%)">Grade ${poolGrade}</span>` : "";
@@ -3177,10 +3602,11 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <div class="metrics-grid">
+            <div class="metrics-grid" style="grid-template-columns: repeat(5, 1fr);">
               <div class="metric-cell"><div class="m-label">MCAP</div><div class="m-val">${mcapStr}</div></div>
               <div class="metric-cell"><div class="m-label">LIQ TVL</div><div class="m-val">${liqStr}</div></div>
               <div class="metric-cell"><div class="m-label">24H VOL</div><div class="m-val">${formatUsd(t.vol || 0)}</div></div>
+              <div class="metric-cell"><div class="m-label">FEE 24H</div><div class="m-val" style="color:#10b981;font-weight:800">${feeTvl > 0 ? '+' + feeTvl.toFixed(1) + '%' : '—'}</div></div>
               <div class="metric-cell"><div class="m-label">ER SCORE</div><div class="m-val">${erBadge}</div></div>
             </div>
 
@@ -3221,7 +3647,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
                 <a href="${dexsUrl}" target="_blank" rel="noopener noreferrer" class="btn-chart btn-chart-secondary" title="Buka di DexScreener / FOMO">
                   ${dexsLabel}
                 </a>
-                <a href="${t.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn-chart" title="Buka Chart GMGN">
+                <a href="${cardGmgnUrl}" target="_blank" rel="noopener noreferrer" class="btn-chart btn-gmgn-direct" title="Buka Chart GMGN">
                   GMGN ↗
                 </a>
               </div>
